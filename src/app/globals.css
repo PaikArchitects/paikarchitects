@@ -1,0 +1,250 @@
+@import "tailwindcss";
+
+/* ── Design Tokens ─────────────────────────────── */
+@theme {
+  --color-site-bg:    #080706;
+  --color-site-text:  #F0EBE2;
+  --color-site-dim:   #5A5550;
+  --color-site-muted: #2A2724;
+
+  --font-display: 'Cormorant Garamond', Georgia, serif;
+  --font-ui:      'DM Sans', system-ui, sans-serif;
+}
+
+/* ── Base ──────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html { height: 100%; }
+
+body {
+  background-color: #080706;
+  color: #F0EBE2;
+  font-family: 'DM Sans', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  min-height: 100%;
+}
+
+/* ── Selection ─────────────────────────────────── */
+::selection {
+  background: rgba(240, 235, 226, 0.15);
+  color: #F0EBE2;
+}
+
+/* ── Project Card ──────────────────────────────── */
+.project-card {
+  position: relative;
+  overflow: hidden;
+  cursor: pointer;
+  display: block;
+  width: 100%;
+}
+
+.project-card-bg {
+  position: absolute;
+  inset: 0;
+  transition: transform 0.7s cubic-bezier(0.25, 0.46, 0.45, 0.94),
+              filter 0.5s ease;
+  filter: brightness(0.65);
+  will-change: transform, filter;
+}
+
+.project-card:hover .project-card-bg {
+  transform: scale(1.04);
+  filter: brightness(0.82);
+}
+
+.project-card-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  padding: 20px 18px 16px;
+  opacity: 0;
+  transition: opacity 0.38s ease;
+}
+
+.project-card:hover .project-card-overlay {
+  opacity: 1;
+}
+
+.project-card-num {
+  font-family: 'DM Sans', system-ui, sans-serif;
+  font-size: 9px;
+  font-weight: 300;
+  letter-spacing: 0.2em;
+  color: rgba(240, 235, 226, 0.38);
+  margin-bottom: 5px;
+}
+
+.project-card-title {
+  font-family: 'Cormorant Garamond', Georgia, serif;
+  font-size: 15px;
+  font-weight: 400;
+  color: rgba(240, 235, 226, 0.94);
+  line-height: 1.25;
+}
+
+.project-card-meta {
+  font-family: 'DM Sans', system-ui, sans-serif;
+  font-size: 9px;
+  font-weight: 300;
+  color: rgba(240, 235, 226, 0.4);
+  letter-spacing: 0.06em;
+  margin-top: 4px;
+}
+
+/* ── Static card number (always visible, very dim) */
+.project-card-static-num {
+  position: absolute;
+  top: 12px;
+  left: 14px;
+  font-family: 'DM Sans', system-ui, sans-serif;
+  font-size: 9px;
+  letter-spacing: 0.2em;
+  color: rgba(240, 235, 226, 0.18);
+  transition: opacity 0.3s ease;
+  pointer-events: none;
+}
+
+.project-card:hover .project-card-static-num {
+  opacity: 0;
+}
+
+/* ── Grid rows ─────────────────────────────────── */
+.grid-row {
+  display: grid;
+  gap: 4px;
+}
+
+.grid-row-2-wide {
+  grid-template-columns: 62fr 38fr;
+}
+
+.grid-row-3-equal {
+  grid-template-columns: 1fr 1fr 1fr;
+}
+
+.grid-row-2-mid-left {
+  grid-template-columns: 45fr 55fr;
+}
+
+.grid-row-2-wide-right {
+  grid-template-columns: 58fr 42fr;
+}
+
+.grid-row-2-mid-right {
+  grid-template-columns: 42fr 58fr;
+}
+
+/* Card heights by row type */
+.grid-row-2-wide    .project-card,
+.grid-row-2-mid-left .project-card,
+.grid-row-2-wide-right .project-card,
+.grid-row-2-mid-right .project-card {
+  height: 380px;
+}
+
+.grid-row-3-equal .project-card {
+  height: 310px;
+}
+
+/* ── Header ────────────────────────────────────── */
+.site-header {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 50;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px 28px;
+  mix-blend-mode: normal;
+  pointer-events: none;
+}
+
+.site-header-name {
+  font-family: 'Cormorant Garamond', Georgia, serif;
+  font-size: 12px;
+  font-weight: 400;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: rgba(240, 235, 226, 0.85);
+  pointer-events: auto;
+  text-decoration: none;
+}
+
+.site-header-nav {
+  display: flex;
+  gap: 26px;
+  pointer-events: auto;
+}
+
+.site-header-link {
+  font-family: 'DM Sans', system-ui, sans-serif;
+  font-size: 9px;
+  font-weight: 300;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: rgba(240, 235, 226, 0.35);
+  text-decoration: none;
+  transition: color 0.25s ease;
+}
+
+.site-header-link:hover {
+  color: rgba(240, 235, 226, 0.75);
+}
+
+/* ── Footer ────────────────────────────────────── */
+.site-footer {
+  padding: 20px 28px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-top: 0.5px solid rgba(240, 235, 226, 0.06);
+  margin-top: 4px;
+}
+
+.site-footer-left {
+  font-family: 'DM Sans', system-ui, sans-serif;
+  font-size: 9px;
+  letter-spacing: 0.12em;
+  color: rgba(240, 235, 226, 0.22);
+}
+
+.site-footer-right {
+  font-family: 'Cormorant Garamond', Georgia, serif;
+  font-size: 12px;
+  font-style: italic;
+  font-weight: 300;
+  color: rgba(240, 235, 226, 0.28);
+}
+
+/* ── Responsive ────────────────────────────────── */
+@media (max-width: 768px) {
+  .grid-row-2-wide,
+  .grid-row-2-mid-left,
+  .grid-row-2-wide-right,
+  .grid-row-2-mid-right,
+  .grid-row-3-equal {
+    grid-template-columns: 1fr;
+  }
+
+  .grid-row-2-wide    .project-card,
+  .grid-row-2-mid-left .project-card,
+  .grid-row-2-wide-right .project-card,
+  .grid-row-2-mid-right .project-card,
+  .grid-row-3-equal .project-card {
+    height: 260px;
+  }
+
+  .site-header {
+    padding: 16px 20px;
+  }
+
+  .site-header-name {
+    font-size: 10px;
+  }
+}
