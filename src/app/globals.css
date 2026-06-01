@@ -80,7 +80,7 @@ body {
 
 .project-card-title {
   font-family: 'Cormorant Garamond', Georgia, serif;
-  font-size: 15px;
+  font-size: 18px;
   font-weight: 400;
   color: rgba(240, 235, 226, 0.94);
   line-height: 1.25;
@@ -167,9 +167,9 @@ body {
 
 .site-header-name {
   font-family: 'Cormorant Garamond', Georgia, serif;
-  font-size: 12px;
+  font-size: 15px;
   font-weight: 400;
-  letter-spacing: 0.3em;
+  letter-spacing: 0.28em;
   text-transform: uppercase;
   color: rgba(240, 235, 226, 0.85);
   pointer-events: auto;
