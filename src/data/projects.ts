@@ -77,6 +77,7 @@ export const projects: Project[] = [
     result: 'Honorable Mention',
     featured: false,
     displayOrder: 5,
+    coverImage: 'https://res.cloudinary.com/drsybwqg0/image/upload/v1780301125/Cloud_Tectonic_gzditm.jpg',
     coverColor: '#2A1E38',
     location: 'Seoul, KR',
   },
