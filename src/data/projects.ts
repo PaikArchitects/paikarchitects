@@ -31,6 +31,7 @@ export const projects: Project[] = [
     result: 'Winner + Grand Prize',
     featured: false,
     displayOrder: 2,
+coverImage: 'https://res.cloudinary.com/drsybwqg0/image/upload/v1780299388/Elevation_01-2_resize_qzmdrj.jpg',
     coverColor: '#7A4E28',
     location: 'Cheongju, KR',
   },
