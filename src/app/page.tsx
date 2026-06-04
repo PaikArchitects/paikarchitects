@@ -97,13 +97,13 @@ export default function HomePage() {
       <header style={{
         position: 'absolute', top: 0, left: 0, right: 0, zIndex: 200,
         display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start',
-        padding: mobile ? '18px 20px' : '30px 44px',
+        padding: mobile ? '18px 20px' : '28px 44px',
         background: 'transparent',
       } as React.CSSProperties}>
 
         {/* Architect name */}
         <div style={{
-          fontSize: mobile ? 22 : 36,
+          fontSize: mobile ? 18 : 30,
           letterSpacing: mobile ? '0.20em' : '0.22em',
           textTransform: 'uppercase',
           fontWeight: 400,
@@ -115,7 +115,7 @@ export default function HomePage() {
 
         {/* Desktop nav — horizontal */}
         {!mobile && (
-          <nav style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 32, paddingTop: 10 }}>
+          <nav style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 30 }}>
             {[
               { label: 'Work',    href: '/work' },
               { label: 'About',  href: '/about' },
