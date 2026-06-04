@@ -89,7 +89,7 @@ export default function HomePage() {
         position: 'absolute', inset: 0, pointerEvents: 'none',
         background: [
           'linear-gradient(to top, rgba(0,0,0,0.72) 0%, rgba(0,0,0,0.18) 38%, transparent 58%)',
-          'linear-gradient(to bottom, rgba(0,0,0,0.05) 0%, transparent 20%)',
+          'linear-gradient(to bottom, rgba(0,0,0,0.30) 0%, rgba(0,0,0,0.08) 18%, transparent 32%)',
         ].join(', '),
       }} />
 
@@ -97,11 +97,10 @@ export default function HomePage() {
       <header style={{
         position: 'absolute', top: 0, left: 0, right: 0, zIndex: 200,
         display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start',
-        padding: mobile ? '20px 20px' : '38px 44px',
-        background: 'rgba(7,6,5,0.38)',
+        padding: mobile ? '18px 20px' : '30px 44px',
+        background: 'rgba(7,6,5,0.36)',
         backdropFilter: 'blur(22px)',
         WebkitBackdropFilter: 'blur(22px)',
-        borderBottom: '1px solid rgba(255,255,255,0.07)',
       } as React.CSSProperties}>
 
         {/* Architect name */}
