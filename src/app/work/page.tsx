@@ -28,35 +28,51 @@ function WorkCard({ project, mobile }: { project: Project; mobile: boolean }) {
       onMouseLeave={() => setHovered(false)}
     >
       <div style={{ position: 'relative', overflow: 'hidden', height: mobile ? 290 : 340 }}>
-        {/* Full-card image — covers text area too */}
+        {/* Image always fills full card */}
         <div style={{
           position: 'absolute', inset: 0,
           background: cardBg,
-          transform: hovered ? 'scale(1.04)' : 'scale(1)',
+          transform: hovered ? 'scale(1.06)' : 'scale(1)',
           transition: 'transform 0.72s cubic-bezier(0.25,0.46,0.45,0.94)',
         }} />
 
-        {/* Text area — glassmorphism on hover */}
+        {/* Text strip — solid light bg at rest → dark overlay on hover */}
         <div style={{
           position: 'absolute', bottom: 0, left: 0, right: 0,
-          padding: '11px 14px 13px',
-          background: hovered ? 'rgba(248,246,242,0.58)' : 'rgba(248,246,242,0.95)',
-          backdropFilter:       hovered ? 'blur(14px)' : 'blur(0px)',
-          WebkitBackdropFilter: hovered ? 'blur(14px)' : 'blur(0px)',
-          transition: 'background 0.42s ease, backdrop-filter 0.42s ease',
-        } as React.CSSProperties}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 5 }}>
-            <span style={{ fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#9E9E9A', fontWeight: 300 }}>
+          padding: '13px 16px 15px',
+          background: hovered ? 'rgba(0,0,0,0.68)' : '#F8F6F2',
+          transition: 'background 0.42s ease',
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+            <span style={{
+              fontSize: 11, letterSpacing: '0.12em', textTransform: 'uppercase',
+              fontWeight: 300,
+              color: hovered ? 'rgba(255,255,255,0.55)' : '#9E9E9A',
+              transition: 'color 0.42s ease',
+            }}>
               {project.type}
             </span>
-            <span style={{ fontSize: 9, color: '#C2C2BE', fontWeight: 300, letterSpacing: '0.04em' }}>
+            <span style={{
+              fontSize: 11, fontWeight: 300, letterSpacing: '0.06em',
+              color: hovered ? 'rgba(255,255,255,0.45)' : '#C2C2BE',
+              transition: 'color 0.42s ease',
+            }}>
               {String(project.careerNo).padStart(3, '0')}
             </span>
           </div>
-          <div style={{ fontSize: 13, fontWeight: 400, color: '#111110', lineHeight: 1.3, marginBottom: 4 }}>
+          <div style={{
+            fontSize: 15, fontWeight: 400, lineHeight: 1.25, marginBottom: 5,
+            textTransform: 'uppercase', letterSpacing: '0.03em',
+            color: hovered ? '#ffffff' : '#111110',
+            transition: 'color 0.42s ease',
+          }}>
             {project.title}
           </div>
-          <div style={{ fontSize: 9, color: '#B0B0AC', fontWeight: 300, letterSpacing: '0.02em' }}>
+          <div style={{
+            fontSize: 11, fontWeight: 300, letterSpacing: '0.02em',
+            color: hovered ? 'rgba(255,255,255,0.50)' : '#B0B0AC',
+            transition: 'color 0.42s ease',
+          }}>
             {project.result}&nbsp;·&nbsp;{project.location ?? 'Seoul, KR'}
           </div>
         </div>
@@ -95,10 +111,7 @@ export default function WorkPage() {
         position: 'sticky', top: 0, zIndex: 100,
         display: 'flex', justifyContent: 'space-between', alignItems: 'center',
         padding: PAD,
-        background: 'rgba(248,246,242,0.88)',
-        backdropFilter: 'blur(16px)',
-        WebkitBackdropFilter: 'blur(16px)',
-        borderBottom: '1px solid rgba(0,0,0,0.06)',
+        background: '#F8F6F2',
       } as React.CSSProperties}>
         <Link href="/" style={{
           fontSize: mobile ? 18 : 30,
@@ -230,8 +243,8 @@ export default function WorkPage() {
       <div style={{
         display: 'grid',
         gridTemplateColumns: mobile ? 'repeat(2, 1fr)' : 'repeat(4, 1fr)',
-        gap: 4,
-        padding: 4,
+        gap: 12,
+        padding: 0,
       }}>
         {filtered.map(project => (
           <WorkCard key={project.id} project={project} mobile={mobile} />
