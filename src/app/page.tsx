@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
+import { SiteHeader } from '@/components/SiteHeader'
 
 const CDN = 'https://res.cloudinary.com/drsybwqg0/image/upload/'
 
@@ -40,7 +41,6 @@ export default function HomePage() {
   const [hoveredIdx, setHoveredIdx] = useState<number | null>(null)
   const [paused, setPaused]         = useState(false)
   const [mobile, setMobile]         = useState(false)
-  const [menuOpen, setMenuOpen]     = useState(false)
 
   useEffect(() => {
     const fn = () => setMobile(window.innerWidth < 768)
@@ -93,13 +93,7 @@ export default function HomePage() {
         ].join(', '),
       }} />
 
-      {/* Header — glassmorphism */}
-      <header style={{
-        position: 'absolute', top: 0, left: 0, right: 0, zIndex: 200,
-        display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start',
-        padding: mobile ? '18px 20px' : '28px 44px',
-        background: 'transparent',
-      } as React.CSSProperties}>
+      <SiteHeader variant="dark" />
 
         {/* Architect name */}
         <div style={{
@@ -144,33 +138,6 @@ export default function HomePage() {
           </button>
         )}
       </header>
-
-      {/* Mobile fullscreen menu */}
-      {menuOpen && (
-        <div style={{
-          position: 'absolute', inset: 0, zIndex: 300,
-          background: 'rgba(6,5,4,0.97)',
-          display: 'flex', flexDirection: 'column',
-          justifyContent: 'center', padding: '0 32px', gap: 34,
-        }}>
-          <button onClick={() => setMenuOpen(false)}
-            style={{ position: 'absolute', top: 18, right: 24, background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.42)', fontSize: 28, lineHeight: '1' }}>
-            ×
-          </button>
-          {[
-            { label: 'Work',    href: '/work' },
-            { label: 'About',  href: '/about' },
-            { label: 'Contact', href: '/about#contact' },
-          ].map(({ label, href }) => (
-            <Link key={label} href={href} style={{
-              fontSize: 32, letterSpacing: '0.06em', textTransform: 'uppercase',
-              fontWeight: 300, color: '#fff', textDecoration: 'none',
-            }}>
-              {label}
-            </Link>
-          ))}
-        </div>
-      )}
 
       {/* Project list — floating bottom-left */}
       <div style={{

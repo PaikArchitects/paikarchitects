@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { projects } from '@/data/projects'
 import type { Project, ProjectType } from '@/types'
+import { SiteHeader } from '@/components/SiteHeader'
 
 const FONT = "'Pretendard Variable', Pretendard, -apple-system, BlinkMacSystemFont, sans-serif"
 const BG   = '#F8F6F2'
@@ -85,8 +86,6 @@ function WorkCard({ project, mobile }: { project: Project; mobile: boolean }) {
 export default function WorkPage() {
   const [filter, setFilter]   = useState<ProjectType | 'All'>('All')
   const [mobile, setMobile]   = useState(false)
-  const [menuOpen, setMenuOpen] = useState(false)
-
   useEffect(() => {
     const fn = () => setMobile(window.innerWidth < 768)
     fn(); window.addEventListener('resize', fn)
@@ -106,18 +105,7 @@ export default function WorkPage() {
   return (
     <div style={{ fontFamily: FONT, background: BG, minHeight: '100vh', color: '#111110' }}>
 
-      {/* ── Header ─────────────────────────────────────────────────────── */}
-      <header style={{
-        position: 'sticky', top: 0, zIndex: 100,
-        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-        padding: PAD,
-        background: '#F8F6F2',
-      } as React.CSSProperties}>
-        <Link href="/" style={{
-          fontSize: mobile ? 18 : 30,
-          letterSpacing: '0.22em', textTransform: 'uppercase',
-          fontWeight: 400, color: '#111110', textDecoration: 'none', lineHeight: 1.2,
-        }}>
+      <SiteHeader variant="light" activePage="work" />
           Chang Hyun Paik
         </Link>
 
@@ -152,32 +140,6 @@ export default function WorkPage() {
         )}
       </header>
 
-      {/* Mobile menu */}
-      {menuOpen && (
-        <div style={{
-          position: 'fixed', inset: 0, zIndex: 300,
-          background: 'rgba(248,246,242,0.97)',
-          display: 'flex', flexDirection: 'column',
-          justifyContent: 'center', padding: '0 32px', gap: 32,
-        }}>
-          <button onClick={() => setMenuOpen(false)}
-            style={{ position: 'absolute', top: 18, right: 22, background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(17,17,16,0.40)', fontSize: 28 }}>
-            ×
-          </button>
-          {[
-            { label: 'Work', href: '/work' },
-            { label: 'About', href: '/about' },
-            { label: 'Contact', href: '/about#contact' },
-          ].map(({ label, href }) => (
-            <Link key={label} href={href} style={{
-              fontSize: 28, letterSpacing: '0.06em', textTransform: 'uppercase',
-              fontWeight: 300, color: '#111110', textDecoration: 'none',
-            }}>
-              {label}
-            </Link>
-          ))}
-        </div>
-      )}
 
       {/* ── Filters ────────────────────────────────────────────────────── */}
       <div style={{
