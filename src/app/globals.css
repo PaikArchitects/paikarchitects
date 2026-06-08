@@ -2,13 +2,44 @@
 
 @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendardv1.3.9/dist/web/variable/pretendardvariable.min.css');
 
-@keyframes shimmerReveal {
-  0%   { opacity: 0; -webkit-mask-position: -200% center; mask-position: -200% center; }
-  100% { opacity: 1; -webkit-mask-position: 200% center;  mask-position: 200% center;  }
+/* ── ENTRY SPINNER ── */
+.entry-spinner {
+  width: 32px;
+  height: 32px;
+  border: 1.5px solid rgba(255, 255, 255, 0.2);
+  border-top-color: rgba(255, 255, 255, 0.8);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
 }
 
-.wordmark-shimmer {
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ── SHIMMER REVEAL ── */
+.wordmark-container.shimmer-active {
+  -webkit-mask-image: linear-gradient(
+    90deg,
+    transparent 0%,
+    black 30%,
+    black 70%,
+    transparent 100%
+  );
+  -webkit-mask-size: 200% 100%;
+  mask-image: linear-gradient(
+    90deg,
+    transparent 0%,
+    black 30%,
+    black 70%,
+    transparent 100%
+  );
+  mask-size: 200% 100%;
   animation: shimmerReveal 1.2s ease-out forwards;
+}
+
+@keyframes shimmerReveal {
+  0%   { -webkit-mask-position: -100% center; mask-position: -100% center; }
+  100% { -webkit-mask-position: 100% center;  mask-position: 100% center; }
 }
 
 /* ── WORDMARK ── */

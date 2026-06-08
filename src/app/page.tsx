@@ -6,6 +6,8 @@ import { projects } from '@/data/projects'
 
 const FONT = "'Pretendard Variable', Pretendard, -apple-system, BlinkMacSystemFont, sans-serif"
 
+type EntryPhase = 'loading' | 'nav' | 'shimmer' | 'done'
+
 function shuffle<T>(arr: T[]): T[] {
   const a = [...arr]
   for (let i = a.length - 1; i > 0; i--) {
@@ -18,12 +20,12 @@ function shuffle<T>(arr: T[]): T[] {
 export default function HomePage() {
   const [shuffled] = useState(() => shuffle(projects))
   const [activeIdx, setActiveIdx] = useState(0)
-  const [heroVisible, setHeroVisible] = useState(false)
   const [isBlacking, setIsBlacking] = useState(false)
   const [scrolled, setScrolled] = useState(false)
   const [mobile, setMobile] = useState(false)
   const [isCollapsed, setIsCollapsed] = useState(false)
   const [isOverLight, setIsOverLight] = useState(false)
+  const [entryPhase, setEntryPhase] = useState<EntryPhase>('loading')
   const wordmarkRef = useRef<HTMLDivElement>(null)
   const heroRef = useRef<HTMLDivElement>(null)
 
@@ -34,10 +36,16 @@ export default function HomePage() {
     return () => window.removeEventListener('resize', fn)
   }, [])
 
-  // hero images fade in after shimmer completes
+  // 진입 시퀀스
   useEffect(() => {
-    const t = setTimeout(() => setHeroVisible(true), 1200)
-    return () => clearTimeout(t)
+    const t1 = setTimeout(() => setEntryPhase('nav'),     10000)
+    const t2 = setTimeout(() => setEntryPhase('shimmer'), 10400)
+    const t3 = setTimeout(() => setEntryPhase('done'),    11600)
+    return () => {
+      clearTimeout(t1)
+      clearTimeout(t2)
+      clearTimeout(t3)
+    }
   }, [])
 
   // carousel — blackout fade
@@ -89,7 +97,7 @@ export default function HomePage() {
       if (collapsed) {
         checkOverLight()
       } else {
-        setIsOverLight(false) // hero 구간은 항상 어두운 배경
+        setIsOverLight(false)
       }
     }
 
@@ -110,6 +118,24 @@ export default function HomePage() {
   return (
     <div style={{ fontFamily: FONT, background: '#080706' }}>
 
+      {/* ── LOADING OVERLAY ── */}
+      <div
+        style={{
+          position: 'fixed',
+          inset: 0,
+          backgroundColor: '#000000',
+          zIndex: 100,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          opacity: entryPhase === 'loading' ? 1 : 0,
+          transition: entryPhase === 'loading' ? 'none' : 'opacity 400ms ease-out',
+          pointerEvents: entryPhase === 'loading' ? 'auto' : 'none',
+        }}
+      >
+        <div className="entry-spinner" />
+      </div>
+
       {/* ── HERO ── */}
       <div
         ref={heroRef}
@@ -121,11 +147,11 @@ export default function HomePage() {
           backgroundColor: '#080706',
         }}
       >
-        {/* Current image — single, swapped during blackout */}
+        {/* 이미지 레이어 */}
         <div style={{
           position: 'absolute', inset: 0,
-          opacity: heroVisible ? 1 : 0,
-          transition: 'opacity 1s ease',
+          opacity: entryPhase === 'done' ? 1 : 0,
+          transition: entryPhase === 'done' ? 'opacity 800ms ease-out' : 'none',
           pointerEvents: 'none',
         }}>
           {shuffled[activeIdx].coverImage ? (
@@ -151,10 +177,10 @@ export default function HomePage() {
           pointerEvents: 'none',
         }} />
 
-        {/* ── WORDMARK: hero 내 absolute → scroll 임계점에서 fixed ── */}
+        {/* ── WORDMARK ── */}
         <div
           ref={wordmarkRef}
-          className={`wordmark-container ${isCollapsed ? 'collapsed' : ''}`}
+          className={`wordmark-container ${isCollapsed ? 'collapsed' : ''} ${entryPhase === 'shimmer' ? 'shimmer-active' : ''}`}
           style={{
             position: isCollapsed ? 'fixed' : 'absolute',
             top: isCollapsed ? '16px' : '33%',
@@ -163,27 +189,24 @@ export default function HomePage() {
             color: isOverLight ? '#080706' : '#ffffff',
             zIndex: 10,
             fontFamily: FONT,
+            opacity: entryPhase === 'loading' || entryPhase === 'nav' ? 0 : 1,
+            transition: entryPhase === 'shimmer' ? 'none' : 'opacity 0.3s ease',
           }}
         >
-          {/* Architect — weight 900 */}
           <span className="word" style={{ fontWeight: 900 }}>
             <span className="initial">A</span>
             <span className="rest">rchitect</span>
           </span>
 
-          {/* 공백 */}
           <span className="word-space">&nbsp;</span>
 
-          {/* Changhyun — weight 400 */}
           <span className="word" style={{ fontWeight: 400 }}>
             <span className="initial">C</span>
             <span className="rest">hanghyun</span>
           </span>
 
-          {/* 공백 */}
           <span className="word-space">&nbsp;</span>
 
-          {/* Paik — weight 300 */}
           <span className="word" style={{ fontWeight: 300 }}>
             <span className="initial">P</span>
             <span className="rest">aik</span>
@@ -199,6 +222,8 @@ export default function HomePage() {
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'flex-end',
+          opacity: entryPhase === 'loading' ? 0 : 1,
+          transition: 'opacity 400ms ease-out',
         }}>
           {[
             { label: 'Work',    href: '/work' },
@@ -239,6 +264,8 @@ export default function HomePage() {
           fontWeight: 300,
           color: 'rgba(255,255,255,0.7)',
           pointerEvents: 'none',
+          opacity: entryPhase === 'done' ? 1 : 0,
+          transition: 'opacity 600ms ease-out',
         }}>
           {activeProject.title}, {activeProject.year}
         </div>
@@ -252,8 +279,8 @@ export default function HomePage() {
           zIndex: 10,
           color: '#ffffff',
           fontSize: 16,
-          opacity: scrolled ? 0 : 0.6,
-          transition: 'opacity 0.3s ease',
+          opacity: entryPhase === 'done' && !scrolled ? 0.6 : 0,
+          transition: 'opacity 600ms ease-out',
           pointerEvents: 'none',
         }}>
           ↓
