@@ -2,45 +2,32 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import { SiteHeader } from '@/components/SiteHeader'
+import { projects } from '@/data/projects'
 
-const CDN = 'https://res.cloudinary.com/drsybwqg0/image/upload/'
-
-const FEATURED = [
-  {
-    id: 'independence-memorial-hall', code: '047', year: 2019, type: 'Culture',
-    title: 'Independence Memorial Hall', location: 'Seoul, KR',
-    result: '2nd Prize', status: 'Competition',
-    image: CDN + '01_THRESHOLD_amtokp.png',
-  },
-  {
-    id: 'cheongju-culture-factory', code: '036', year: 2017, type: 'Remodeling',
-    title: 'Cheongju Culture Factory', location: 'Cheongju, KR',
-    result: 'Winner · Grand Prize', status: 'Completed',
-    image: CDN + 'Elevation_01-2_resize_qzmdrj.jpg',
-  },
-  {
-    id: 'seoul-animation-center', code: '048', year: 2019, type: 'Culture',
-    title: 'Seoul Animation Center', location: 'Seoul, KR',
-    result: 'Winner', status: 'In Progress',
-    image: CDN + 'CG_Aerial_View_resize_xlqazy.jpg',
-  },
-  {
-    id: 'hyundai-india-rd-center', code: '060', year: 2022, type: 'Infrastructure',
-    title: 'Hyundai India R&D Center', location: 'Pune, India',
-    result: 'Winner', status: 'In Progress',
-    image: CDN + 'Aerial_001_HDR_resize_jpd5hu.jpg',
-  },
-]
-
-const INTERVAL = 5800
 const FONT = "'Pretendard Variable', Pretendard, -apple-system, BlinkMacSystemFont, sans-serif"
 
+const PALETTE = [
+  '#1C2B3A', '#2D1B1B', '#1A2A1A', '#2B2515',
+  '#1F1F2E', '#2A1F2D', '#1A2520', '#2C1A1A',
+  '#15202B', '#1E2A1E', '#2B2020', '#1A1A2B',
+]
+
+function shuffle<T>(arr: T[]): T[] {
+  const a = [...arr]
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1))
+    ;[a[i], a[j]] = [a[j], a[i]]
+  }
+  return a
+}
+
 export default function HomePage() {
-  const [activeIdx, setActiveIdx]   = useState(0)
-  const [hoveredIdx, setHoveredIdx] = useState<number | null>(null)
-  const [paused, setPaused]         = useState(false)
-  const [mobile, setMobile]         = useState(false)
+  const [shuffled] = useState(() => shuffle(projects))
+  const [activeIdx, setActiveIdx] = useState(0)
+  const [heroVisible, setHeroVisible] = useState(false)
+  const [collapsed, setCollapsed] = useState(false)
+  const [scrolled, setScrolled] = useState(false)
+  const [mobile, setMobile] = useState(false)
 
   useEffect(() => {
     const fn = () => setMobile(window.innerWidth < 768)
@@ -49,173 +36,286 @@ export default function HomePage() {
     return () => window.removeEventListener('resize', fn)
   }, [])
 
+  // hero images fade in after shimmer completes
   useEffect(() => {
-    if (paused) return
+    const t = setTimeout(() => setHeroVisible(true), 1200)
+    return () => clearTimeout(t)
+  }, [])
+
+  // carousel
+  useEffect(() => {
     const t = setTimeout(
-      () => setActiveIdx(p => (p + 1) % FEATURED.length),
-      INTERVAL,
+      () => setActiveIdx(p => (p + 1) % shuffled.length),
+      8000,
     )
     return () => clearTimeout(t)
-  }, [activeIdx, paused])
+  }, [activeIdx, shuffled.length])
 
-  const visIdx  = hoveredIdx !== null ? hoveredIdx : activeIdx
-  const onEnter = (i: number) => { setPaused(true);  setHoveredIdx(i); setActiveIdx(i) }
-  const onLeave = ()           => { setPaused(false); setHoveredIdx(null) }
+  // scroll state
+  useEffect(() => {
+    const fn = () => {
+      const y = window.scrollY
+      setCollapsed(y > window.innerHeight - 100)
+      setScrolled(y > 50)
+    }
+    window.addEventListener('scroll', fn, { passive: true })
+    return () => window.removeEventListener('scroll', fn)
+  }, [])
 
-  const PAD = mobile ? '20px' : '44px'
+  // work section: projects with coverImage, sorted latest first, max 8; fallback top 6
+  const workProjects = (() => {
+    const withImg = [...projects]
+      .filter(p => p.coverImage)
+      .sort((a, b) => b.year - a.year)
+    return withImg.length > 0 ? withImg.slice(0, 8) : projects.slice(0, 6)
+  })()
+
+  const activeProject = shuffled[activeIdx]
+
+  const restSpan = (text: string, maxW: string) => (
+    <span style={{
+      display: 'inline-block',
+      overflow: 'hidden',
+      maxWidth: collapsed ? '0' : maxW,
+      opacity: collapsed ? 0 : 1,
+      transition: 'max-width 0.4s ease, opacity 0.4s ease',
+    }}>
+      {text}
+    </span>
+  )
+
+  const spaceSpan = (
+    <span style={{
+      display: 'inline-block',
+      overflow: 'hidden',
+      maxWidth: collapsed ? '0' : '0.35em',
+      transition: 'max-width 0.4s ease',
+    }}>&nbsp;</span>
+  )
 
   return (
-    <div style={{ fontFamily: FONT, height: '100vh', position: 'relative', overflow: 'hidden', background: '#080706' }}>
+    <div style={{ fontFamily: FONT, background: '#080706' }}>
 
-      {/* Full-screen images */}
-      {FEATURED.map((p, i) => (
-        <div key={p.id} style={{
-          position: 'absolute', inset: 0,
-          opacity: i === visIdx ? 1 : 0,
-          transition: 'opacity 1.0s ease',
+      {/* ── WORDMARK ── */}
+      <div
+        className="wordmark-shimmer"
+        style={{
+          position: 'fixed',
+          top: collapsed ? 16 : '35%',
+          left: 20,
+          zIndex: 300,
+          color: '#ffffff',
+          fontSize: mobile ? (collapsed ? 18 : 22) : (collapsed ? 28 : 42),
+          letterSpacing: '0.02em',
+          lineHeight: 1,
+          whiteSpace: 'nowrap',
+          transition: 'top 0.4s ease, font-size 0.4s ease',
+          fontFamily: FONT,
           pointerEvents: 'none',
-        }}>
-          <div style={{
-            position: 'absolute', inset: '-6%',
-            backgroundImage: `url(${p.image})`,
-            backgroundSize: 'cover', backgroundPosition: 'center',
-            animation: i === visIdx ? 'kenBurns 22s ease-in-out infinite' : 'none',
-          }} />
-        </div>
-      ))}
+        }}
+      >
+        <span style={{ fontWeight: 300 }}>
+          <span>A</span>{restSpan('rchitect', '6em')}
+        </span>
+        {spaceSpan}
+        <span style={{ fontWeight: 500 }}>
+          <span>C</span>{restSpan('hanghyun', '7em')}
+        </span>
+        {spaceSpan}
+        <span style={{ fontWeight: 700 }}>
+          <span>P</span>{restSpan('aik', '3em')}
+        </span>
+      </div>
 
-      {/* Gradient overlays */}
-      <div style={{
-        position: 'absolute', inset: 0, pointerEvents: 'none',
-        background: [
-          'linear-gradient(to top, rgba(0,0,0,0.72) 0%, rgba(0,0,0,0.18) 38%, transparent 58%)',
-          'linear-gradient(to bottom, rgba(0,0,0,0.55) 0%, rgba(0,0,0,0.22) 24%, transparent 46%)',
-        ].join(', '),
-      }} />
+      {/* ── HERO ── */}
+      <div style={{ position: 'relative', height: '100vh', overflow: 'hidden', background: '#080706' }}>
 
-      <SiteHeader variant="dark" />
-
-        {/* Architect name */}
-        <div style={{
-          fontSize: mobile ? 18 : 30,
-          letterSpacing: mobile ? '0.20em' : '0.22em',
-          textTransform: 'uppercase',
-          fontWeight: 400,
-          color: 'rgba(255,255,255,0.90)',
-          lineHeight: 1.25,
-        }}>
-          Chang Hyun Paik
-        </div>
-
-        {/* Desktop nav — horizontal */}
-        {!mobile && (
-          <nav style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 30 }}>
-            {[
-              { label: 'Work',    href: '/work' },
-              { label: 'About',  href: '/about' },
-              { label: 'Contact', href: '/about#contact' },
-            ].map(({ label, href }) => (
-              <Link key={label} href={href} style={{
-                fontSize: 12, letterSpacing: '0.12em', textTransform: 'uppercase',
-                fontWeight: 300, color: 'rgba(255,255,255,0.50)', textDecoration: 'none',
-              }}>
-                {label}
-              </Link>
-            ))}
-          </nav>
-        )}
-
-        {/* Mobile hamburger */}
-        {mobile && (
-          <button onClick={() => setMenuOpen(true)}
-            style={{ background: 'none', border: 'none', cursor: 'pointer', marginTop: 4 }}
-            aria-label="Open menu">
-            <svg width="22" height="14" viewBox="0 0 22 14" fill="none">
-              <rect width="22" height="1.5" fill="rgba(255,255,255,0.80)" />
-              <rect y="6.25" width="22" height="1.5" fill="rgba(255,255,255,0.80)" />
-              <rect y="12.5" width="22" height="1.5" fill="rgba(255,255,255,0.80)" />
-            </svg>
-          </button>
-        )}
-      </header>
-
-      {/* Project list — floating bottom-left */}
-      <div style={{
-        position: 'absolute',
-        bottom: mobile ? 32 : 52,
-        left: PAD,
-        right: mobile ? PAD : undefined,
-        width: mobile ? undefined : '46%',
-        zIndex: 100,
-        animation: 'fadeUp 1.0s ease 0.3s both',
-      }}>
-        {FEATURED.map((p, i) => {
-          const isActive = i === visIdx
-          const isHov    = i === hoveredIdx
-          return (
-            <Link key={p.id} href={`/work/${p.id}`}
-              style={{ display: 'block', textDecoration: 'none' }}
-              onMouseEnter={() => !mobile && onEnter(i)}
-              onMouseLeave={() => !mobile && onLeave()}>
+        {shuffled.map((p, i) => (
+          <div key={p.id} style={{
+            position: 'absolute', inset: 0,
+            opacity: i === activeIdx ? (heroVisible ? 1 : 0) : 0,
+            transition: 'opacity 1s ease',
+            pointerEvents: 'none',
+          }}>
+            {p.coverImage ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={p.coverImage}
+                alt={p.title}
+                style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+              />
+            ) : (
               <div style={{
-                paddingTop: mobile ? 12 : 15,
-                paddingBottom: mobile ? 12 : 15,
-                borderBottom: '1px solid rgba(255,255,255,0.10)',
+                width: '100%', height: '100%',
+                background: PALETTE[projects.indexOf(p) % PALETTE.length],
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
               }}>
-                {/* Title row */}
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-                  <span style={{
-                    fontSize: mobile ? 17 : 22,
-                    fontWeight: isActive ? 400 : 300,
-                    color: isActive ? 'rgba(255,255,255,0.92)' : 'rgba(255,255,255,0.25)',
-                    transition: 'color 0.40s ease',
-                    letterSpacing: '0.01em', lineHeight: 1.3,
-                  }}>
-                    {p.title}
-                  </span>
-                  <span style={{
-                    fontSize: 9, fontWeight: 300, flexShrink: 0, marginLeft: 14,
-                    letterSpacing: '0.09em',
-                    color: isActive ? 'rgba(255,255,255,0.34)' : 'rgba(255,255,255,0.10)',
-                    transition: 'color 0.40s ease',
-                  }}>
-                    {p.year}
-                  </span>
-                </div>
-
-                {/* Hover supplementary info */}
-                {!mobile && (
-                  <div style={{
-                    overflow: 'hidden',
-                    maxHeight: isHov ? 56 : 0,
-                    opacity:   isHov ? 1  : 0,
-                    marginTop: isHov ? 9  : 0,
-                    transition: 'max-height 0.34s ease, opacity 0.26s ease, margin-top 0.26s ease',
-                  }}>
-                    <p style={{ fontSize: 10, fontWeight: 300, color: 'rgba(255,255,255,0.40)', letterSpacing: '0.05em', lineHeight: 1.75 }}>
-                      {p.type}&nbsp;·&nbsp;{p.result}&nbsp;·&nbsp;{p.location}
-                    </p>
-                    <p style={{ fontSize: 9, fontWeight: 300, color: 'rgba(255,255,255,0.22)', letterSpacing: '0.04em' }}>
-                      {p.status}&nbsp;·&nbsp;{p.code}
-                    </p>
-                  </div>
-                )}
+                <span style={{ color: '#fff', fontSize: 14, fontStyle: 'italic', fontWeight: 300 }}>
+                  {p.title}
+                </span>
               </div>
-            </Link>
+            )}
+          </div>
+        ))}
+      </div>
+
+      {/* ── NAVIGATION — fixed bottom-right ── */}
+      <nav style={{
+        position: 'fixed',
+        bottom: 24,
+        right: 24,
+        zIndex: 200,
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'flex-end',
+      }}>
+        {[
+          { label: 'Work',    href: '/work' },
+          { label: 'About',   href: '/about' },
+          { label: 'Contact', href: 'mailto:contact@paikarchitects.com' },
+        ].map(({ label, href }) => (
+          <Link
+            key={label}
+            href={href}
+            style={{
+              fontFamily: FONT,
+              fontWeight: 300,
+              fontSize: mobile ? 13 : 15,
+              color: '#ffffff',
+              textDecoration: 'none',
+              lineHeight: 1.8,
+              display: 'block',
+            }}
+            onMouseEnter={e => { e.currentTarget.style.textDecoration = 'underline' }}
+            onMouseLeave={e => { e.currentTarget.style.textDecoration = 'none' }}
+          >
+            {label}
+          </Link>
+        ))}
+      </nav>
+
+      {/* ── CAPTION — fixed bottom-left ── */}
+      <div style={{
+        position: 'fixed',
+        bottom: 20,
+        left: 20,
+        zIndex: 200,
+        fontFamily: FONT,
+        fontStyle: 'italic',
+        fontSize: 11,
+        fontWeight: 300,
+        color: 'rgba(255,255,255,0.7)',
+        pointerEvents: 'none',
+      }}>
+        {activeProject.title}, {activeProject.year}
+      </div>
+
+      {/* ── SCROLL INDICATOR — fixed bottom-center ── */}
+      <div style={{
+        position: 'fixed',
+        bottom: 20,
+        left: '50%',
+        transform: 'translateX(-50%)',
+        zIndex: 200,
+        color: '#ffffff',
+        fontSize: 16,
+        opacity: scrolled ? 0 : 0.6,
+        transition: 'opacity 0.3s ease',
+        pointerEvents: 'none',
+      }}>
+        ↓
+      </div>
+
+      {/* ── WORK SECTION ── */}
+      <div>
+        {workProjects.map((p, i) => {
+          const textOnLeft = i % 2 === 0
+          const textBg    = textOnLeft ? '#F8F6F2' : '#080706'
+          const textColor = textOnLeft ? '#0a0908' : '#F8F6F2'
+          const gray      = textOnLeft ? 'rgba(10,9,8,0.45)' : 'rgba(248,246,242,0.45)'
+
+          const textContent = (
+            <div>
+              <div style={{ fontSize: 11, fontWeight: 300, color: gray, marginBottom: 8 }}>
+                {p.year}
+              </div>
+              <div style={{ fontSize: 26, fontWeight: 600, marginBottom: 8 }}>
+                <Link href={`/work/${p.id}`} style={{ color: 'inherit', textDecoration: 'none' }}>
+                  {p.title}
+                </Link>
+              </div>
+              <div style={{ fontSize: 12, fontWeight: 300, color: gray }}>
+                {p.type} · {p.status}
+              </div>
+            </div>
+          )
+
+          const imgEl = p.coverImage ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={p.coverImage}
+              alt={p.title}
+              style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+            />
+          ) : (
+            <div style={{ width: '100%', height: '100%', background: p.coverColor }} />
+          )
+
+          if (mobile) {
+            return (
+              <div key={p.id}>
+                <div style={{ width: '100%', height: '60vw', overflow: 'hidden' }}>
+                  {imgEl}
+                </div>
+                <div style={{ padding: 24, background: textBg, color: textColor, fontFamily: FONT }}>
+                  <div style={{ fontSize: 11, fontWeight: 300, color: gray, marginBottom: 8 }}>
+                    {p.year}
+                  </div>
+                  <div style={{ fontSize: 20, fontWeight: 600, marginBottom: 8 }}>
+                    <Link href={`/work/${p.id}`} style={{ color: 'inherit', textDecoration: 'none' }}>
+                      {p.title}
+                    </Link>
+                  </div>
+                  <div style={{ fontSize: 12, fontWeight: 300, color: gray }}>
+                    {p.type} · {p.status}
+                  </div>
+                </div>
+              </div>
+            )
+          }
+
+          const textPanel = (
+            <div style={{
+              width: '50%',
+              flexShrink: 0,
+              position: 'sticky',
+              top: 0,
+              height: '100vh',
+              display: 'flex',
+              alignItems: 'center',
+              paddingLeft: 48,
+              background: textBg,
+              color: textColor,
+              fontFamily: FONT,
+            }}>
+              {textContent}
+            </div>
+          )
+
+          const imagePanel = (
+            <div style={{ width: '50%', flexShrink: 0, minHeight: '100vh', overflow: 'hidden' }}>
+              {imgEl}
+            </div>
+          )
+
+          return (
+            <div key={p.id} style={{ display: 'flex', height: '100vh' }}>
+              {textOnLeft ? <>{textPanel}{imagePanel}</> : <>{imagePanel}{textPanel}</>}
+            </div>
           )
         })}
       </div>
 
-      {/* Slide counter */}
-      {!mobile && (
-        <div style={{
-          position: 'absolute', bottom: 52, right: 44, zIndex: 100,
-          fontSize: 9, letterSpacing: '0.12em',
-          color: 'rgba(255,255,255,0.26)', fontWeight: 300,
-        }}>
-          {String(visIdx + 1).padStart(2, '0')}&nbsp;/&nbsp;{String(FEATURED.length).padStart(2, '0')}
-        </div>
-      )}
     </div>
   )
 }

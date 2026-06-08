@@ -106,39 +106,6 @@ export default function WorkPage() {
     <div style={{ fontFamily: FONT, background: BG, minHeight: '100vh', color: '#111110' }}>
 
       <SiteHeader variant="light" activePage="work" />
-          Chang Hyun Paik
-        </Link>
-
-        {!mobile && (
-          <nav style={{ display: 'flex', gap: 30 }}>
-            {[
-              { label: 'Work',    href: '/work' },
-              { label: 'About',  href: '/about' },
-              { label: 'Contact', href: '/about#contact' },
-            ].map(({ label, href }) => (
-              <Link key={label} href={href} style={{
-                fontSize: 11, letterSpacing: '0.12em', textTransform: 'uppercase',
-                fontWeight: 300, textDecoration: 'none',
-                color: label === 'Work' ? 'rgba(17,17,16,0.85)' : 'rgba(17,17,16,0.38)',
-              }}>
-                {label}
-              </Link>
-            ))}
-          </nav>
-        )}
-
-        {mobile && (
-          <button onClick={() => setMenuOpen(true)}
-            style={{ background: 'none', border: 'none', cursor: 'pointer' }}
-            aria-label="Open menu">
-            <svg width="20" height="13" viewBox="0 0 20 13" fill="none">
-              <rect width="20" height="1.5" fill="rgba(17,17,16,0.70)" />
-              <rect y="5.75" width="20" height="1.5" fill="rgba(17,17,16,0.70)" />
-              <rect y="11.5" width="20" height="1.5" fill="rgba(17,17,16,0.70)" />
-            </svg>
-          </button>
-        )}
-      </header>
 
 
       {/* ── Filters ────────────────────────────────────────────────────── */}
