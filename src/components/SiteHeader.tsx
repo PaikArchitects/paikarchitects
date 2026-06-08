@@ -25,7 +25,7 @@ export function SiteHeader({ variant, activePage }: SiteHeaderProps) {
   const nameColor  = dark ? 'rgba(255,255,255,0.90)' : '#111110'
   const navActive  = dark ? 'rgba(255,255,255,0.90)' : 'rgba(17,17,16,0.85)'
   const navDim     = dark ? 'rgba(255,255,255,0.45)' : 'rgba(17,17,16,0.38)'
-  const menuBg     = dark ? 'rgba(6,5,4,0.97)'       : 'rgba(248,246,242,0.97)'
+  const menuBg     = dark ? 'rgba(6,5,4,0.97)'       : 'rgba(255,255,255,0.97)'
   const menuText   = dark ? '#ffffff'                 : '#111110'
   const closeColor = dark ? 'rgba(255,255,255,0.42)' : 'rgba(17,17,16,0.40)'
   const hamFill    = dark ? 'rgba(255,255,255,0.80)' : 'rgba(17,17,16,0.70)'
@@ -43,7 +43,7 @@ export function SiteHeader({ variant, activePage }: SiteHeaderProps) {
         top: 0, left: 0, right: 0, zIndex: 200,
         display: 'flex', justifyContent: 'space-between', alignItems: 'center',
         padding: mobile ? '18px 20px' : '28px 44px',
-        background: dark ? 'transparent' : '#F8F6F2',
+        background: dark ? 'transparent' : '#FFFFFF',
         fontFamily: FONT,
       } as React.CSSProperties}>
 

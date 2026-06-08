@@ -5,7 +5,7 @@ const FONT = "'Pretendard Variable', Pretendard, -apple-system, BlinkMacSystemFo
 
 export default function AboutPage() {
   return (
-    <div style={{ fontFamily: FONT, background: '#F8F6F2', minHeight: '100vh', color: '#111110' }}>
+    <div style={{ fontFamily: FONT, background: '#FFFFFF', minHeight: '100vh', color: '#111110' }}>
 
       <SiteHeader variant="light" activePage="about" />
 

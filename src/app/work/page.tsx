@@ -7,7 +7,7 @@ import type { Project, ProjectType } from '@/types'
 import { SiteHeader } from '@/components/SiteHeader'
 
 const FONT = "'Pretendard Variable', Pretendard, -apple-system, BlinkMacSystemFont, sans-serif"
-const BG   = '#F8F6F2'
+const BG   = '#FFFFFF'
 
 const ALL_TYPES: ProjectType[] = [
   'Culture', 'Infrastructure', 'Work', 'Residential',
@@ -41,7 +41,7 @@ function WorkCard({ project, mobile }: { project: Project; mobile: boolean }) {
         <div style={{
           position: 'absolute', bottom: 0, left: 0, right: 0,
           padding: '13px 16px 15px',
-          background: hovered ? 'rgba(0,0,0,0.68)' : '#F8F6F2',
+          background: hovered ? 'rgba(0,0,0,0.68)' : '#FFFFFF',
           transition: 'background 0.42s ease',
         }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>

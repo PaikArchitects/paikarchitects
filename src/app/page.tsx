@@ -7,9 +7,9 @@ import { projects } from '@/data/projects'
 const FONT = "'Pretendard Variable', Pretendard, -apple-system, BlinkMacSystemFont, sans-serif"
 
 const PALETTE = [
-  '#1C2B3A', '#2D1B1B', '#1A2A1A', '#2B2515',
-  '#1F1F2E', '#2A1F2D', '#1A2520', '#2C1A1A',
-  '#15202B', '#1E2A1E', '#2B2020', '#1A1A2B',
+  '#080706', '#080706', '#080706', '#080706',
+  '#080706', '#080706', '#080706', '#080706',
+  '#080706', '#080706', '#080706', '#080706',
 ]
 
 function shuffle<T>(arr: T[]): T[] {
@@ -105,6 +105,7 @@ export default function HomePage() {
           left: 20,
           zIndex: 300,
           color: '#ffffff',
+          mixBlendMode: 'difference',
           fontSize: mobile ? (collapsed ? 18 : 22) : (collapsed ? 28 : 42),
           letterSpacing: '0.02em',
           lineHeight: 1,
@@ -168,6 +169,7 @@ export default function HomePage() {
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'flex-end',
+        mixBlendMode: 'difference',
       }}>
         {[
           { label: 'Work',    href: '/work' },
@@ -180,10 +182,11 @@ export default function HomePage() {
             style={{
               fontFamily: FONT,
               fontWeight: 300,
-              fontSize: mobile ? 13 : 15,
+              fontSize: 15,
               color: '#ffffff',
               textDecoration: 'none',
               lineHeight: 1.8,
+              textAlign: 'right',
               display: 'block',
             }}
             onMouseEnter={e => { e.currentTarget.style.textDecoration = 'underline' }}
@@ -230,9 +233,9 @@ export default function HomePage() {
       <div>
         {workProjects.map((p, i) => {
           const textOnLeft = i % 2 === 0
-          const textBg    = textOnLeft ? '#F8F6F2' : '#080706'
-          const textColor = textOnLeft ? '#0a0908' : '#F8F6F2'
-          const gray      = textOnLeft ? 'rgba(10,9,8,0.45)' : 'rgba(248,246,242,0.45)'
+          const textBg    = textOnLeft ? '#FFFFFF' : '#080706'
+          const textColor = textOnLeft ? '#0a0908' : '#FFFFFF'
+          const gray      = textOnLeft ? 'rgba(10,9,8,0.45)' : 'rgba(255,255,255,0.45)'
 
           const textContent = (
             <div>
@@ -292,8 +295,12 @@ export default function HomePage() {
               top: 0,
               height: '100vh',
               display: 'flex',
-              alignItems: 'center',
-              paddingLeft: 48,
+              flexDirection: 'column',
+              justifyContent: 'flex-start',
+              alignItems: 'flex-start',
+              paddingTop: '48px',
+              paddingLeft: '40px',
+              paddingRight: '40px',
               background: textBg,
               color: textColor,
               fontFamily: FONT,
