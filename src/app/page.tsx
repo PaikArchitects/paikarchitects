@@ -22,6 +22,8 @@ export default function HomePage() {
   const [isBlacking, setIsBlacking] = useState(false)
   const [scrolled, setScrolled] = useState(false)
   const [mobile, setMobile] = useState(false)
+  const [isCollapsed, setIsCollapsed] = useState(false)
+  const [isOverLight, setIsOverLight] = useState(false)
   const wordmarkRef = useRef<HTMLDivElement>(null)
   const heroRef = useRef<HTMLDivElement>(null)
 
@@ -54,24 +56,46 @@ export default function HomePage() {
     return () => clearInterval(timer)
   }, [advanceSlide])
 
-  // scroll state — wordmark collapses via classList (no re-render)
+  // 밝은 배경 감지: ACP 위치(top: 28px, left: 40px)가 .light-panel과 겹치는지 확인
+  const checkOverLight = useCallback(() => {
+    const acpCenterY = 28
+    const acpCenterX = 40
+    const lightPanels = document.querySelectorAll('.light-panel')
+    let over = false
+    lightPanels.forEach((el) => {
+      const rect = el.getBoundingClientRect()
+      if (
+        rect.top    <= acpCenterY &&
+        rect.bottom >= acpCenterY &&
+        rect.left   <= acpCenterX &&
+        rect.right  >= acpCenterX
+      ) {
+        over = true
+      }
+    })
+    setIsOverLight(over)
+  }, [])
+
+  // scroll 핸들러
   useEffect(() => {
     const handleScroll = () => {
       const scrollY = window.scrollY
       const threshold = window.innerHeight * 0.33 - 16
-      const el = wordmarkRef.current
-      if (el) {
-        if (scrollY >= threshold) {
-          el.classList.add('collapsed', 'fixed')
-        } else {
-          el.classList.remove('collapsed', 'fixed')
-        }
-      }
+
+      const collapsed = scrollY >= threshold
+      setIsCollapsed(collapsed)
       setScrolled(scrollY > 50)
+
+      if (collapsed) {
+        checkOverLight()
+      } else {
+        setIsOverLight(false) // hero 구간은 항상 어두운 배경
+      }
     }
+
     window.addEventListener('scroll', handleScroll, { passive: true })
     return () => window.removeEventListener('scroll', handleScroll)
-  }, [])
+  }, [checkOverLight])
 
   // work section: projects with coverImage, sorted latest first, max 8; fallback top 6
   const workProjects = (() => {
@@ -127,18 +151,39 @@ export default function HomePage() {
           pointerEvents: 'none',
         }} />
 
-        {/* ── WORDMARK ── */}
-        <div ref={wordmarkRef} className="wordmark-container">
+        {/* ── WORDMARK: hero 내 absolute → scroll 임계점에서 fixed ── */}
+        <div
+          ref={wordmarkRef}
+          className={`wordmark-container ${isCollapsed ? 'collapsed' : ''}`}
+          style={{
+            position: isCollapsed ? 'fixed' : 'absolute',
+            top: isCollapsed ? '16px' : '33%',
+            left: '20px',
+            transform: isCollapsed ? 'none' : 'translateY(-50%)',
+            color: isOverLight ? '#080706' : '#ffffff',
+            zIndex: 10,
+            fontFamily: FONT,
+          }}
+        >
+          {/* Architect — weight 900 */}
           <span className="word" style={{ fontWeight: 900 }}>
             <span className="initial">A</span>
             <span className="rest">rchitect</span>
           </span>
-          <span className="space"> </span>
+
+          {/* 공백 */}
+          <span className="word-space">&nbsp;</span>
+
+          {/* Changhyun — weight 400 */}
           <span className="word" style={{ fontWeight: 400 }}>
             <span className="initial">C</span>
             <span className="rest">hanghyun</span>
           </span>
-          <span className="space"> </span>
+
+          {/* 공백 */}
+          <span className="word-space">&nbsp;</span>
+
+          {/* Paik — weight 300 */}
           <span className="word" style={{ fontWeight: 300 }}>
             <span className="initial">P</span>
             <span className="rest">aik</span>
@@ -154,7 +199,6 @@ export default function HomePage() {
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'flex-end',
-          mixBlendMode: 'difference',
         }}>
           {[
             { label: 'Work',    href: '/work' },
@@ -168,11 +212,12 @@ export default function HomePage() {
                 fontFamily: FONT,
                 fontWeight: 300,
                 fontSize: 15,
-                color: '#ffffff',
+                color: isOverLight ? '#080706' : '#ffffff',
                 textDecoration: 'none',
                 lineHeight: 1.8,
                 textAlign: 'right',
                 display: 'block',
+                transition: 'color 0.2s ease',
               }}
               onMouseEnter={e => { e.currentTarget.style.textDecoration = 'underline' }}
               onMouseLeave={e => { e.currentTarget.style.textDecoration = 'none' }}
@@ -274,23 +319,26 @@ export default function HomePage() {
           }
 
           const textPanel = (
-            <div style={{
-              width: '50%',
-              flexShrink: 0,
-              position: 'sticky',
-              top: 0,
-              height: '100vh',
-              display: 'flex',
-              flexDirection: 'column',
-              justifyContent: 'flex-start',
-              alignItems: 'flex-start',
-              paddingTop: '48px',
-              paddingLeft: '40px',
-              paddingRight: '40px',
-              background: textBg,
-              color: textColor,
-              fontFamily: FONT,
-            }}>
+            <div
+              className={textOnLeft ? 'light-panel' : undefined}
+              style={{
+                width: '50%',
+                flexShrink: 0,
+                position: 'sticky',
+                top: 0,
+                height: '100vh',
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: 'flex-start',
+                alignItems: 'flex-start',
+                paddingTop: '48px',
+                paddingLeft: '40px',
+                paddingRight: '40px',
+                background: textBg,
+                color: textColor,
+                fontFamily: FONT,
+              }}
+            >
               {textContent}
             </div>
           )

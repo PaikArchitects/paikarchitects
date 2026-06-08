@@ -1,6 +1,6 @@
 # WORDMARK_SPEC.md
 ## Paik Architecture — 워드마크·모노그램 완전 재구현
-**버전:** v1 | **기준일:** 2026.06.08
+**버전:** v2 | **기준일:** 2026.06.08
 **이 파일은 향후 워드마크 변경 시 덮어씌워 재사용한다.**
 
 ---
@@ -16,45 +16,111 @@ https://raw.githubusercontent.com/PaikArchitects/paikarchitects/main/src/app/glo
 
 ---
 
-## 변경 목표 요약
+## v1 → v2 변경 이유
 
-| 항목 | 현재 | 수정 후 |
-|---|---|---|
-| 웨이트 위계 | Architect=300, Changhyun=500, Paik=700 | **Architect=900, Changhyun=400, Paik=300** |
-| 폰트 크기 | ~42px | **56px** (확장·수축 상태 동일) |
-| 수직 정렬 | 상단정렬 (top-aligned) | **베이스라인 정렬 (baseline)** |
-| position 구조 | 항상 fixed | **hero 내 absolute → scroll 임계점에서 fixed 전환** |
-| ACP 관계 | 워드마크와 별개 요소 | **동일 요소, .rest·.space 수축으로 구현** |
+v1 구현 후 세 가지 문제 확인:
+1. 자간 이상 — `.rest` inline-block 렌더링 부작용
+2. 상단 정렬 — baseline 정렬 미적용
+3. 회색 텍스트 — `mix-blend-mode: difference`가 회색 이미지 배경과 섞여 회색 생성
+
+v2는 mix-blend-mode를 제거하고 **순수 흰색·검정색 전환**으로 교체한다.
 
 ---
 
-## 1. HTML 구조 재설계
+## 1. globals.css — wordmark 스타일 (전면 교체)
 
-워드마크와 ACP는 **하나의 동일한 요소**다.
-각 단어를 이니셜 span(.initial)과 나머지 span(.rest)으로 분리한다.
-단어 사이 공백도 별도 span(.space)으로 처리한다.
+기존 `.wordmark-container` 관련 CSS를 모두 제거하고 아래로 교체한다.
+
+```css
+/* ── WORDMARK ── */
+.wordmark-container {
+  display: flex;
+  flex-direction: row;
+  align-items: baseline;          /* 베이스라인 정렬 — 핵심 */
+  font-size: 56px;
+  line-height: 1;
+  letter-spacing: -0.01em;        /* 자간 미세 조정 */
+  white-space: nowrap;
+  user-select: none;
+  cursor: default;
+  /* color와 position은 JS 인라인 스타일로 제어 */
+}
+
+.wordmark-container .word {
+  display: inline-flex;
+  align-items: baseline;
+  overflow: hidden;
+}
+
+.wordmark-container .rest {
+  display: inline-block;
+  max-width: 400px;
+  overflow: hidden;
+  opacity: 1;
+  white-space: nowrap;
+  vertical-align: baseline;
+  transition:
+    max-width 0.5s cubic-bezier(0.4, 0, 0.2, 1),
+    opacity   0.35s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.wordmark-container .word-space {
+  display: inline-block;
+  width: 0.3em;
+  max-width: 0.3em;
+  overflow: hidden;
+  opacity: 1;
+  transition:
+    max-width 0.5s cubic-bezier(0.4, 0, 0.2, 1),
+    opacity   0.35s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* collapsed 상태 */
+.wordmark-container.collapsed .rest,
+.wordmark-container.collapsed .word-space {
+  max-width: 0;
+  opacity: 0;
+}
+```
+
+---
+
+## 2. page.tsx — JSX 구조
 
 ```tsx
-<div className="wordmark-container" ref={wordmarkRef}>
-  {/* Architect */}
+{/* 워드마크: hero 내 absolute → scroll 임계점에서 fixed */}
+<div
+  ref={wordmarkRef}
+  className={`wordmark-container ${isCollapsed ? 'collapsed' : ''}`}
+  style={{
+    position: isCollapsed ? 'fixed' : 'absolute',
+    top: isCollapsed ? '16px' : '33%',
+    left: '20px',
+    transform: isCollapsed ? 'none' : 'translateY(-50%)',
+    color: isOverLight ? '#080706' : '#ffffff',   /* 순수 흰색 또는 검정만 */
+    zIndex: 10,
+    fontFamily: 'var(--font-pretendard, sans-serif)',
+  }}
+>
+  {/* Architect — weight 900 */}
   <span className="word" style={{ fontWeight: 900 }}>
     <span className="initial">A</span>
     <span className="rest">rchitect</span>
   </span>
 
   {/* 공백 */}
-  <span className="space"> </span>
+  <span className="word-space">&nbsp;</span>
 
-  {/* Changhyun */}
+  {/* Changhyun — weight 400 */}
   <span className="word" style={{ fontWeight: 400 }}>
     <span className="initial">C</span>
     <span className="rest">hanghyun</span>
   </span>
 
   {/* 공백 */}
-  <span className="space"> </span>
+  <span className="word-space">&nbsp;</span>
 
-  {/* Paik */}
+  {/* Paik — weight 300 */}
   <span className="word" style={{ fontWeight: 300 }}>
     <span className="initial">P</span>
     <span className="rest">aik</span>
@@ -64,160 +130,118 @@ https://raw.githubusercontent.com/PaikArchitects/paikarchitects/main/src/app/glo
 
 ---
 
-## 2. CSS 스타일
-
-### wordmark-container (globals.css에 추가)
-
-```css
-.wordmark-container {
-  display: flex;
-  align-items: baseline;        /* 핵심: 베이스라인 정렬 */
-  font-size: 56px;
-  font-family: 'Pretendard Variable', sans-serif;
-  color: #FFFFFF;
-  line-height: 1;
-  white-space: nowrap;
-  mix-blend-mode: difference;   /* DESIGN_SYSTEM_SPEC에서 적용된 값 유지 */
-  position: absolute;           /* 초기값. JS로 fixed 전환 */
-  left: 20px;
-  top: 33%;
-  transform: translateY(-50%);  /* 수직 중앙 기준 */
-  cursor: default;
-  user-select: none;
-}
-
-/* .rest 와 .space — collapse 애니메이션 대상 */
-.wordmark-container .rest,
-.wordmark-container .space {
-  display: inline-block;
-  max-width: 200px;             /* 충분히 큰 값 */
-  overflow: hidden;
-  opacity: 1;
-  vertical-align: baseline;
-  transition:
-    max-width 0.5s cubic-bezier(0.4, 0, 0.2, 1),
-    opacity 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-/* collapsed 상태 */
-.wordmark-container.collapsed .rest,
-.wordmark-container.collapsed .space {
-  max-width: 0;
-  opacity: 0;
-}
-
-/* fixed 상태 (JS로 클래스 추가) */
-.wordmark-container.fixed {
-  position: fixed;
-  top: 16px;
-  transform: none;              /* fixed 전환 후 transform 제거 */
-}
-```
-
----
-
-## 3. JavaScript — scroll 감지 및 상태 전환
+## 3. page.tsx — 상태 및 scroll 핸들러
 
 ```tsx
+// 상태 선언
 const wordmarkRef = useRef<HTMLDivElement>(null);
-const heroRef = useRef<HTMLDivElement>(null);   // hero 컨테이너에 ref 추가
+const [isCollapsed, setIsCollapsed] = useState(false);
+const [isOverLight, setIsOverLight] = useState(false);
 
+// 밝은 배경 감지 함수
+// 흰 배경 패널에 className="light-panel" 을 추가하고,
+// ACP 위치(top: 28px, left: 40px)가 해당 요소와 겹치는지 확인
+const checkOverLight = useCallback(() => {
+  const acpCenterY = 28;   // top: 16px + 약 12px
+  const acpCenterX = 40;
+  const lightPanels = document.querySelectorAll('.light-panel');
+  let over = false;
+  lightPanels.forEach((el) => {
+    const rect = el.getBoundingClientRect();
+    if (
+      rect.top    <= acpCenterY &&
+      rect.bottom >= acpCenterY &&
+      rect.left   <= acpCenterX &&
+      rect.right  >= acpCenterX
+    ) {
+      over = true;
+    }
+  });
+  setIsOverLight(over);
+}, []);
+
+// scroll 핸들러
 useEffect(() => {
   const handleScroll = () => {
     const scrollY = window.scrollY;
-
-    // 임계점 계산:
-    // 워드마크 초기 위치 = hero 상단(0) + 33vh - 절반 높이(약 28px) ≈ 0.33 * 100vh
-    // fixed 목표 top = 16px
-    // threshold = 0.33 * 100vh - 16px
+    // 임계점: 워드마크(top 33vh)가 viewport top 16px에 도달하는 시점
     const threshold = window.innerHeight * 0.33 - 16;
 
-    const el = wordmarkRef.current;
-    if (!el) return;
+    const collapsed = scrollY >= threshold;
+    setIsCollapsed(collapsed);
 
-    if (scrollY >= threshold) {
-      el.classList.add('collapsed');
-      el.classList.add('fixed');
+    if (collapsed) {
+      checkOverLight();
     } else {
-      el.classList.remove('collapsed');
-      el.classList.remove('fixed');
+      setIsOverLight(false); // hero 구간은 항상 어두운 배경
     }
   };
 
   window.addEventListener('scroll', handleScroll, { passive: true });
   return () => window.removeEventListener('scroll', handleScroll);
-}, []);
+}, [checkOverLight]);
 ```
 
 ---
 
-## 4. Hero 컨테이너 설정
+## 4. Work 섹션 — 흰 배경 패널에 className 추가
 
-워드마크가 `position: absolute`로 동작하려면 hero 컨테이너에 `position: relative`가 필요하다.
+Work 섹션에서 배경이 `#FFFFFF`인 패널(텍스트 또는 이미지 패널)에
+`className="light-panel"` 을 추가한다.
 
 ```tsx
-// hero 최상위 div
+{/* 예시: 흰 배경 텍스트 패널 */}
 <div
-  ref={heroRef}
+  className="light-panel"
   style={{
-    position: 'relative',
-    width: '100vw',
+    backgroundColor: '#FFFFFF',
+    width: '50%',
     height: '100vh',
-    overflow: 'hidden',
-    backgroundColor: '#080706',
+    position: 'sticky',
+    top: 0,
+    // ...
   }}
 >
-  {/* 캐러셀 이미지 레이어 */}
-  {/* 암전 오버레이 레이어 */}
-  {/* 워드마크 */}
-  <div ref={wordmarkRef} className="wordmark-container">
-    ...
-  </div>
-  {/* 캡션, 스크롤 인디케이터, 플로팅 nav */}
-</div>
 ```
 
-**주의:** 플로팅 네비게이션(Work/About/Contact)은 `position: fixed`이므로 hero 컨테이너 안에 있어도 무방하다.
+검정 배경(#080706) 패널에는 이 className을 추가하지 않는다.
 
 ---
 
-## 5. zIndex 정리
+## 5. Hero 컨테이너 — position: relative 확인
 
-| 요소 | zIndex |
-|---|---|
-| 히어로 이미지 | 0 |
-| 암전 오버레이 (CAROUSEL_SPEC) | 1 |
-| 워드마크·ACP | 10 |
-| 캡션 | 10 |
-| 스크롤 인디케이터 | 10 |
-| 플로팅 네비게이션 | 20 |
+워드마크가 `position: absolute`로 작동하려면 hero 최상위 div에
+`position: 'relative'`가 설정되어 있어야 한다. 현재 코드에 없으면 추가한다.
 
 ---
 
-## 6. 기존 코드 정리 대상
+## 6. mix-blend-mode 완전 제거
 
-현재 구현에서 아래 항목을 찾아 제거한다:
-- 워드마크 관련 `useState` (isCollapsed 등) → useRef + classList 방식으로 대체
-- 인라인 style로 처리된 wordmark position/top 전환 로직
-- 별도 ACP 요소가 있다면 제거 (하나의 wordmark-container로 통합)
-- shimmerReveal keyframe은 globals.css에 유지 (ENTRY_SPEC에서 사용)
+v1에서 추가된 `mix-blend-mode: difference` 관련 코드를 모두 제거한다.
+- globals.css의 mix-blend-mode 선언
+- page.tsx 인라인 스타일의 mixBlendMode 속성
+- 네비게이션(Work/About/Contact)에 적용된 mixBlendMode 속성
+
+네비게이션 색상도 동일 원칙으로 교체한다:
+```tsx
+color: isOverLight ? '#080706' : '#ffffff'
+```
+이 값을 플로팅 nav에도 동일하게 적용한다.
 
 ---
 
 ## 7. 검증 체크리스트
 
-배포 후 아래 순서로 확인한다.
-
-- [ ] 워드마크 "Architect Changhyun Paik"에서 Architect가 가장 두껍고, Paik이 가장 얇게 보임
-- [ ] 세 단어가 베이스라인(하단)에 정렬됨 — 현재처럼 상단이 맞지 않음
-- [ ] 폰트 크기가 이전보다 명확히 크게 보임 (56px)
-- [ ] 스크롤 시작 시 워드마크가 hero 이미지와 함께 위로 올라가다가 상단에서 멈춤
-- [ ] 멈추는 순간 "rchitect", " ", "hanghyun", " ", "aik"이 우→좌로 수축하여 "ACP"만 남음
-- [ ] ACP의 폰트 크기가 워드마크와 동일 (56px)하게 보임
-- [ ] 스크롤을 다시 내리면 ACP → 워드마크로 역방향 전개
-- [ ] 전환 중 깜빡임·위치 점프 없음
+- [ ] "Architect" 가 가장 두껍고 (900), "Paik" 이 가장 얇게 (300) 보임
+- [ ] 세 단어가 하단(베이스라인) 기준으로 정렬됨 — 상단이 맞지 않아도 됨
+- [ ] 글자 사이 자간이 자연스러움 (이상한 간격 없음)
+- [ ] 히어로 구간: 어두운 이미지 위에서 텍스트가 순수 흰색 (#FFFFFF)
+- [ ] 스크롤 → Work 흰 배경 패널 구간: ACP가 순수 검정 (#080706)으로 전환
+- [ ] 스크롤 → Work 검정 배경 패널 구간: ACP가 순수 흰색 (#FFFFFF)
+- [ ] 회색 텍스트가 어느 구간에서도 나타나지 않음
+- [ ] 워드마크 → ACP 수축 애니메이션이 자연스러움
+- [ ] ACP → 워드마크 역방향 전개도 자연스러움
 
 ---
 
-*v1 — 2026.06.08*
-*다음 덮어씌우기 시: 버전 번호와 기준일만 수정*
+*v2 — 2026.06.08 | mix-blend-mode 제거, 베이스라인 정렬 수정, 색상 전환 방식 교체*
