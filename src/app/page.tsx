@@ -1,16 +1,10 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
 import { projects } from '@/data/projects'
 
 const FONT = "'Pretendard Variable', Pretendard, -apple-system, BlinkMacSystemFont, sans-serif"
-
-const PALETTE = [
-  '#080706', '#080706', '#080706', '#080706',
-  '#080706', '#080706', '#080706', '#080706',
-  '#080706', '#080706', '#080706', '#080706',
-]
 
 function shuffle<T>(arr: T[]): T[] {
   const a = [...arr]
@@ -25,6 +19,7 @@ export default function HomePage() {
   const [shuffled] = useState(() => shuffle(projects))
   const [activeIdx, setActiveIdx] = useState(0)
   const [heroVisible, setHeroVisible] = useState(false)
+  const [isBlacking, setIsBlacking] = useState(false)
   const [collapsed, setCollapsed] = useState(false)
   const [scrolled, setScrolled] = useState(false)
   const [mobile, setMobile] = useState(false)
@@ -42,14 +37,21 @@ export default function HomePage() {
     return () => clearTimeout(t)
   }, [])
 
-  // carousel
+  // carousel — blackout fade
+  const advanceSlide = useCallback(() => {
+    setIsBlacking(true)
+    setTimeout(() => {
+      setActiveIdx(prev => (prev + 1) % shuffled.length)
+      setTimeout(() => {
+        setIsBlacking(false)
+      }, 200)
+    }, 400)
+  }, [shuffled.length])
+
   useEffect(() => {
-    const t = setTimeout(
-      () => setActiveIdx(p => (p + 1) % shuffled.length),
-      8000,
-    )
-    return () => clearTimeout(t)
-  }, [activeIdx, shuffled.length])
+    const timer = setInterval(advanceSlide, 4000)
+    return () => clearInterval(timer)
+  }, [advanceSlide])
 
   // scroll state
   useEffect(() => {
@@ -131,33 +133,35 @@ export default function HomePage() {
       {/* ── HERO ── */}
       <div style={{ position: 'relative', height: '100vh', overflow: 'hidden', background: '#080706' }}>
 
-        {shuffled.map((p, i) => (
-          <div key={p.id} style={{
-            position: 'absolute', inset: 0,
-            opacity: i === activeIdx ? (heroVisible ? 1 : 0) : 0,
-            transition: 'opacity 1s ease',
-            pointerEvents: 'none',
-          }}>
-            {p.coverImage ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={p.coverImage}
-                alt={p.title}
-                style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
-              />
-            ) : (
-              <div style={{
-                width: '100%', height: '100%',
-                background: PALETTE[projects.indexOf(p) % PALETTE.length],
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-              }}>
-                <span style={{ color: '#fff', fontSize: 14, fontStyle: 'italic', fontWeight: 300 }}>
-                  {p.title}
-                </span>
-              </div>
-            )}
-          </div>
-        ))}
+        {/* Current image — single, swapped during blackout */}
+        <div style={{
+          position: 'absolute', inset: 0,
+          opacity: heroVisible ? 1 : 0,
+          transition: 'opacity 1s ease',
+          pointerEvents: 'none',
+        }}>
+          {shuffled[activeIdx].coverImage ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={shuffled[activeIdx].coverImage!}
+              alt={shuffled[activeIdx].title}
+              style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+            />
+          ) : (
+            <div style={{ width: '100%', height: '100%', background: '#080706' }} />
+          )}
+        </div>
+
+        {/* Blackout overlay */}
+        <div style={{
+          position: 'absolute',
+          inset: 0,
+          backgroundColor: '#000000',
+          opacity: isBlacking ? 1 : 0,
+          transition: isBlacking ? 'opacity 400ms ease-in' : 'opacity 400ms ease-out',
+          zIndex: 1,
+          pointerEvents: 'none',
+        }} />
       </div>
 
       {/* ── NAVIGATION — fixed bottom-right ── */}
