@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import Link from 'next/link'
 import { projects } from '@/data/projects'
 
@@ -20,9 +20,10 @@ export default function HomePage() {
   const [activeIdx, setActiveIdx] = useState(0)
   const [heroVisible, setHeroVisible] = useState(false)
   const [isBlacking, setIsBlacking] = useState(false)
-  const [collapsed, setCollapsed] = useState(false)
   const [scrolled, setScrolled] = useState(false)
   const [mobile, setMobile] = useState(false)
+  const wordmarkRef = useRef<HTMLDivElement>(null)
+  const heroRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     const fn = () => setMobile(window.innerWidth < 768)
@@ -53,15 +54,23 @@ export default function HomePage() {
     return () => clearInterval(timer)
   }, [advanceSlide])
 
-  // scroll state
+  // scroll state — wordmark collapses via classList (no re-render)
   useEffect(() => {
-    const fn = () => {
-      const y = window.scrollY
-      setCollapsed(y > window.innerHeight - 100)
-      setScrolled(y > 50)
+    const handleScroll = () => {
+      const scrollY = window.scrollY
+      const threshold = window.innerHeight * 0.33 - 16
+      const el = wordmarkRef.current
+      if (el) {
+        if (scrollY >= threshold) {
+          el.classList.add('collapsed', 'fixed')
+        } else {
+          el.classList.remove('collapsed', 'fixed')
+        }
+      }
+      setScrolled(scrollY > 50)
     }
-    window.addEventListener('scroll', fn, { passive: true })
-    return () => window.removeEventListener('scroll', fn)
+    window.addEventListener('scroll', handleScroll, { passive: true })
+    return () => window.removeEventListener('scroll', handleScroll)
   }, [])
 
   // work section: projects with coverImage, sorted latest first, max 8; fallback top 6
@@ -74,65 +83,20 @@ export default function HomePage() {
 
   const activeProject = shuffled[activeIdx]
 
-  const restSpan = (text: string, maxW: string) => (
-    <span style={{
-      display: 'inline-block',
-      overflow: 'hidden',
-      maxWidth: collapsed ? '0' : maxW,
-      opacity: collapsed ? 0 : 1,
-      transition: 'max-width 0.4s ease, opacity 0.4s ease',
-    }}>
-      {text}
-    </span>
-  )
-
-  const spaceSpan = (
-    <span style={{
-      display: 'inline-block',
-      overflow: 'hidden',
-      maxWidth: collapsed ? '0' : '0.35em',
-      transition: 'max-width 0.4s ease',
-    }}>&nbsp;</span>
-  )
-
   return (
     <div style={{ fontFamily: FONT, background: '#080706' }}>
 
-      {/* ── WORDMARK ── */}
+      {/* ── HERO ── */}
       <div
-        className="wordmark-shimmer"
+        ref={heroRef}
         style={{
-          position: 'fixed',
-          top: collapsed ? 16 : '35%',
-          left: 20,
-          zIndex: 300,
-          color: '#ffffff',
-          mixBlendMode: 'difference',
-          fontSize: mobile ? (collapsed ? 18 : 22) : (collapsed ? 28 : 42),
-          letterSpacing: '0.02em',
-          lineHeight: 1,
-          whiteSpace: 'nowrap',
-          transition: 'top 0.4s ease, font-size 0.4s ease',
-          fontFamily: FONT,
-          pointerEvents: 'none',
+          position: 'relative',
+          width: '100vw',
+          height: '100vh',
+          overflow: 'hidden',
+          backgroundColor: '#080706',
         }}
       >
-        <span style={{ fontWeight: 300 }}>
-          <span>A</span>{restSpan('rchitect', '6em')}
-        </span>
-        {spaceSpan}
-        <span style={{ fontWeight: 500 }}>
-          <span>C</span>{restSpan('hanghyun', '7em')}
-        </span>
-        {spaceSpan}
-        <span style={{ fontWeight: 700 }}>
-          <span>P</span>{restSpan('aik', '3em')}
-        </span>
-      </div>
-
-      {/* ── HERO ── */}
-      <div style={{ position: 'relative', height: '100vh', overflow: 'hidden', background: '#080706' }}>
-
         {/* Current image — single, swapped during blackout */}
         <div style={{
           position: 'absolute', inset: 0,
@@ -162,75 +126,93 @@ export default function HomePage() {
           zIndex: 1,
           pointerEvents: 'none',
         }} />
-      </div>
 
-      {/* ── NAVIGATION — fixed bottom-right ── */}
-      <nav style={{
-        position: 'fixed',
-        bottom: 24,
-        right: 24,
-        zIndex: 200,
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'flex-end',
-        mixBlendMode: 'difference',
-      }}>
-        {[
-          { label: 'Work',    href: '/work' },
-          { label: 'About',   href: '/about' },
-          { label: 'Contact', href: 'mailto:contact@paikarchitects.com' },
-        ].map(({ label, href }) => (
-          <Link
-            key={label}
-            href={href}
-            style={{
-              fontFamily: FONT,
-              fontWeight: 300,
-              fontSize: 15,
-              color: '#ffffff',
-              textDecoration: 'none',
-              lineHeight: 1.8,
-              textAlign: 'right',
-              display: 'block',
-            }}
-            onMouseEnter={e => { e.currentTarget.style.textDecoration = 'underline' }}
-            onMouseLeave={e => { e.currentTarget.style.textDecoration = 'none' }}
-          >
-            {label}
-          </Link>
-        ))}
-      </nav>
+        {/* ── WORDMARK ── */}
+        <div ref={wordmarkRef} className="wordmark-container">
+          <span className="word" style={{ fontWeight: 900 }}>
+            <span className="initial">A</span>
+            <span className="rest">rchitect</span>
+          </span>
+          <span className="space"> </span>
+          <span className="word" style={{ fontWeight: 400 }}>
+            <span className="initial">C</span>
+            <span className="rest">hanghyun</span>
+          </span>
+          <span className="space"> </span>
+          <span className="word" style={{ fontWeight: 300 }}>
+            <span className="initial">P</span>
+            <span className="rest">aik</span>
+          </span>
+        </div>
 
-      {/* ── CAPTION — fixed bottom-left ── */}
-      <div style={{
-        position: 'fixed',
-        bottom: 20,
-        left: 20,
-        zIndex: 200,
-        fontFamily: FONT,
-        fontStyle: 'italic',
-        fontSize: 11,
-        fontWeight: 300,
-        color: 'rgba(255,255,255,0.7)',
-        pointerEvents: 'none',
-      }}>
-        {activeProject.title}, {activeProject.year}
-      </div>
+        {/* ── NAVIGATION — fixed bottom-right ── */}
+        <nav style={{
+          position: 'fixed',
+          bottom: 24,
+          right: 24,
+          zIndex: 20,
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'flex-end',
+          mixBlendMode: 'difference',
+        }}>
+          {[
+            { label: 'Work',    href: '/work' },
+            { label: 'About',   href: '/about' },
+            { label: 'Contact', href: 'mailto:contact@paikarchitects.com' },
+          ].map(({ label, href }) => (
+            <Link
+              key={label}
+              href={href}
+              style={{
+                fontFamily: FONT,
+                fontWeight: 300,
+                fontSize: 15,
+                color: '#ffffff',
+                textDecoration: 'none',
+                lineHeight: 1.8,
+                textAlign: 'right',
+                display: 'block',
+              }}
+              onMouseEnter={e => { e.currentTarget.style.textDecoration = 'underline' }}
+              onMouseLeave={e => { e.currentTarget.style.textDecoration = 'none' }}
+            >
+              {label}
+            </Link>
+          ))}
+        </nav>
 
-      {/* ── SCROLL INDICATOR — fixed bottom-center ── */}
-      <div style={{
-        position: 'fixed',
-        bottom: 20,
-        left: '50%',
-        transform: 'translateX(-50%)',
-        zIndex: 200,
-        color: '#ffffff',
-        fontSize: 16,
-        opacity: scrolled ? 0 : 0.6,
-        transition: 'opacity 0.3s ease',
-        pointerEvents: 'none',
-      }}>
-        ↓
+        {/* ── CAPTION — fixed bottom-left ── */}
+        <div style={{
+          position: 'fixed',
+          bottom: 20,
+          left: 20,
+          zIndex: 10,
+          fontFamily: FONT,
+          fontStyle: 'italic',
+          fontSize: 11,
+          fontWeight: 300,
+          color: 'rgba(255,255,255,0.7)',
+          pointerEvents: 'none',
+        }}>
+          {activeProject.title}, {activeProject.year}
+        </div>
+
+        {/* ── SCROLL INDICATOR — fixed bottom-center ── */}
+        <div style={{
+          position: 'fixed',
+          bottom: 20,
+          left: '50%',
+          transform: 'translateX(-50%)',
+          zIndex: 10,
+          color: '#ffffff',
+          fontSize: 16,
+          opacity: scrolled ? 0 : 0.6,
+          transition: 'opacity 0.3s ease',
+          pointerEvents: 'none',
+        }}>
+          ↓
+        </div>
       </div>
 
       {/* ── WORK SECTION ── */}
