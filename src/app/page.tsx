@@ -38,9 +38,9 @@ export default function HomePage() {
 
   // 진입 시퀀스
   useEffect(() => {
-    const t1 = setTimeout(() => setEntryPhase('nav'),     10000)
-    const t2 = setTimeout(() => setEntryPhase('shimmer'), 10400)
-    const t3 = setTimeout(() => setEntryPhase('done'),    11600)
+    const t1 = setTimeout(() => setEntryPhase('nav'),     5000)
+    const t2 = setTimeout(() => setEntryPhase('shimmer'), 5400)
+    const t3 = setTimeout(() => setEntryPhase('done'),    6600)
     return () => {
       clearTimeout(t1)
       clearTimeout(t2)
