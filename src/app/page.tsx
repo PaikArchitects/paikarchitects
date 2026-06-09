@@ -226,9 +226,10 @@ export default function HomePage() {
           transition: 'opacity 400ms ease-out',
         }}>
           {[
-            { label: 'Work',    href: '/work' },
-            { label: 'About',   href: '/about' },
-            { label: 'Contact', href: 'mailto:contact@paikarchitects.com' },
+            { label: 'ABOUT',    href: '/about'   },
+            { label: 'WORKS',    href: '/work'    },
+            { label: 'ESSAYS',   href: '/essays'  },
+            { label: 'CONTACTS', href: '/contact' },
           ].map(({ label, href }) => (
             <Link
               key={label}
@@ -236,7 +237,7 @@ export default function HomePage() {
               style={{
                 fontFamily: FONT,
                 fontWeight: 300,
-                fontSize: 15,
+                fontSize: 18,
                 color: isOverLight ? '#080706' : '#ffffff',
                 textDecoration: 'none',
                 lineHeight: 1.8,

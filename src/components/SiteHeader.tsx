@@ -7,7 +7,7 @@ const FONT = "'Pretendard Variable', Pretendard, -apple-system, BlinkMacSystemFo
 
 interface SiteHeaderProps {
   variant: 'dark' | 'light'
-  activePage?: 'work' | 'about' | 'contact'
+  activePage?: 'work' | 'about' | 'essays' | 'contact'
 }
 
 export function SiteHeader({ variant, activePage }: SiteHeaderProps) {
@@ -31,9 +31,10 @@ export function SiteHeader({ variant, activePage }: SiteHeaderProps) {
   const hamFill    = dark ? 'rgba(255,255,255,0.80)' : 'rgba(17,17,16,0.70)'
 
   const NAV = [
-    { label: 'Work',    href: '/work',          key: 'work'    },
-    { label: 'About',   href: '/about',         key: 'about'   },
-    { label: 'Contact', href: '/about#contact', key: 'contact' },
+    { label: 'About',    href: '/about',   key: 'about'   },
+    { label: 'Works',    href: '/work',    key: 'work'    },
+    { label: 'Essays',   href: '/essays',  key: 'essays'  },
+    { label: 'Contacts', href: '/contact', key: 'contact' },
   ] as const
 
   return (
