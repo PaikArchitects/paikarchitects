@@ -298,10 +298,16 @@ export default function HomePage() {
 
           const textContent = (
             <div>
-              <div style={{ fontSize: 11, fontWeight: 300, color: gray, marginBottom: 8 }}>
+              <div style={{ fontSize: 11, fontWeight: 300, color: gray, marginBottom: 6 }}>
                 {p.year}
               </div>
-              <div style={{ fontSize: 26, fontWeight: 600, marginBottom: 8 }}>
+              <div style={{
+                fontSize: 18,
+                fontWeight: 700,
+                lineHeight: 1.2,
+                marginBottom: 8,
+                wordBreak: 'keep-all' as const,
+              }}>
                 <Link href={`/work/${p.id}`} style={{ color: 'inherit', textDecoration: 'none' }}>
                   {p.title}
                 </Link>
@@ -326,14 +332,33 @@ export default function HomePage() {
           if (mobile) {
             return (
               <div key={p.id}>
-                <div style={{ width: '100%', height: '60vw', overflow: 'hidden' }}>
+                {/* 이미지 블록: 9:16 portrait */}
+                <div style={{ width: '100%', aspectRatio: '9/16', overflow: 'hidden' }}>
                   {imgEl}
                 </div>
-                <div style={{ padding: 24, background: textBg, color: textColor, fontFamily: FONT }}>
-                  <div style={{ fontSize: 11, fontWeight: 300, color: gray, marginBottom: 8 }}>
+                {/* 텍스트 카드: 1:1 정방형, 텍스트 하단 배치 */}
+                <div style={{
+                  width: '100%',
+                  aspectRatio: '1/1',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  justifyContent: 'flex-end',
+                  padding: 24,
+                  background: textBg,
+                  color: textColor,
+                  fontFamily: FONT,
+                  boxSizing: 'border-box' as const,
+                }}>
+                  <div style={{ fontSize: 11, fontWeight: 300, color: gray, marginBottom: 6 }}>
                     {p.year}
                   </div>
-                  <div style={{ fontSize: 20, fontWeight: 600, marginBottom: 8 }}>
+                  <div style={{
+                    fontSize: 16,
+                    fontWeight: 700,
+                    lineHeight: 1.2,
+                    marginBottom: 8,
+                    wordBreak: 'keep-all' as const,
+                  }}>
                     <Link href={`/work/${p.id}`} style={{ color: 'inherit', textDecoration: 'none' }}>
                       {p.title}
                     </Link>
@@ -350,21 +375,23 @@ export default function HomePage() {
             <div
               className={textOnLeft ? 'light-panel' : undefined}
               style={{
-                width: '50%',
+                width: '20%',
                 flexShrink: 0,
                 position: 'sticky',
                 top: 0,
                 height: '100vh',
                 display: 'flex',
                 flexDirection: 'column',
-                justifyContent: 'flex-start',
+                justifyContent: 'flex-end',
                 alignItems: 'flex-start',
-                paddingTop: '48px',
-                paddingLeft: '40px',
-                paddingRight: '40px',
+                paddingTop: 96,
+                paddingBottom: 48,
+                paddingLeft: 24,
+                paddingRight: 16,
                 background: textBg,
                 color: textColor,
                 fontFamily: FONT,
+                boxSizing: 'border-box' as const,
               }}
             >
               {textContent}
@@ -372,13 +399,18 @@ export default function HomePage() {
           )
 
           const imagePanel = (
-            <div style={{ width: '50%', flexShrink: 0, minHeight: '100vh', overflow: 'hidden' }}>
+            <div style={{
+              width: '80%',
+              flexShrink: 0,
+              aspectRatio: '3/4',
+              overflow: 'hidden',
+            }}>
               {imgEl}
             </div>
           )
 
           return (
-            <div key={p.id} style={{ display: 'flex', height: '100vh' }}>
+            <div key={p.id} style={{ display: 'flex', alignItems: 'flex-start' }}>
               {textOnLeft ? <>{textPanel}{imagePanel}</> : <>{imagePanel}{textPanel}</>}
             </div>
           )

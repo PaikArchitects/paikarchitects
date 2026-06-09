@@ -1,132 +1,173 @@
 # DESIGN_SYSTEM_SPEC.md
-## Paik Architecture — 색상 시스템 · 네비게이션 · 프로젝트 섹션 기반 수정
-**버전:** v2 | **기준일:** 2026.06.08
-**이 파일은 향후 동일 항목 변경 시 덮어씌워 재사용한다.**
+## Paik Architecture — globals.css 전면 정리
+**버전:** v2  
+**적용 파일:** `src/app/globals.css` (전체 교체)  
+**실행 방법:** `DESIGN_SYSTEM_SPEC.md 파일을 읽고 명세대로 구현해줘`
 
 ---
 
-## v1 → v2 변경 내용
+## 목표
 
-- 네비게이션 폰트 크기: 15px → **18px**
-- 네비게이션 항목 재구성: WORK/ABOUT/CONTACT → **ABOUT / WORKS / ESSAYS / CONTACTS**
-- Essays 페이지 스텁 신규 생성
-
----
-
-## 사전 작업
-
-아래 파일의 현재 코드를 GitHub raw URL로 fetch한 뒤 시작한다.
-
-```
-https://raw.githubusercontent.com/PaikArchitects/paikarchitects/main/src/app/globals.css
-https://raw.githubusercontent.com/PaikArchitects/paikarchitects/main/src/app/page.tsx
-https://raw.githubusercontent.com/PaikArchitects/paikarchitects/main/src/app/work/page.tsx
-https://raw.githubusercontent.com/PaikArchitects/paikarchitects/main/src/data/projects.ts
-```
+1. 파손된 중복 Pretendard import 제거 (두 번째 `@import` 라인의 URL이 `@` 누락으로 파손됨)
+2. 현재 코드베이스에서 사용되지 않는 레거시 CSS 클래스 전면 삭제
+3. `@theme` 블록을 현행 색상 시스템으로 업데이트 (DM Sans / Cormorant Garamond / #F0EBE2 제거)
+4. `body` 기본 폰트를 Pretendard로 통일
 
 ---
 
-## 1. 색상 시스템 (v1과 동일, 확인만)
+## 삭제 대상 확인
 
-v1에서 이미 적용된 항목이다. 재적용하지 않되, 누락된 경우에만 처리한다.
+아래 클래스·keyframe은 현재 모든 컴포넌트(page.tsx / work/page.tsx / SiteHeader.tsx / about/page.tsx)에서 인라인 스타일로 대체되어 CSS 클래스를 전혀 참조하지 않음. 전면 삭제.
 
-- 배경색: `#080706` + `#FFFFFF` 두 가지만 허용, `#F8F6F2` 완전 제거
-- PALETTE 폴백: 모든 값 `#080706`
-- work/page.tsx, about/page.tsx: `#F8F6F2` → `#FFFFFF`
-- globals.css: Pretendard CDN import 존재 확인
+| 대상 | 비고 |
+|---|---|
+| `.project-card` 및 하위 modifier 전체 | work/page.tsx에서 인라인 스타일로 재구현됨 |
+| `.grid-row`, `.grid-row-2-wide` 등 전체 | 미사용 |
+| `.site-header`, `.site-header-name` 등 전체 | SiteHeader.tsx가 인라인 스타일 사용 |
+| `.site-footer`, `.site-footer-left/right` | 미사용 |
+| `@keyframes kenBurns` | 미사용 |
+| `@keyframes fadeUp` | 미사용 |
+| `@theme` 내 `--font-display`, `--font-ui`, `--color-site-dim`, `--color-site-muted` | 미사용 |
 
----
-
-## 2. ACP 모노그램 + 네비게이션 색상 자동 전환 (v1과 동일, 확인만)
-
-v1에서 이미 적용됨. 누락 시만 처리한다.
-
-- `mix-blend-mode: difference` 방식은 **사용하지 않는다**
-- `.light-panel` 클래스 기반 색상 전환 방식 사용
-- 어두운 배경: `#FFFFFF`, 밝은 배경: `#080706` — 회색 없음
+**유지 대상:** `.entry-spinner`, `.wordmark-container` 및 하위 전체, `@keyframes spin`, `@keyframes shimmerReveal` — page.tsx에서 className으로 직접 참조.
 
 ---
 
-## 3. 플로팅 네비게이션 — 항목·폰트 수정 (v2 신규)
+## 최종 globals.css 전체 내용
 
-### 3-A. 항목 재구성
+아래 내용으로 `src/app/globals.css`를 **전체 교체**한다. 기존 내용 삭제 후 아래로 덮어쓴다.
 
-기존 Work / About / Contact 를 제거하고 아래 순서로 교체한다.
+```css
+@import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.min.css');
 
-```
-ABOUT      → /about
-WORKS      → /work
-ESSAYS     → /essays
-CONTACTS   → /contact
-```
+/* ── ENTRY SPINNER ── */
+.entry-spinner {
+  width: 32px;
+  height: 32px;
+  border: 1.5px solid rgba(255, 255, 255, 0.2);
+  border-top-color: rgba(255, 255, 255, 0.8);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
 
-링크 경로: `/about`, `/work`, `/essays`, `/contact`
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
 
-### 3-B. 폰트 크기
-
-```tsx
-fontSize: '18px',      // 15px → 18px
-fontWeight: 300,       // 유지
-lineHeight: '1.8',     // 유지
-textAlign: 'right',    // 유지
-```
-
----
-
-## 4. Essays 페이지 스텁 생성 (v2 신규)
-
-`src/app/essays/page.tsx` 파일을 신규 생성한다.
-내용은 최소한의 스텁으로 충분하다.
-
-```tsx
-// src/app/essays/page.tsx
-export default function EssaysPage() {
-  return (
-    <main style={{
-      minHeight: '100vh',
-      backgroundColor: '#080706',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-    }}>
-      <p style={{
-        color: '#ffffff',
-        fontFamily: 'sans-serif',
-        fontSize: '14px',
-        fontWeight: 300,
-        letterSpacing: '0.1em',
-        opacity: 0.4,
-      }}>
-        Essays — Coming Soon
-      </p>
-    </main>
+/* ── SHIMMER REVEAL ── */
+.wordmark-container.shimmer-active {
+  -webkit-mask-image: linear-gradient(
+    90deg,
+    transparent 0%,
+    black 30%,
+    black 70%,
+    transparent 100%
   );
+  -webkit-mask-size: 200% 100%;
+  mask-image: linear-gradient(
+    90deg,
+    transparent 0%,
+    black 30%,
+    black 70%,
+    transparent 100%
+  );
+  mask-size: 200% 100%;
+  animation: shimmerReveal 1.2s ease-out forwards;
+}
+
+@keyframes shimmerReveal {
+  0%   { -webkit-mask-position: -100% center; mask-position: -100% center; }
+  100% { -webkit-mask-position: 100% center;  mask-position: 100% center; }
+}
+
+/* ── WORDMARK ── */
+.wordmark-container {
+  display: flex;
+  flex-direction: row;
+  align-items: baseline;
+  font-size: 56px;
+  line-height: 1;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  user-select: none;
+  cursor: default;
+}
+
+.wordmark-container .word {
+  display: inline-flex;
+  align-items: baseline;
+  overflow: hidden;
+}
+
+.wordmark-container .rest {
+  display: inline-block;
+  max-width: 400px;
+  overflow: hidden;
+  opacity: 1;
+  white-space: nowrap;
+  vertical-align: baseline;
+  transition:
+    max-width 0.5s cubic-bezier(0.4, 0, 0.2, 1),
+    opacity   0.35s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.wordmark-container .word-space {
+  display: inline-block;
+  width: 0.3em;
+  max-width: 0.3em;
+  overflow: hidden;
+  opacity: 1;
+  transition:
+    max-width 0.5s cubic-bezier(0.4, 0, 0.2, 1),
+    opacity   0.35s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.wordmark-container.collapsed .rest,
+.wordmark-container.collapsed .word-space {
+  max-width: 0;
+  opacity: 0;
+}
+
+@media (max-width: 768px) {
+  .wordmark-container {
+    font-size: 28px;
+  }
+}
+
+/* ── Design Tokens ── */
+@theme {
+  --color-site-bg:   #080706;
+  --color-site-text: #FFFFFF;
+}
+
+/* ── Base ── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html { height: 100%; }
+
+body {
+  background-color: #080706;
+  color: #FFFFFF;
+  font-family: 'Pretendard Variable', Pretendard, -apple-system, BlinkMacSystemFont, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  min-height: 100%;
+}
+
+::selection {
+  background: rgba(255, 255, 255, 0.15);
+  color: #FFFFFF;
 }
 ```
 
 ---
 
-## 5. 프로젝트 섹션 텍스트 패널 수직 정렬 (v1과 동일, 확인만)
+## 주의사항
 
-v1에서 적용됨. 누락 시만 처리한다.
-
-```tsx
-justifyContent: 'flex-start',
-alignItems: 'flex-start',
-paddingTop: '48px',
-paddingLeft: '40px',
-```
+- `src/app/work/[slug]/page.tsx` 스텁 파일이 `var(--font-dm-sans)`를 참조하고 있으나, 이는 `next/font/google`이 layout.tsx에서 주입하는 CSS 변수이므로 globals.css 수정과 무관하다. 건드리지 않는다.
+- `@import url(...)` 라인은 반드시 파일 최상단(1번째 라인)이어야 한다.
+- 교체 후 `next build` 없이 dev 서버에서 즉시 확인 가능하다.
 
 ---
 
-## 6. 검증 체크리스트
-
-- [ ] 플로팅 nav 항목이 ABOUT / WORKS / ESSAYS / CONTACTS 순서로 표시됨
-- [ ] 폰트 크기가 이전보다 명확히 크게 보임 (18px)
-- [ ] /essays 페이지가 404 없이 접근됨
-- [ ] #F8F6F2 잔존 여부 없음
-- [ ] PALETTE 폴백 컬러 없음 (모두 #080706)
-
----
-
-*v2 — 2026.06.08 | 네비게이션 폰트 18px, 항목 재구성(ABOUT/WORKS/ESSAYS/CONTACTS), Essays 스텁 추가*
+*v2 — 2026.06.09*
