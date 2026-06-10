@@ -10,7 +10,6 @@ interface ContentAreaProps {
   mode: 'idle' | 'active'
   isBlacking: boolean
   visible: boolean
-  shimmer: boolean
   mobile: boolean
   onBack: () => void
 }
@@ -39,7 +38,7 @@ const arrowBaseStyle: React.CSSProperties = {
   zIndex: 5,
 }
 
-export function ContentArea({ project, mode, isBlacking, visible, shimmer, mobile, onBack }: ContentAreaProps) {
+export function ContentArea({ project, mode, isBlacking, visible, mobile, onBack }: ContentAreaProps) {
   const images = getImages(project)
   const total = Math.max(images.length, 1)
   const [slideIdx, setSlideIdx] = useState(0)
@@ -72,7 +71,6 @@ export function ContentArea({ project, mode, isBlacking, visible, shimmer, mobil
 
   return (
     <div
-      className={shimmer ? 'content-shimmer' : undefined}
       style={{
         width: mobile ? '100%' : '66.667vw',
         height: '100%',
@@ -94,7 +92,7 @@ export function ContentArea({ project, mode, isBlacking, visible, shimmer, mobil
             position: 'absolute',
             inset: 0,
             opacity: visible ? 1 : 0,
-            transition: shimmer ? 'none' : 'opacity 800ms ease-out',
+            transition: 'opacity 800ms ease-out',
           }}>
             {images[0] ? (
               // eslint-disable-next-line @next/next/no-img-element
@@ -131,17 +129,26 @@ export function ContentArea({ project, mode, isBlacking, visible, shimmer, mobil
           }}>
             {(images.length > 0 ? images : [null]).map((src, idx) => (
               <div key={idx} style={{ width: '100%', height: '100%', flexShrink: 0 }}>
-                {src ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={src}
-                    alt={project.title}
-                    style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
-                    draggable={false}
-                  />
-                ) : (
-                  <div style={{ width: '100%', height: '100%', background: project.coverColor }} />
-                )}
+                <div style={{
+                  width: '100%',
+                  height: '100%',
+                  boxSizing: 'border-box',
+                  padding: 48,
+                  background: '#080706',
+                  transition: 'padding 0.4s ease-out',
+                }}>
+                  {src ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={src}
+                      alt={project.title}
+                      style={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block' }}
+                      draggable={false}
+                    />
+                  ) : (
+                    <div style={{ width: '100%', height: '100%', background: project.coverColor }} />
+                  )}
+                </div>
               </div>
             ))}
           </div>

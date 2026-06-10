@@ -9,7 +9,7 @@ import { ContentArea } from '@/components/ContentArea'
 
 const FONT = "'Pretendard Variable', Pretendard, -apple-system, BlinkMacSystemFont, sans-serif"
 
-type EntryPhase = 'loading' | 'header' | 'wall' | 'shimmer' | 'done'
+type IntroPhase = 'wordmark' | 'collapse' | 'move' | 'done'
 
 const NAV_ITEMS = [
   { label: 'ABOUT',    href: '/about'   },
@@ -29,7 +29,7 @@ function shuffle<T>(arr: T[]): T[] {
 
 export default function HomePage() {
   const [mobile, setMobile] = useState(false)
-  const [entryPhase, setEntryPhase] = useState<EntryPhase>('loading')
+  const [introPhase, setIntroPhase] = useState<IntroPhase>('wordmark')
 
   const [shuffleQueue, setShuffleQueue] = useState<Project[]>(() => shuffle(sortedProjects))
   const [shuffleIdx, setShuffleIdx] = useState(0)
@@ -51,15 +51,12 @@ export default function HomePage() {
     return () => window.removeEventListener('resize', fn)
   }, [])
 
-  // 진입 시퀀스: loading → header → wall → shimmer → done
+  // 진입 시퀀스: wordmark → collapse → move → done (총 약 3.1s)
   useEffect(() => {
-    const timers = [
-      setTimeout(() => setEntryPhase('header'), 5000),
-      setTimeout(() => setEntryPhase('wall'), 5200),
-      setTimeout(() => setEntryPhase('shimmer'), 6400),
-      setTimeout(() => setEntryPhase('done'), 7600),
-    ]
-    return () => timers.forEach(clearTimeout)
+    const t1 = setTimeout(() => setIntroPhase('collapse'), 2300)
+    const t2 = setTimeout(() => setIntroPhase('move'), 2700)
+    const t3 = setTimeout(() => setIntroPhase('done'), 3100)
+    return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3) }
   }, [])
 
   // 셔플 — blackout fade, 끝에 도달하면 재셔플
@@ -80,11 +77,11 @@ export default function HomePage() {
 
   // 셔플 타이머 — hover 또는 active 중에는 일시정지
   useEffect(() => {
-    if (entryPhase !== 'done') return
+    if (introPhase !== 'done') return
     if (activeProject || hoveredProject) return
     const timer = setInterval(advanceShuffle, 4000)
     return () => clearInterval(timer)
-  }, [entryPhase, activeProject, hoveredProject, advanceShuffle])
+  }, [introPhase, activeProject, hoveredProject, advanceShuffle])
 
   // ESC → active 종료
   useEffect(() => {
@@ -136,8 +133,11 @@ export default function HomePage() {
   const shuffleProject = shuffleQueue[shuffleIdx] ?? sortedProjects[0]
   const displayProject = activeProject ?? hoveredProject ?? shuffleProject
 
-  const wallRevealed = entryPhase === 'wall' || entryPhase === 'shimmer' || entryPhase === 'done'
-  const contentVisible = entryPhase === 'shimmer' || entryPhase === 'done'
+  const layoutVisible = introPhase === 'done'
+  const wordmarkCollapsed = introPhase !== 'wordmark'
+  const wordmarkMoved = introPhase === 'move' || introPhase === 'done'
+  // ACP가 ProjectWall(.light-panel, 흰 배경) 위에 놓이는 경우에만 다크 컬러로 전환
+  const wordmarkOnLight = layoutVisible && !mobile
 
   return (
     <div style={{
@@ -149,77 +149,38 @@ export default function HomePage() {
       position: 'relative',
     }}>
 
-      {/* ── LOADING OVERLAY ── */}
-      <div
-        style={{
-          position: 'fixed',
-          inset: 0,
-          backgroundColor: '#000000',
-          zIndex: 200,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          opacity: entryPhase === 'loading' ? 1 : 0,
-          transition: entryPhase === 'loading' ? 'none' : 'opacity 400ms ease-out',
-          pointerEvents: entryPhase === 'loading' ? 'auto' : 'none',
-        }}
-      >
-        <div className="entry-spinner" />
+      {/* ── WORDMARK / ACP MONOGRAM ── */}
+      <div className={`wordmark-intro ${wordmarkCollapsed ? 'collapsed' : ''} ${wordmarkMoved ? 'moved' : ''} ${wordmarkOnLight ? 'on-light' : ''}`}>
+        <span style={{ fontWeight: 900 }}>
+          <span className="initial">A</span>
+          <span className="rest">rchitect</span>
+        </span>
+        <span className="spacer">&nbsp;</span>
+        <span style={{ fontWeight: 400 }}>
+          <span className="initial">C</span>
+          <span className="rest">hanghyun</span>
+        </span>
+        <span className="spacer">&nbsp;</span>
+        <span style={{ fontWeight: 300 }}>
+          <span className="initial">P</span>
+          <span className="rest">aik</span>
+        </span>
       </div>
-
-      {/* ── HEADER ── */}
-      <header style={{
-        position: 'fixed',
-        top: 0,
-        left: 0,
-        right: 0,
-        height: 60,
-        zIndex: 100,
-        display: 'flex',
-        alignItems: 'center',
-        paddingLeft: 20,
-        background: '#FFFFFF',
-        boxSizing: 'border-box',
-        opacity: entryPhase === 'loading' ? 0 : 1,
-        transition: 'opacity 400ms ease-out',
-      }}>
-        <div className="wordmark-container" style={{ color: '#080706', fontFamily: FONT }}>
-          <span className="word" style={{ fontWeight: 900 }}>
-            <span className="initial">A</span>
-            <span className="rest">rchitect</span>
-          </span>
-
-          <span className="word-space">&nbsp;</span>
-
-          <span className="word" style={{ fontWeight: 400 }}>
-            <span className="initial">C</span>
-            <span className="rest">hanghyun</span>
-          </span>
-
-          <span className="word-space">&nbsp;</span>
-
-          <span className="word" style={{ fontWeight: 300 }}>
-            <span className="initial">P</span>
-            <span className="rest">aik</span>
-          </span>
-        </div>
-      </header>
 
       {/* ── MAIN ── */}
       <div style={{
         position: 'absolute',
-        top: 60,
-        left: 0,
-        right: 0,
-        bottom: 0,
+        inset: 0,
         display: 'flex',
+        opacity: layoutVisible ? 1 : 0,
+        transition: 'opacity 400ms ease-out',
       }}>
         {!mobile && (
           <ProjectWall
             projects={sortedProjects}
             highlightSlug={shuffleProject.id}
             activeSlug={activeProject?.id ?? null}
-            revealed={wallRevealed}
+            revealed={layoutVisible}
             onHover={handleHover}
             onSelect={handleSelect}
           />
@@ -229,23 +190,23 @@ export default function HomePage() {
           project={displayProject}
           mode={activeProject ? 'active' : 'idle'}
           isBlacking={isBlacking}
-          visible={contentVisible}
-          shimmer={entryPhase === 'shimmer'}
+          visible={layoutVisible}
           mobile={mobile}
           onBack={handleBack}
         />
       </div>
 
-      {/* ── NAVIGATION — fixed bottom-right ── */}
+      {/* ── NAVIGATION — fixed top-right ── */}
       <nav style={{
         position: 'fixed',
-        bottom: 24,
+        top: 24,
         right: 24,
-        zIndex: 80,
+        zIndex: 100,
         display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'flex-end',
-        opacity: entryPhase === 'loading' ? 0 : 1,
+        flexDirection: 'row',
+        gap: 32,
+        alignItems: 'center',
+        opacity: layoutVisible ? 1 : 0,
         transition: 'opacity 400ms ease-out',
       }}>
         {NAV_ITEMS.map(({ label, href }) => (
@@ -255,12 +216,11 @@ export default function HomePage() {
             style={{
               fontFamily: FONT,
               fontWeight: 300,
-              fontSize: 18,
+              fontSize: 13,
+              letterSpacing: '0.08em',
+              textTransform: 'uppercase',
               color: '#ffffff',
               textDecoration: 'none',
-              lineHeight: 1.8,
-              textAlign: 'right',
-              display: 'block',
             }}
             onMouseEnter={e => { e.currentTarget.style.textDecoration = 'underline' }}
             onMouseLeave={e => { e.currentTarget.style.textDecoration = 'none' }}

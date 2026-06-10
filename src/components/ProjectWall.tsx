@@ -54,23 +54,25 @@ function WallCard({ project, index, isHighlighted, isDimmed, revealed, registerR
         display: 'flex',
         flexDirection: 'column',
         justifyContent: 'center',
+        alignItems: 'flex-end',
+        textAlign: 'right',
         paddingLeft: 20,
-        paddingRight: 12,
+        paddingRight: 8,
         boxSizing: 'border-box',
         opacity,
         transition: 'opacity 0.3s ease',
       }}>
-        <div style={{ fontFamily: FONT, fontSize: 14, fontWeight: 300, color: '#080706', lineHeight: 1.3, wordBreak: 'keep-all' as const }}>
+        <div style={{ fontFamily: FONT, fontSize: 16, fontWeight: 400, color: '#080706', lineHeight: 1.3, wordBreak: 'keep-all' as const }}>
           {project.title}
         </div>
         <div style={{
           fontFamily: FONT,
-          fontSize: 10,
+          fontSize: 11,
           fontWeight: 300,
           letterSpacing: '0.08em',
           textTransform: 'uppercase',
           color: '#080706',
-          opacity: 0.5,
+          opacity: 0.6,
           marginTop: 6,
         }}>
           {project.location ?? ''}
@@ -105,14 +107,14 @@ export function ProjectWall({ projects, highlightSlug, activeSlug, revealed, onH
 
   return (
     <div
-      className="project-wall-scroll"
+      className="project-wall-scroll light-panel"
       style={{
         width: '33.333vw',
         height: '100%',
         flexShrink: 0,
         overflowY: 'auto',
         overflowX: 'hidden',
-        borderRight: '1px solid #080706',
+        borderRight: '1px solid rgba(255, 255, 255, 0.12)',
         background: '#FFFFFF',
         display: 'flex',
         flexDirection: 'column',
