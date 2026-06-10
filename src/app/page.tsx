@@ -9,7 +9,7 @@ import { ContentArea } from '@/components/ContentArea'
 
 const FONT = "'Pretendard Variable', Pretendard, -apple-system, BlinkMacSystemFont, sans-serif"
 
-type IntroPhase = 'wordmark' | 'collapse' | 'move' | 'done'
+type IntroPhase = 'wordmark' | 'collapsed' | 'done'
 
 const NAV_ITEMS = [
   { label: 'ABOUT',    href: '/about'   },
@@ -51,12 +51,11 @@ export default function HomePage() {
     return () => window.removeEventListener('resize', fn)
   }, [])
 
-  // 진입 시퀀스: wordmark → collapse → move → done (총 약 3.1s)
+  // 진입 시퀀스: wordmark → collapsed(collapse+move 동시) → done (총 4.8s)
   useEffect(() => {
-    const t1 = setTimeout(() => setIntroPhase('collapse'), 2300)
-    const t2 = setTimeout(() => setIntroPhase('move'), 2700)
-    const t3 = setTimeout(() => setIntroPhase('done'), 3100)
-    return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3) }
+    const t1 = setTimeout(() => setIntroPhase('collapsed'), 4000)
+    const t2 = setTimeout(() => setIntroPhase('done'), 4800)
+    return () => { clearTimeout(t1); clearTimeout(t2) }
   }, [])
 
   // 셔플 — blackout fade, 끝에 도달하면 재셔플
@@ -134,8 +133,8 @@ export default function HomePage() {
   const displayProject = activeProject ?? hoveredProject ?? shuffleProject
 
   const layoutVisible = introPhase === 'done'
-  const wordmarkCollapsed = introPhase !== 'wordmark'
-  const wordmarkMoved = introPhase === 'move' || introPhase === 'done'
+  // collapse(글자 축약)와 move(위치 이동)는 동시에 트리거됨
+  const wordmarkActive = introPhase !== 'wordmark'
   // ACP가 ProjectWall(.light-panel, 흰 배경) 위에 놓이는 경우에만 다크 컬러로 전환
   const wordmarkOnLight = layoutVisible && !mobile
 
@@ -150,18 +149,18 @@ export default function HomePage() {
     }}>
 
       {/* ── WORDMARK / ACP MONOGRAM ── */}
-      <div className={`wordmark-intro ${wordmarkCollapsed ? 'collapsed' : ''} ${wordmarkMoved ? 'moved' : ''} ${wordmarkOnLight ? 'on-light' : ''}`}>
-        <span style={{ fontWeight: 900 }}>
+      <div className={`wordmark-intro ${wordmarkActive ? 'collapsed moved' : ''} ${wordmarkOnLight ? 'on-light' : ''}`}>
+        <span className="word" style={{ fontWeight: 900 }}>
           <span className="initial">A</span>
           <span className="rest">rchitect</span>
         </span>
         <span className="spacer">&nbsp;</span>
-        <span style={{ fontWeight: 400 }}>
+        <span className="word" style={{ fontWeight: 400 }}>
           <span className="initial">C</span>
           <span className="rest">hanghyun</span>
         </span>
         <span className="spacer">&nbsp;</span>
-        <span style={{ fontWeight: 300 }}>
+        <span className="word" style={{ fontWeight: 300 }}>
           <span className="initial">P</span>
           <span className="rest">aik</span>
         </span>
