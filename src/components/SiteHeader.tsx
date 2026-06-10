@@ -43,6 +43,7 @@ export function SiteHeader() {
           wordmarkActive ? 'collapsed moved' : '',
           wordmarkOnLight ? 'on-light' : '',
           introSkipped ? 'instant' : '',
+          !isLanding ? 'no-color-transition' : '',
         ].filter(Boolean).join(' ')}
       >
         <span className="word" style={{ fontWeight: 900 }}>
