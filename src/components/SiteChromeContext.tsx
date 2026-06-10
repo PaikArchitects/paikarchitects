@@ -29,8 +29,8 @@ const useIsomorphicLayoutEffect = typeof window !== 'undefined' ? useLayoutEffec
 
 export function SiteChromeProvider({ children }: { children: ReactNode }) {
   const pathname = usePathname()
-  const [introPhase, setIntroPhase] = useState<IntroPhase>('done')
-  const [introSkipped, setIntroSkipped] = useState(true)
+  const [introPhase, setIntroPhase] = useState<IntroPhase>('wordmark')
+  const [introSkipped, setIntroSkipped] = useState(false)
   const [wordmarkOnLight, setWordmarkOnLight] = useState(false)
   const [navOnLight, setNavOnLight] = useState(false)
 
@@ -46,6 +46,8 @@ export function SiteChromeProvider({ children }: { children: ReactNode }) {
 
     if (played || pathname !== '/') {
       try { sessionStorage.setItem(INTRO_STORAGE_KEY, '1') } catch {}
+      setIntroPhase('done')
+      setIntroSkipped(true)
       return
     }
 
