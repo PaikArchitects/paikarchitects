@@ -2,11 +2,21 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react'
 import Link from 'next/link'
-import { projects } from '@/data/projects'
+import { sortedProjects } from '@/data/projects'
+import type { Project } from '@/types'
+import { ProjectWall } from '@/components/ProjectWall'
+import { ContentArea } from '@/components/ContentArea'
 
 const FONT = "'Pretendard Variable', Pretendard, -apple-system, BlinkMacSystemFont, sans-serif"
 
-type EntryPhase = 'loading' | 'nav' | 'shimmer' | 'done'
+type EntryPhase = 'loading' | 'header' | 'wall' | 'shimmer' | 'done'
+
+const NAV_ITEMS = [
+  { label: 'ABOUT',    href: '/about'   },
+  { label: 'WORKS',    href: '/work'    },
+  { label: 'ESSAYS',   href: '/essays'  },
+  { label: 'CONTACTS', href: '/contact' },
+] as const
 
 function shuffle<T>(arr: T[]): T[] {
   const a = [...arr]
@@ -18,17 +28,22 @@ function shuffle<T>(arr: T[]): T[] {
 }
 
 export default function HomePage() {
-  const [shuffled] = useState(() => shuffle(projects))
-  const [activeIdx, setActiveIdx] = useState(0)
-  const [isBlacking, setIsBlacking] = useState(false)
-  const [scrolled, setScrolled] = useState(false)
   const [mobile, setMobile] = useState(false)
-  const [isCollapsed, setIsCollapsed] = useState(false)
-  const [isOverLight, setIsOverLight] = useState(false)
   const [entryPhase, setEntryPhase] = useState<EntryPhase>('loading')
-  const wordmarkRef = useRef<HTMLDivElement>(null)
-  const heroRef = useRef<HTMLDivElement>(null)
 
+  const [shuffleQueue, setShuffleQueue] = useState<Project[]>(() => shuffle(sortedProjects))
+  const [shuffleIdx, setShuffleIdx] = useState(0)
+  const [isBlacking, setIsBlacking] = useState(false)
+  const shuffleQueueRef = useRef(shuffleQueue)
+
+  const [hoveredProject, setHoveredProject] = useState<Project | null>(null)
+  const [activeProject, setActiveProject] = useState<Project | null>(null)
+
+  useEffect(() => {
+    shuffleQueueRef.current = shuffleQueue
+  }, [shuffleQueue])
+
+  // mobile detection
   useEffect(() => {
     const fn = () => setMobile(window.innerWidth < 768)
     fn()
@@ -36,87 +51,103 @@ export default function HomePage() {
     return () => window.removeEventListener('resize', fn)
   }, [])
 
-  // 진입 시퀀스
+  // 진입 시퀀스: loading → header → wall → shimmer → done
   useEffect(() => {
-    const t1 = setTimeout(() => setEntryPhase('nav'),     5000)
-    const t2 = setTimeout(() => setEntryPhase('shimmer'), 5400)
-    const t3 = setTimeout(() => setEntryPhase('done'),    6600)
-    return () => {
-      clearTimeout(t1)
-      clearTimeout(t2)
-      clearTimeout(t3)
-    }
+    const timers = [
+      setTimeout(() => setEntryPhase('header'), 5000),
+      setTimeout(() => setEntryPhase('wall'), 5200),
+      setTimeout(() => setEntryPhase('shimmer'), 6400),
+      setTimeout(() => setEntryPhase('done'), 7600),
+    ]
+    return () => timers.forEach(clearTimeout)
   }, [])
 
-  // carousel — blackout fade
-  const advanceSlide = useCallback(() => {
+  // 셔플 — blackout fade, 끝에 도달하면 재셔플
+  const advanceShuffle = useCallback(() => {
     setIsBlacking(true)
     setTimeout(() => {
-      setActiveIdx(prev => (prev + 1) % shuffled.length)
-      setTimeout(() => {
-        setIsBlacking(false)
-      }, 200)
+      setShuffleIdx(prev => {
+        const next = prev + 1
+        if (next >= shuffleQueueRef.current.length) {
+          setShuffleQueue(shuffle(sortedProjects))
+          return 0
+        }
+        return next
+      })
+      setTimeout(() => setIsBlacking(false), 200)
     }, 400)
-  }, [shuffled.length])
-
-  useEffect(() => {
-    const timer = setInterval(advanceSlide, 4000)
-    return () => clearInterval(timer)
-  }, [advanceSlide])
-
-  // 밝은 배경 감지: ACP 위치(top: 28px, left: 40px)가 .light-panel과 겹치는지 확인
-  const checkOverLight = useCallback(() => {
-    const acpCenterY = 28
-    const acpCenterX = 40
-    const lightPanels = document.querySelectorAll('.light-panel')
-    let over = false
-    lightPanels.forEach((el) => {
-      const rect = el.getBoundingClientRect()
-      if (
-        rect.top    <= acpCenterY &&
-        rect.bottom >= acpCenterY &&
-        rect.left   <= acpCenterX &&
-        rect.right  >= acpCenterX
-      ) {
-        over = true
-      }
-    })
-    setIsOverLight(over)
   }, [])
 
-  // scroll 핸들러
+  // 셔플 타이머 — hover 또는 active 중에는 일시정지
   useEffect(() => {
-    const handleScroll = () => {
-      const scrollY = window.scrollY
-      const threshold = window.innerHeight * 0.33 - 16
+    if (entryPhase !== 'done') return
+    if (activeProject || hoveredProject) return
+    const timer = setInterval(advanceShuffle, 4000)
+    return () => clearInterval(timer)
+  }, [entryPhase, activeProject, hoveredProject, advanceShuffle])
 
-      const collapsed = scrollY >= threshold
-      setIsCollapsed(collapsed)
-      setScrolled(scrollY > 50)
+  // ESC → active 종료
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return
+      setActiveProject(prev => {
+        if (prev) {
+          window.history.pushState({}, '', '/')
+          return null
+        }
+        return prev
+      })
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
 
-      if (collapsed) {
-        checkOverLight()
+  // 브라우저 뒤로가기/앞으로가기 → URL과 active 상태 동기화
+  useEffect(() => {
+    const onPopState = () => {
+      const path = window.location.pathname
+      if (path.startsWith('/work/')) {
+        const slug = path.slice('/work/'.length)
+        setActiveProject(sortedProjects.find(p => p.id === slug) ?? null)
       } else {
-        setIsOverLight(false)
+        setActiveProject(null)
       }
     }
+    window.addEventListener('popstate', onPopState)
+    return () => window.removeEventListener('popstate', onPopState)
+  }, [])
 
-    window.addEventListener('scroll', handleScroll, { passive: true })
-    return () => window.removeEventListener('scroll', handleScroll)
-  }, [checkOverLight])
+  const handleHover = (p: Project | null) => {
+    if (activeProject) return
+    setHoveredProject(p)
+  }
 
-  // work section: projects with coverImage, sorted latest first, max 8; fallback top 6
-  const workProjects = (() => {
-    const withImg = [...projects]
-      .filter(p => p.coverImage)
-      .sort((a, b) => b.year - a.year)
-    return withImg.length > 0 ? withImg.slice(0, 8) : projects.slice(0, 6)
-  })()
+  const handleSelect = (p: Project) => {
+    setActiveProject(p)
+    setHoveredProject(null)
+    window.history.pushState({}, '', `/work/${p.id}`)
+  }
 
-  const activeProject = shuffled[activeIdx]
+  const handleBack = useCallback(() => {
+    setActiveProject(null)
+    window.history.pushState({}, '', '/')
+  }, [])
+
+  const shuffleProject = shuffleQueue[shuffleIdx] ?? sortedProjects[0]
+  const displayProject = activeProject ?? hoveredProject ?? shuffleProject
+
+  const wallRevealed = entryPhase === 'wall' || entryPhase === 'shimmer' || entryPhase === 'done'
+  const contentVisible = entryPhase === 'shimmer' || entryPhase === 'done'
 
   return (
-    <div style={{ fontFamily: FONT, background: '#080706' }}>
+    <div style={{
+      fontFamily: FONT,
+      background: '#080706',
+      width: '100vw',
+      height: '100vh',
+      overflow: 'hidden',
+      position: 'relative',
+    }}>
 
       {/* ── LOADING OVERLAY ── */}
       <div
@@ -124,7 +155,7 @@ export default function HomePage() {
           position: 'fixed',
           inset: 0,
           backgroundColor: '#000000',
-          zIndex: 100,
+          zIndex: 200,
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
@@ -136,63 +167,23 @@ export default function HomePage() {
         <div className="entry-spinner" />
       </div>
 
-      {/* ── HERO ── */}
-      <div
-        ref={heroRef}
-        style={{
-          position: 'relative',
-          width: '100vw',
-          height: '100vh',
-          overflow: 'hidden',
-          backgroundColor: '#080706',
-        }}
-      >
-        {/* 이미지 레이어 */}
-        <div style={{
-          position: 'absolute', inset: 0,
-          opacity: entryPhase === 'done' ? 1 : 0,
-          transition: entryPhase === 'done' ? 'opacity 800ms ease-out' : 'none',
-          pointerEvents: 'none',
-        }}>
-          {shuffled[activeIdx].coverImage ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={shuffled[activeIdx].coverImage!}
-              alt={shuffled[activeIdx].title}
-              style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
-            />
-          ) : (
-            <div style={{ width: '100%', height: '100%', background: '#080706' }} />
-          )}
-        </div>
-
-        {/* Blackout overlay */}
-        <div style={{
-          position: 'absolute',
-          inset: 0,
-          backgroundColor: '#000000',
-          opacity: isBlacking ? 1 : 0,
-          transition: isBlacking ? 'opacity 400ms ease-in' : 'opacity 400ms ease-out',
-          zIndex: 1,
-          pointerEvents: 'none',
-        }} />
-
-        {/* ── WORDMARK ── */}
-        <div
-          ref={wordmarkRef}
-          className={`wordmark-container ${isCollapsed ? 'collapsed' : ''} ${entryPhase === 'shimmer' ? 'shimmer-active' : ''}`}
-          style={{
-            position: isCollapsed ? 'fixed' : 'absolute',
-            top: isCollapsed ? '16px' : '33%',
-            left: '20px',
-            transform: isCollapsed ? 'none' : 'translateY(-50%)',
-            color: isOverLight ? '#080706' : '#ffffff',
-            zIndex: 10,
-            fontFamily: FONT,
-            opacity: entryPhase === 'loading' || entryPhase === 'nav' ? 0 : 1,
-            transition: entryPhase === 'shimmer' ? 'none' : 'opacity 0.3s ease',
-          }}
-        >
+      {/* ── HEADER ── */}
+      <header style={{
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        right: 0,
+        height: 60,
+        zIndex: 100,
+        display: 'flex',
+        alignItems: 'center',
+        paddingLeft: 20,
+        background: '#FFFFFF',
+        boxSizing: 'border-box',
+        opacity: entryPhase === 'loading' ? 0 : 1,
+        transition: 'opacity 400ms ease-out',
+      }}>
+        <div className="wordmark-container" style={{ color: '#080706', fontFamily: FONT }}>
           <span className="word" style={{ fontWeight: 900 }}>
             <span className="initial">A</span>
             <span className="rest">rchitect</span>
@@ -212,210 +203,72 @@ export default function HomePage() {
             <span className="rest">aik</span>
           </span>
         </div>
+      </header>
 
-        {/* ── NAVIGATION — fixed bottom-right ── */}
-        <nav style={{
-          position: 'fixed',
-          bottom: 24,
-          right: 24,
-          zIndex: 20,
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'flex-end',
-          opacity: entryPhase === 'loading' ? 0 : 1,
-          transition: 'opacity 400ms ease-out',
-        }}>
-          {[
-            { label: 'ABOUT',    href: '/about'   },
-            { label: 'WORKS',    href: '/work'    },
-            { label: 'ESSAYS',   href: '/essays'  },
-            { label: 'CONTACTS', href: '/contact' },
-          ].map(({ label, href }) => (
-            <Link
-              key={label}
-              href={href}
-              style={{
-                fontFamily: FONT,
-                fontWeight: 300,
-                fontSize: 18,
-                color: isOverLight ? '#080706' : '#ffffff',
-                textDecoration: 'none',
-                lineHeight: 1.8,
-                textAlign: 'right',
-                display: 'block',
-                transition: 'color 0.2s ease',
-              }}
-              onMouseEnter={e => { e.currentTarget.style.textDecoration = 'underline' }}
-              onMouseLeave={e => { e.currentTarget.style.textDecoration = 'none' }}
-            >
-              {label}
-            </Link>
-          ))}
-        </nav>
+      {/* ── MAIN ── */}
+      <div style={{
+        position: 'absolute',
+        top: 60,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        display: 'flex',
+      }}>
+        {!mobile && (
+          <ProjectWall
+            projects={sortedProjects}
+            highlightSlug={shuffleProject.id}
+            activeSlug={activeProject?.id ?? null}
+            revealed={wallRevealed}
+            onHover={handleHover}
+            onSelect={handleSelect}
+          />
+        )}
 
-        {/* ── CAPTION — fixed bottom-left ── */}
-        <div style={{
-          position: 'fixed',
-          bottom: 20,
-          left: 20,
-          zIndex: 10,
-          fontFamily: FONT,
-          fontStyle: 'italic',
-          fontSize: 11,
-          fontWeight: 300,
-          color: 'rgba(255,255,255,0.7)',
-          pointerEvents: 'none',
-          opacity: entryPhase === 'done' ? 1 : 0,
-          transition: 'opacity 600ms ease-out',
-        }}>
-          {activeProject.title}, {activeProject.year}
-        </div>
-
-        {/* ── SCROLL INDICATOR — fixed bottom-center ── */}
-        <div style={{
-          position: 'fixed',
-          bottom: 20,
-          left: '50%',
-          transform: 'translateX(-50%)',
-          zIndex: 10,
-          color: '#ffffff',
-          fontSize: 16,
-          opacity: entryPhase === 'done' && !scrolled ? 0.6 : 0,
-          transition: 'opacity 600ms ease-out',
-          pointerEvents: 'none',
-        }}>
-          ↓
-        </div>
+        <ContentArea
+          project={displayProject}
+          mode={activeProject ? 'active' : 'idle'}
+          isBlacking={isBlacking}
+          visible={contentVisible}
+          shimmer={entryPhase === 'shimmer'}
+          mobile={mobile}
+          onBack={handleBack}
+        />
       </div>
 
-      {/* ── WORK SECTION ── */}
-      <div>
-        {workProjects.map((p, i) => {
-          const textOnLeft = i % 2 === 0
-          const textBg    = textOnLeft ? '#FFFFFF' : '#080706'
-          const textColor = textOnLeft ? '#0a0908' : '#FFFFFF'
-          const gray      = textOnLeft ? 'rgba(10,9,8,0.45)' : 'rgba(255,255,255,0.45)'
-
-          const textContent = (
-            <div>
-              <div style={{ fontSize: 11, fontWeight: 300, color: gray, marginBottom: 6 }}>
-                {p.year}
-              </div>
-              <div style={{
-                fontSize: 18,
-                fontWeight: 700,
-                lineHeight: 1.2,
-                marginBottom: 8,
-                wordBreak: 'keep-all' as const,
-              }}>
-                <Link href={`/work/${p.id}`} style={{ color: 'inherit', textDecoration: 'none' }}>
-                  {p.title}
-                </Link>
-              </div>
-              <div style={{ fontSize: 12, fontWeight: 300, color: gray }}>
-                {p.type} · {p.status}
-              </div>
-            </div>
-          )
-
-          const imgEl = p.coverImage ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={p.coverImage}
-              alt={p.title}
-              style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
-            />
-          ) : (
-            <div style={{ width: '100%', height: '100%', background: p.coverColor }} />
-          )
-
-          if (mobile) {
-            return (
-              <div key={p.id}>
-                {/* 이미지 블록: 9:16 portrait */}
-                <div style={{ width: '100%', aspectRatio: '9/16', overflow: 'hidden' }}>
-                  {imgEl}
-                </div>
-                {/* 텍스트 카드: 1:1 정방형, 텍스트 하단 배치 */}
-                <div style={{
-                  width: '100%',
-                  aspectRatio: '1/1',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  justifyContent: 'flex-end',
-                  padding: 24,
-                  background: textBg,
-                  color: textColor,
-                  fontFamily: FONT,
-                  boxSizing: 'border-box' as const,
-                }}>
-                  <div style={{ fontSize: 11, fontWeight: 300, color: gray, marginBottom: 6 }}>
-                    {p.year}
-                  </div>
-                  <div style={{
-                    fontSize: 16,
-                    fontWeight: 700,
-                    lineHeight: 1.2,
-                    marginBottom: 8,
-                    wordBreak: 'keep-all' as const,
-                  }}>
-                    <Link href={`/work/${p.id}`} style={{ color: 'inherit', textDecoration: 'none' }}>
-                      {p.title}
-                    </Link>
-                  </div>
-                  <div style={{ fontSize: 12, fontWeight: 300, color: gray }}>
-                    {p.type} · {p.status}
-                  </div>
-                </div>
-              </div>
-            )
-          }
-
-          const textPanel = (
-            <div
-              className={textOnLeft ? 'light-panel' : undefined}
-              style={{
-                width: '20%',
-                flexShrink: 0,
-                position: 'sticky',
-                top: 0,
-                height: '100vh',
-                display: 'flex',
-                flexDirection: 'column',
-                justifyContent: 'flex-end',
-                alignItems: 'flex-start',
-                paddingTop: 96,
-                paddingBottom: 48,
-                paddingLeft: 24,
-                paddingRight: 16,
-                background: textBg,
-                color: textColor,
-                fontFamily: FONT,
-                boxSizing: 'border-box' as const,
-              }}
-            >
-              {textContent}
-            </div>
-          )
-
-          const imagePanel = (
-            <div style={{
-              width: '80%',
-              flexShrink: 0,
-              aspectRatio: '3/4',
-              overflow: 'hidden',
-            }}>
-              {imgEl}
-            </div>
-          )
-
-          return (
-            <div key={p.id} style={{ display: 'flex', alignItems: 'flex-start' }}>
-              {textOnLeft ? <>{textPanel}{imagePanel}</> : <>{imagePanel}{textPanel}</>}
-            </div>
-          )
-        })}
-      </div>
+      {/* ── NAVIGATION — fixed bottom-right ── */}
+      <nav style={{
+        position: 'fixed',
+        bottom: 24,
+        right: 24,
+        zIndex: 80,
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'flex-end',
+        opacity: entryPhase === 'loading' ? 0 : 1,
+        transition: 'opacity 400ms ease-out',
+      }}>
+        {NAV_ITEMS.map(({ label, href }) => (
+          <Link
+            key={label}
+            href={href}
+            style={{
+              fontFamily: FONT,
+              fontWeight: 300,
+              fontSize: 18,
+              color: '#ffffff',
+              textDecoration: 'none',
+              lineHeight: 1.8,
+              textAlign: 'right',
+              display: 'block',
+            }}
+            onMouseEnter={e => { e.currentTarget.style.textDecoration = 'underline' }}
+            onMouseLeave={e => { e.currentTarget.style.textDecoration = 'none' }}
+          >
+            {label}
+          </Link>
+        ))}
+      </nav>
 
     </div>
   )

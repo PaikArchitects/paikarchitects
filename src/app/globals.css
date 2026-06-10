@@ -40,6 +40,37 @@
   100% { -webkit-mask-position: 100% center;  mask-position: 100% center; }
 }
 
+/* ── CONTENT AREA SHIMMER ── */
+.content-shimmer {
+  -webkit-mask-image: linear-gradient(
+    90deg,
+    transparent 0%,
+    black 30%,
+    black 70%,
+    transparent 100%
+  );
+  -webkit-mask-size: 200% 100%;
+  mask-image: linear-gradient(
+    90deg,
+    transparent 0%,
+    black 30%,
+    black 70%,
+    transparent 100%
+  );
+  mask-size: 200% 100%;
+  animation: shimmerReveal 1.2s ease-out forwards;
+}
+
+/* ── PROJECT WALL SCROLLBAR HIDE ── */
+.project-wall-scroll {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.project-wall-scroll::-webkit-scrollbar {
+  display: none;
+}
+
 /* ── WORDMARK ── */
 .wordmark-container {
   display: flex;
