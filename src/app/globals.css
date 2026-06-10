@@ -35,9 +35,9 @@
   opacity: 0;
   animation: wordmarkFadeIn 0.3s ease-out forwards;
   transition:
-    top 800ms cubic-bezier(0.7, 0, 0.3, 1),
-    left 800ms cubic-bezier(0.7, 0, 0.3, 1),
-    transform 800ms cubic-bezier(0.7, 0, 0.3, 1),
+    top 1600ms cubic-bezier(0.7, 0, 0.3, 1),
+    left 1600ms cubic-bezier(0.7, 0, 0.3, 1),
+    transform 1600ms cubic-bezier(0.7, 0, 0.3, 1),
     color 0.3s ease-out;
 }
 
@@ -64,8 +64,8 @@
   white-space: nowrap;
   vertical-align: baseline;
   transition:
-    max-width 800ms cubic-bezier(0.7, 0, 0.3, 1),
-    opacity   800ms cubic-bezier(0.7, 0, 0.3, 1);
+    max-width 1600ms cubic-bezier(0.7, 0, 0.3, 1),
+    opacity   1600ms cubic-bezier(0.7, 0, 0.3, 1);
 }
 
 .wordmark-intro .rest {
