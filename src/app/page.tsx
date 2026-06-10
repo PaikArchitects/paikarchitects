@@ -53,7 +53,7 @@ export default function HomePage() {
 
   // 진입 시퀀스: wordmark → collapsed(collapse+move 동시) → done (총 4.8s)
   useEffect(() => {
-    const t1 = setTimeout(() => setIntroPhase('collapsed'), 4000)
+    const t1 = setTimeout(() => setIntroPhase('collapsed'), 3200)
     const t2 = setTimeout(() => setIntroPhase('done'), 4800)
     return () => { clearTimeout(t1); clearTimeout(t2) }
   }, [])
@@ -135,8 +135,12 @@ export default function HomePage() {
   const layoutVisible = introPhase === 'done'
   // collapse(글자 축약)와 move(위치 이동)는 동시에 트리거됨
   const wordmarkActive = introPhase !== 'wordmark'
-  // ACP가 ProjectWall(.light-panel, 흰 배경) 위에 놓이는 경우에만 다크 컬러로 전환
-  const wordmarkOnLight = layoutVisible && !mobile
+  // ACP가 흰 배경 위에 놓이는 경우 다크 컬러로 전환
+  // 데스크톱: ProjectWall(.light-panel)이 항상 좌상단을 덮음
+  // 모바일: Active 상태일 때 ContentArea가 흰 배경(#FFFFFF)으로 전환됨
+  const wordmarkOnLight = layoutVisible && (!mobile || activeProject !== null)
+  // 내비게이션은 ContentArea 영역 위에 위치 — Active 상태(흰 배경)일 때 다크 컬러로 전환
+  const navOnLight = layoutVisible && activeProject !== null
 
   return (
     <div style={{
@@ -218,8 +222,9 @@ export default function HomePage() {
               fontSize: 13,
               letterSpacing: '0.08em',
               textTransform: 'uppercase',
-              color: '#ffffff',
+              color: navOnLight ? '#0a0908' : '#ffffff',
               textDecoration: 'none',
+              transition: 'color 0.3s ease-out',
             }}
             onMouseEnter={e => { e.currentTarget.style.textDecoration = 'underline' }}
             onMouseLeave={e => { e.currentTarget.style.textDecoration = 'none' }}

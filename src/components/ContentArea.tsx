@@ -76,7 +76,8 @@ export function ContentArea({ project, mode, isBlacking, visible, mobile, onBack
         height: '100%',
         position: 'relative',
         overflow: 'hidden',
-        background: '#080706',
+        background: mode === 'active' ? '#FFFFFF' : '#080706',
+        transition: 'background-color 0.3s ease-out',
         touchAction: mode === 'active' ? 'pan-y' : 'auto',
       }}
       onMouseEnter={() => setHovering(true)}
@@ -133,9 +134,9 @@ export function ContentArea({ project, mode, isBlacking, visible, mobile, onBack
                   width: '100%',
                   height: '100%',
                   boxSizing: 'border-box',
-                  padding: 48,
-                  background: '#080706',
-                  transition: 'padding 0.4s ease-out',
+                  padding: 96,
+                  background: '#FFFFFF',
+                  transition: 'padding 0.4s ease-out, background-color 0.3s ease-out',
                 }}>
                   {src ? (
                     // eslint-disable-next-line @next/next/no-img-element
@@ -181,7 +182,7 @@ export function ContentArea({ project, mode, isBlacking, visible, mobile, onBack
             fontFamily: FONT,
             fontSize: 12,
             fontWeight: 300,
-            color: '#FFFFFF',
+            color: '#0a0908',
             opacity: 0.6,
             pointerEvents: 'none',
             zIndex: 5,
