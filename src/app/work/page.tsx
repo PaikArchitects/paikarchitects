@@ -4,7 +4,6 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { projects } from '@/data/projects'
 import type { Project, ProjectType } from '@/types'
-import { SiteHeader } from '@/components/SiteHeader'
 
 const FONT = "'Pretendard Variable', Pretendard, -apple-system, BlinkMacSystemFont, sans-serif"
 const BG   = '#FFFFFF'
@@ -104,9 +103,6 @@ export default function WorkPage() {
 
   return (
     <div style={{ fontFamily: FONT, background: BG, minHeight: '100vh', color: '#111110' }}>
-
-      <SiteHeader variant="light" activePage="work" />
-
 
       {/* ── Filters ────────────────────────────────────────────────────── */}
       <div style={{

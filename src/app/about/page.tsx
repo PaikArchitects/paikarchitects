@@ -1,4 +1,3 @@
-import { SiteHeader } from '@/components/SiteHeader'
 import Link from 'next/link'
 
 const FONT = "'Pretendard Variable', Pretendard, -apple-system, BlinkMacSystemFont, sans-serif"
@@ -6,8 +5,6 @@ const FONT = "'Pretendard Variable', Pretendard, -apple-system, BlinkMacSystemFo
 export default function AboutPage() {
   return (
     <div style={{ fontFamily: FONT, background: '#FFFFFF', minHeight: '100vh', color: '#111110' }}>
-
-      <SiteHeader variant="light" activePage="about" />
 
       <div style={{ maxWidth: 680, padding: '64px 44px 100px', margin: '0 auto' }}>
 

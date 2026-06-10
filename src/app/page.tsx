@@ -1,22 +1,13 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef } from 'react'
-import Link from 'next/link'
 import { sortedProjects } from '@/data/projects'
 import type { Project } from '@/types'
 import { ProjectWall } from '@/components/ProjectWall'
 import { ContentArea } from '@/components/ContentArea'
+import { useSiteChrome } from '@/components/SiteChromeContext'
 
 const FONT = "'Pretendard Variable', Pretendard, -apple-system, BlinkMacSystemFont, sans-serif"
-
-type IntroPhase = 'wordmark' | 'collapsed' | 'done'
-
-const NAV_ITEMS = [
-  { label: 'ABOUT',    href: '/about'   },
-  { label: 'WORKS',    href: '/work'    },
-  { label: 'ESSAYS',   href: '/essays'  },
-  { label: 'CONTACTS', href: '/contact' },
-] as const
 
 function shuffle<T>(arr: T[]): T[] {
   const a = [...arr]
@@ -29,7 +20,7 @@ function shuffle<T>(arr: T[]): T[] {
 
 export default function HomePage() {
   const [mobile, setMobile] = useState(false)
-  const [introPhase, setIntroPhase] = useState<IntroPhase>('wordmark')
+  const { introPhase, setWordmarkOnLight, setNavOnLight } = useSiteChrome()
 
   const [shuffleQueue, setShuffleQueue] = useState<Project[]>(() => shuffle(sortedProjects))
   const [shuffleIdx, setShuffleIdx] = useState(0)
@@ -49,13 +40,6 @@ export default function HomePage() {
     fn()
     window.addEventListener('resize', fn)
     return () => window.removeEventListener('resize', fn)
-  }, [])
-
-  // 진입 시퀀스: wordmark → collapsed(collapse+move 동시) → done (총 4.8s)
-  useEffect(() => {
-    const t1 = setTimeout(() => setIntroPhase('collapsed'), 3200)
-    const t2 = setTimeout(() => setIntroPhase('done'), 4800)
-    return () => { clearTimeout(t1); clearTimeout(t2) }
   }, [])
 
   // 셔플 — blackout fade, 끝에 도달하면 재셔플
@@ -133,14 +117,14 @@ export default function HomePage() {
   const displayProject = activeProject ?? hoveredProject ?? shuffleProject
 
   const layoutVisible = introPhase === 'done'
-  // collapse(글자 축약)와 move(위치 이동)는 동시에 트리거됨
-  const wordmarkActive = introPhase !== 'wordmark'
-  // ACP가 흰 배경 위에 놓이는 경우 다크 컬러로 전환
-  // 데스크톱: ProjectWall(.light-panel)이 항상 좌상단을 덮음
-  // 모바일: Active 상태일 때 ContentArea가 흰 배경(#FFFFFF)으로 전환됨
-  const wordmarkOnLight = layoutVisible && (!mobile || activeProject !== null)
-  // 내비게이션은 ContentArea 영역 위에 위치 — Active 상태(흰 배경)일 때 다크 컬러로 전환
-  const navOnLight = layoutVisible && activeProject !== null
+
+  // 전역 헤더(ACP 모노그램 / 내비게이션) 색상 전환 — 배경 밝기에 따라 전역 컨텍스트로 전달
+  // ACP(좌상단): 데스크톱은 항상 ProjectWall(.light-panel) 위 — 모바일은 Active일 때만 ContentArea(흰 배경) 위
+  // NAV(우상단): 항상 ContentArea 위 — Active(흰 배경)일 때만 다크 컬러로 전환
+  useEffect(() => {
+    setWordmarkOnLight(layoutVisible && (!mobile || activeProject !== null))
+    setNavOnLight(layoutVisible && activeProject !== null)
+  }, [layoutVisible, mobile, activeProject, setWordmarkOnLight, setNavOnLight])
 
   return (
     <div style={{
@@ -151,24 +135,6 @@ export default function HomePage() {
       overflow: 'hidden',
       position: 'relative',
     }}>
-
-      {/* ── WORDMARK / ACP MONOGRAM ── */}
-      <div className={`wordmark-intro ${wordmarkActive ? 'collapsed moved' : ''} ${wordmarkOnLight ? 'on-light' : ''}`}>
-        <span className="word" style={{ fontWeight: 900 }}>
-          <span className="initial">A</span>
-          <span className="rest">rchitect</span>
-        </span>
-        <span className="spacer">&nbsp;</span>
-        <span className="word" style={{ fontWeight: 400 }}>
-          <span className="initial">C</span>
-          <span className="rest">hanghyun</span>
-        </span>
-        <span className="spacer">&nbsp;</span>
-        <span className="word" style={{ fontWeight: 300 }}>
-          <span className="initial">P</span>
-          <span className="rest">aik</span>
-        </span>
-      </div>
 
       {/* ── MAIN ── */}
       <div style={{
@@ -198,41 +164,6 @@ export default function HomePage() {
           onBack={handleBack}
         />
       </div>
-
-      {/* ── NAVIGATION — fixed top-right ── */}
-      <nav style={{
-        position: 'fixed',
-        top: 24,
-        right: 24,
-        zIndex: 100,
-        display: 'flex',
-        flexDirection: 'row',
-        gap: 32,
-        alignItems: 'center',
-        opacity: layoutVisible ? 1 : 0,
-        transition: 'opacity 400ms ease-out',
-      }}>
-        {NAV_ITEMS.map(({ label, href }) => (
-          <Link
-            key={label}
-            href={href}
-            style={{
-              fontFamily: FONT,
-              fontWeight: 300,
-              fontSize: 13,
-              letterSpacing: '0.08em',
-              textTransform: 'uppercase',
-              color: navOnLight ? '#0a0908' : '#ffffff',
-              textDecoration: 'none',
-              transition: 'color 0.3s ease-out',
-            }}
-            onMouseEnter={e => { e.currentTarget.style.textDecoration = 'underline' }}
-            onMouseLeave={e => { e.currentTarget.style.textDecoration = 'none' }}
-          >
-            {label}
-          </Link>
-        ))}
-      </nav>
 
     </div>
   )

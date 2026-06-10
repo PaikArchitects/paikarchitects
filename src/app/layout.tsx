@@ -1,5 +1,7 @@
 import type { Metadata } from 'next'
 import './globals.css'
+import { SiteChromeProvider } from '@/components/SiteChromeContext'
+import { SiteHeader } from '@/components/SiteHeader'
 
 export const metadata: Metadata = {
   title: 'Chang Hyun Paik — Architect, Seoul',
@@ -33,7 +35,12 @@ export default function RootLayout({
           rel="stylesheet"
         />
       </head>
-      <body>{children}</body>
+      <body>
+        <SiteChromeProvider>
+          <SiteHeader />
+          {children}
+        </SiteChromeProvider>
+      </body>
     </html>
   )
 }
