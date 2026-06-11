@@ -362,7 +362,7 @@ export function ContentArea({ project, mode, isBlacking, visible, mobile, onBack
             position: 'absolute',
             inset: 0,
             opacity: visible ? 1 : 0,
-            transition: 'opacity 800ms ease-out',
+            transition: 'opacity 1200ms ease-out',
           }}>
             {images[0] ? (
               // eslint-disable-next-line @next/next/no-img-element
@@ -376,14 +376,34 @@ export function ContentArea({ project, mode, isBlacking, visible, mobile, onBack
             )}
           </div>
 
+          {/* Project title overlay */}
+          <div style={{
+            position: 'absolute',
+            bottom: 24,
+            left: 24,
+            fontFamily: FONT,
+            fontSize: 12,
+            fontWeight: 300,
+            letterSpacing: '0.08em',
+            textTransform: 'uppercase',
+            color: '#FFFFFF',
+            opacity: visible ? 1 : 0,
+            transition: 'opacity 1200ms ease-out',
+            pointerEvents: 'none',
+            zIndex: 2,
+          }}>
+            {project.title}
+          </div>
+
           {/* Blackout overlay */}
           <div style={{
             position: 'absolute',
             inset: 0,
             backgroundColor: '#000000',
             opacity: isBlacking ? 1 : 0,
-            transition: isBlacking ? 'opacity 400ms ease-in' : 'opacity 400ms ease-out',
+            transition: isBlacking ? 'opacity 600ms ease-in' : 'opacity 600ms ease-out',
             pointerEvents: 'none',
+            zIndex: 3,
           }} />
         </>
       )}

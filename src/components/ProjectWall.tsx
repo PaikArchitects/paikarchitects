@@ -38,8 +38,9 @@ function WallCard({ project, index, isHighlighted, isDimmed, revealed, registerR
       onClick={() => onSelect(project)}
       style={{
         display: 'flex',
-        height: 155,
+        height: 124,
         flexShrink: 0,
+        justifyContent: 'flex-end',
         cursor: 'pointer',
         boxSizing: 'border-box',
         borderLeft: active ? '2px solid #080706' : '2px solid transparent',
@@ -62,7 +63,7 @@ function WallCard({ project, index, isHighlighted, isDimmed, revealed, registerR
         opacity,
         transition: 'opacity 0.3s ease',
       }}>
-        <div style={{ fontFamily: FONT, fontSize: 16, fontWeight: 400, color: '#080706', lineHeight: 1.3, wordBreak: 'keep-all' as const }}>
+        <div style={{ fontFamily: FONT, fontSize: 13, fontWeight: 450, color: '#080706', lineHeight: 1.3, wordBreak: 'keep-all' as const }}>
           {project.title}
         </div>
         <div style={{
@@ -73,12 +74,21 @@ function WallCard({ project, index, isHighlighted, isDimmed, revealed, registerR
           textTransform: 'uppercase',
           color: '#080706',
           opacity: 0.6,
-          marginTop: 6,
+          marginTop: 4,
         }}>
-          {project.location ?? ''}
+          {project.type}
         </div>
       </div>
-      <div style={{ flexGrow: 1, overflow: 'hidden', opacity, transition: 'opacity 0.3s ease' }}>
+      <div style={{
+        height: '100%',
+        aspectRatio: '2.5 / 1',
+        flexShrink: 1,
+        minWidth: 0,
+        maxWidth: 'calc(100% - 188px)',
+        overflow: 'hidden',
+        opacity,
+        transition: 'opacity 0.3s ease',
+      }}>
         {project.coverImage ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
@@ -114,7 +124,6 @@ export function ProjectWall({ projects, highlightSlug, activeSlug, revealed, onH
         flexShrink: 0,
         overflowY: 'auto',
         overflowX: 'hidden',
-        borderRight: '1px solid rgba(255, 255, 255, 0.12)',
         background: '#FFFFFF',
         display: 'flex',
         flexDirection: 'column',

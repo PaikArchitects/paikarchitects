@@ -217,4 +217,60 @@ export const projectSlides: Record<string, ProjectSlide[]> = {
       ],
     },
   ],
+
+  'cheongju-culture-factory': [
+    { kind: 'image', src: 'https://res.cloudinary.com/drsybwqg0/image/upload/v1780299388/Elevation_01-2_resize_qzmdrj.jpg' },
+    { kind: 'image', src: 'https://res.cloudinary.com/drsybwqg0/image/upload/v1781139653/Chimney_03_pxzm5u.jpg' },
+    { kind: 'image', src: 'https://res.cloudinary.com/drsybwqg0/image/upload/v1781139774/Interior_View_01_resize_bafiwo.jpg' },
+    { kind: 'image', src: 'https://res.cloudinary.com/drsybwqg0/image/upload/v1781139912/Interior_View_09_resize_aq2anz.jpg' },
+    { kind: 'image', src: 'https://res.cloudinary.com/drsybwqg0/image/upload/v1781139919/Interior_View_10_resize_uzklge.jpg' },
+  ],
+
+  'kfcc-bank-office-building': [
+    { kind: 'image', src: 'https://res.cloudinary.com/drsybwqg0/image/upload/v1780299886/%EC%84%9C%EC%B8%A1_%ED%88%AC%EC%8B%9C%EB%8F%84_resize_yzrpuw.jpg' },
+    { kind: 'image', src: 'https://res.cloudinary.com/drsybwqg0/image/upload/v1781140058/%EC%84%9C%EC%B8%A1%ED%88%AC%EC%8B%9C%EB%8F%84_2__resize_wyzcqf.jpg' },
+  ],
+
+  'seoul-animation-center': [
+    { kind: 'image', src: 'https://res.cloudinary.com/drsybwqg0/image/upload/v1780300156/CG_Aerial_View_resize_xlqazy.jpg' },
+    { kind: 'image', src: 'https://res.cloudinary.com/drsybwqg0/image/upload/v1781139963/CG_Sectional_View_rev_rrwwmv.jpg' },
+  ],
+
+  'simmons-factorium': [
+    { kind: 'image', src: 'https://res.cloudinary.com/drsybwqg0/image/upload/v1780300228/Completed_%EC%99%B8%EA%B3%BD_rev_resize_ensojy.jpg' },
+    { kind: 'image', src: 'https://res.cloudinary.com/drsybwqg0/image/upload/v1781139566/Completed_%EC%84%9C%EC%B8%A1_3__resize_wgxu1o.jpg' },
+    { kind: 'image', src: 'https://res.cloudinary.com/drsybwqg0/image/upload/v1781139574/Completed_Interior_05_rev_sxftnu.jpg' },
+  ],
+
+  'hyundai-india-rd-center': [
+    // Hero — 신규 커버
+    { kind: 'image', src: 'https://res.cloudinary.com/drsybwqg0/image/upload/v1781139372/Aerial_013_rev_resize_dwaanp.jpg' },
+    // 기존 커버 → 콘텐츠 슬라이드로 이동
+    { kind: 'image', src: 'https://res.cloudinary.com/drsybwqg0/image/upload/v1780300313/Aerial_001_HDR_resize_jpd5hu.jpg' },
+    { kind: 'image', src: 'https://res.cloudinary.com/drsybwqg0/image/upload/v1781139381/08_%EC%9D%B4%EC%A4%91%EC%99%B8%ED%94%BC_%EB%8B%A8%EB%A9%B4%ED%88%AC%EC%8B%9C%EB%8F%84_resize_ybj1mv.jpg' },
+  ],
+
+  'cloud-tectonic': [
+    // Hero — 신규 커버
+    { kind: 'image', src: 'https://res.cloudinary.com/drsybwqg0/image/upload/v1781139134/01_Pandemic_Life-01_m8hsz9.png' },
+    // 기존 커버 → 콘텐츠 슬라이드로 이동
+    { kind: 'image', src: 'https://res.cloudinary.com/drsybwqg0/image/upload/v1780301125/Cloud_Tectonic_gzditm.jpg' },
+  ],
+
+  'wonju-innovation-complex': [
+    { kind: 'image', src: 'https://res.cloudinary.com/drsybwqg0/image/upload/v1781138743/CG_Aerial_02_resize_bishfx.jpg' },
+    { kind: 'image', src: 'https://res.cloudinary.com/drsybwqg0/image/upload/v1781138748/CG_Aerial_01_resize_j658pe.jpg' },
+    { kind: 'image', src: 'https://res.cloudinary.com/drsybwqg0/image/upload/v1781138782/CG_Site_Plan_resize_h0yfaj.jpg' },
+  ],
+
+  'kb-kookmin-bank-hq': [
+    { kind: 'image', src: 'https://res.cloudinary.com/drsybwqg0/image/upload/v1781138576/Perspective_view_02_resize_lzy7ry.jpg' },
+    { kind: 'image', src: 'https://res.cloudinary.com/drsybwqg0/image/upload/v1781138617/Aerial_view_resize_zh3ai1.jpg' },
+  ],
+
+  'the-whale': [
+    { kind: 'image', src: 'https://res.cloudinary.com/drsybwqg0/image/upload/v1781138047/Whale_01_ib7cjy.png' },
+    { kind: 'image', src: 'https://res.cloudinary.com/drsybwqg0/image/upload/v1781138363/SGP_2024_Poster_Whale_A2_resize_A2-1_jckfjh.png' },
+    { kind: 'image', src: 'https://res.cloudinary.com/drsybwqg0/image/upload/v1781138366/SGP_2024_Poster_Whale_A2_resize_A2-2_pxthgr.png' },
+  ],
 }

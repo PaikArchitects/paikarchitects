@@ -54,15 +54,15 @@ export default function HomePage() {
         }
         return next
       })
-      setTimeout(() => setIsBlacking(false), 200)
-    }, 400)
+      setTimeout(() => setIsBlacking(false), 300)
+    }, 600)
   }, [])
 
   // 셔플 타이머 — hover 또는 active 중에는 일시정지
   useEffect(() => {
     if (introPhase !== 'done') return
     if (activeProject || hoveredProject) return
-    const timer = setInterval(advanceShuffle, 4000)
+    const timer = setInterval(advanceShuffle, 6000)
     return () => clearInterval(timer)
   }, [introPhase, activeProject, hoveredProject, advanceShuffle])
 
@@ -118,13 +118,12 @@ export default function HomePage() {
 
   const layoutVisible = introPhase === 'done'
 
-  // 전역 헤더(ACP 모노그램 / 내비게이션) 색상 전환 — 배경 밝기에 따라 전역 컨텍스트로 전달
-  // ACP(좌상단): 데스크톱은 항상 ProjectWall(.light-panel) 위 — 모바일은 Active일 때만 ContentArea(흰 배경) 위
-  // NAV(우상단): 항상 ContentArea 위 — Active(흰 배경)일 때만 다크 컬러로 전환
+  // 전역 헤더(ACP 모노그램 / 내비게이션) 색상 전환 — 헤더 존(상단 64px)은 항상 루트 다크 배경이므로
+  // 랜딩에서는 모노그램과 내비가 항상 흰색이어야 한다.
   useEffect(() => {
-    setWordmarkOnLight(layoutVisible && (!mobile || activeProject !== null))
-    setNavOnLight(layoutVisible && activeProject !== null)
-  }, [layoutVisible, mobile, activeProject, setWordmarkOnLight, setNavOnLight])
+    setWordmarkOnLight(false)
+    setNavOnLight(false)
+  }, [setWordmarkOnLight, setNavOnLight])
 
   return (
     <div style={{
@@ -139,8 +138,12 @@ export default function HomePage() {
       {/* ── MAIN ── */}
       <div style={{
         position: 'absolute',
-        inset: 0,
+        top: 64,
+        left: 0,
+        right: 0,
+        bottom: 0,
         display: 'flex',
+        gap: 16,
         opacity: layoutVisible ? 1 : 0,
         transition: 'opacity 400ms ease-out',
       }}>
