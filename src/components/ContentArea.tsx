@@ -7,10 +7,11 @@ import { projectSlides } from '@/data/projectSlides'
 const FONT = "'Pretendard Variable', Pretendard, -apple-system, BlinkMacSystemFont, sans-serif"
 
 const INFO_COL_W = 200
+const INFO_SLIDE_W = 200
 const SLIDE_GAP_PX = 24
 const EASE = 'cubic-bezier(0.7, 0, 0.3, 1)'
 const MORPH_MS = 700
-const SLIDE_H_RATIO = 0.72   // image·credits 슬라이드 높이 (뷰포트 대비)
+const SLIDE_H_RATIO = 0.72   // image·credits·info 슬라이드 높이 (뷰포트 대비)
 const DIAGRAM_H_PCT = '48%'  // diagramSet 이미지 영역 높이
 // 어두운 사진 위 대비 확보용 흰 헤일로
 const GLYPH_SHADOW = '0 0 10px rgba(255,255,255,0.95), 0 0 3px rgba(255,255,255,0.95)'
@@ -82,10 +83,10 @@ function ImageSlideView({ slide }: { slide: ImageSlide }) {
   )
 }
 
-// ── 다이어그램 세트: 이미지 영역 위 커서 추적 화살표, 캡션+카운터는 하단 외부 ──
-function DiagramSetSlideView({ slide, isCenter, onHoverChange }: {
+// ── 다이어그램 세트: 중앙 근접(active) 시에만 내부 인터랙션 활성 ──
+function DiagramSetSlideView({ slide, active, onHoverChange }: {
   slide: DiagramSetSlide
-  isCenter: boolean
+  active: boolean
   onHoverChange: (hovering: boolean) => void
 }) {
   const [subIdx, setSubIdx] = useState(0)
@@ -94,24 +95,31 @@ function DiagramSetSlideView({ slide, isCenter, onHoverChange }: {
   const areaRef = useRef<HTMLDivElement>(null)
   const total = slide.items.length
 
+  // 중앙에서 벗어나면 내부 인터랙션 전부 해제
   useEffect(() => {
-    if (!isCenter) setSubIdx(0)
-  }, [isCenter])
+    if (!active) {
+      setSubIdx(0)
+      setHovering(false)
+      setCursor(null)
+      onHoverChange(false)
+    }
+  }, [active, onHoverChange])
 
-  // 자동 진행 — 호버 시 일시정지
+  // 자동 진행 — 중앙 근접 + 비호버일 때만
   useEffect(() => {
-    if (!isCenter || hovering) return
+    if (!active || hovering) return
     const interval = slide.autoAdvanceMs ?? 3000
     const id = setInterval(() => {
       setSubIdx(i => (i + 1) % total)
     }, interval)
     return () => clearInterval(id)
-  }, [isCenter, hovering, total, slide.autoAdvanceMs])
+  }, [active, hovering, total, slide.autoAdvanceMs])
 
   // 언마운트 시 외부 글리프 숨김 상태 해제
   useEffect(() => () => onHoverChange(false), [onHoverChange])
 
   const handleClick = (e: React.MouseEvent) => {
+    if (!active) return  // 비활성: 클릭은 외부 트랙 내비게이션으로 전파
     e.stopPropagation()
     const rect = areaRef.current?.getBoundingClientRect()
     if (!rect) return
@@ -128,17 +136,28 @@ function DiagramSetSlideView({ slide, isCenter, onHoverChange }: {
       style={{
         height: '100%',
         position: 'relative',
-        // 내부 글리프 표시 중에는 네이티브 커서 숨김
-        cursor: cursor ? 'none' : 'default',
+        // 내부 글리프 표시 중에만 네이티브 커서 숨김. 비활성 시 뷰포트 커서 상속
+        cursor: active ? (cursor ? 'none' : 'default') : 'inherit',
       }}
-      onMouseEnter={() => { setHovering(true); onHoverChange(true) }}
-      onMouseLeave={() => { setHovering(false); setCursor(null); onHoverChange(false) }}
+      onMouseEnter={() => {
+        if (!active) return
+        setHovering(true)
+        onHoverChange(true)
+      }}
+      onMouseLeave={() => {
+        setHovering(false)
+        setCursor(null)
+        onHoverChange(false)
+      }}
       onMouseMove={(e) => {
+        if (!active) return
+        setHovering(true)
+        onHoverChange(true)
         const rect = areaRef.current?.getBoundingClientRect()
         if (rect) setCursor({ x: e.clientX - rect.left, y: e.clientY - rect.top })
       }}
-      onPointerDown={(e) => e.stopPropagation()}
-      onPointerUp={(e) => e.stopPropagation()}
+      onPointerDown={active ? (e) => e.stopPropagation() : undefined}
+      onPointerUp={active ? (e) => e.stopPropagation() : undefined}
       onClick={handleClick}
     >
       {/* 사이저 — 첫 다이어그램 비율로 슬라이드 폭 결정 */}
@@ -170,7 +189,7 @@ function DiagramSetSlideView({ slide, isCenter, onHoverChange }: {
       ))}
 
       {/* 내부 커서 추적 글리프 — 커서 지점에 중심 정렬 */}
-      {cursor && (
+      {active && cursor && (
         <span style={{
           position: 'absolute',
           left: cursor.x,
@@ -257,16 +276,16 @@ function CreditsSlideView({ slide }: { slide: CreditsSlide }) {
   )
 }
 
-function SlideContent({ slide, isCenter, onDiagramHover }: {
+function SlideContent({ slide, nearCenter, onDiagramHover }: {
   slide: ProjectSlide
-  isCenter: boolean
+  nearCenter: boolean
   onDiagramHover: (hovering: boolean) => void
 }) {
   switch (slide.kind) {
     case 'image':
       return <ImageSlideView slide={slide} />
     case 'diagramSet':
-      return <DiagramSetSlideView slide={slide} isCenter={isCenter} onHoverChange={onDiagramHover} />
+      return <DiagramSetSlideView slide={slide} active={nearCenter} onHoverChange={onDiagramHover} />
     case 'credits':
       return <CreditsSlideView slide={slide} />
   }
@@ -287,7 +306,8 @@ export function ContentArea({ project, mode, isBlacking, visible, mobile, onBack
   const prevModeRef = useRef(mode)
 
   // ── 연속 트랙 (픽셀 스크롤 모델) ──
-  const [scrollPos, setScrollPos] = useState(0)        // px, 0 = 첫 슬라이드 중앙
+  // scrollPos 0 = 트랙 좌측 끝 = 뷰포트 좌측 끝 ([정보 슬라이드][히어로]가 좌측부터 보임)
+  const [scrollPos, setScrollPos] = useState(0)
   const [rects, setRects] = useState<{ x: number; w: number }[]>([])
   const [viewportW, setViewportW] = useState(0)
   const [dragging, setDragging] = useState(false)
@@ -297,16 +317,24 @@ export function ContentArea({ project, mode, isBlacking, visible, mobile, onBack
   const [infoIn, setInfoIn] = useState(false)
   const dragState = useRef<{ startX: number; startScroll: number; moved: boolean } | null>(null)
 
+  // 트랙 자식 인덱스 공간: 0 = 정보 슬라이드, 1.. = 콘텐츠 슬라이드
   const centers = rects.map(r => r.x + r.w / 2)
-  const c0 = centers[0] ?? 0
-  const maxScroll = centers.length > 0 ? Math.max(0, centers[centers.length - 1] - c0) : 0
+  const maxScroll = centers.length > 0
+    ? Math.max(0, centers[centers.length - 1] - viewportW / 2)
+    : 0
 
+  const viewportCenter = scrollPos + viewportW / 2
   let nearest = 0
   for (let i = 1; i < centers.length; i++) {
-    if (Math.abs(centers[i] - c0 - scrollPos) < Math.abs(centers[nearest] - c0 - scrollPos)) nearest = i
+    if (Math.abs(centers[i] - viewportCenter) < Math.abs(centers[nearest] - viewportCenter)) nearest = i
   }
 
   const clampScroll = (v: number) => Math.min(maxScroll, Math.max(0, v))
+
+  // 다이어그램 화살표 우선순위 — 슬라이드 중앙이 뷰포트 중앙 ±20% 이내일 때만 활성
+  const isNearCenter = (trackIdx: number) =>
+    viewportW > 0 && trackIdx < centers.length &&
+    Math.abs(centers[trackIdx] - viewportCenter) < viewportW * 0.2
 
   // 모드 전환 감지 — idle→active 시 모프 시퀀스
   useEffect(() => {
@@ -324,7 +352,6 @@ export function ContentArea({ project, mode, isBlacking, visible, mobile, onBack
         : 4 / 3
       const th = rh * SLIDE_H_RATIO
       const tw = th * aspect
-      const vw = rw - INFO_COL_W
 
       setMorphing(true)
       setMorphRect({ top: 0, left: 0, width: rw, height: rh })
@@ -332,9 +359,10 @@ export function ContentArea({ project, mode, isBlacking, visible, mobile, onBack
       let cancelled = false
       requestAnimationFrame(() => requestAnimationFrame(() => {
         if (cancelled) return
+        // 히어로는 트랙 index 1 — 좌측 = 뷰포트 좌측 + 정보 슬라이드(200) + gap(24)
         setMorphRect({
           top: (rh - th) / 2,
-          left: INFO_COL_W + (vw - tw) / 2,
+          left: INFO_COL_W + INFO_SLIDE_W + SLIDE_GAP_PX,
           width: tw,
           height: th,
         })
@@ -357,14 +385,15 @@ export function ContentArea({ project, mode, isBlacking, visible, mobile, onBack
     }
   }, [mode])
 
-  // 정보 컬럼 텍스트 — 400ms 지연 후 400ms 페이드인 (transition delay로 처리)
+  // 정보 슬라이드 텍스트 — 모프 완료 후 400ms 페이드인
   useEffect(() => {
-    if (mode === 'active') {
-      const raf = requestAnimationFrame(() => setInfoIn(true))
-      return () => cancelAnimationFrame(raf)
+    if (mode !== 'active' || morphing) {
+      setInfoIn(false)
+      return
     }
-    setInfoIn(false)
-  }, [mode])
+    const raf = requestAnimationFrame(() => requestAnimationFrame(() => setInfoIn(true)))
+    return () => cancelAnimationFrame(raf)
+  }, [mode, morphing])
 
   // active 중 프로젝트 교체 시 리셋
   useEffect(() => {
@@ -400,7 +429,7 @@ export function ContentArea({ project, mode, isBlacking, visible, mobile, onBack
     if (centers.length === 0) return
     const i = Math.max(0, Math.min(centers.length - 1, idx))
     setAnimated(true)
-    setScrollPos(clampScroll(centers[i] - c0))
+    setScrollPos(clampScroll(centers[i] - viewportW / 2))
   }
   const goNext = () => goToSlide(nearest + 1)
   const goPrev = () => goToSlide(nearest - 1)
@@ -456,6 +485,9 @@ export function ContentArea({ project, mode, isBlacking, visible, mobile, onBack
   const showGlyph = !mobile && !morphing && cursor !== null && !dragging && !diagramHover &&
     glyphSide !== null &&
     (glyphSide === 'right' ? scrollPos < maxScroll - 1 : scrollPos > 1)
+
+  // 카운터: 정보 슬라이드 제외 — 콘텐츠 슬라이드 번호(1..) 기준
+  const displayIdx = Math.min(Math.max(nearest, 1), total)
 
   return (
     <div
@@ -525,7 +557,7 @@ export function ContentArea({ project, mode, isBlacking, visible, mobile, onBack
 
       {mode === 'active' && (
         <div style={{ display: 'flex', width: '100%', height: '100%' }}>
-          {/* ── 좌측 정보 컬럼 — 트랙과 무관하게 고정 표시 ── */}
+          {/* ── 좌측 고정 컬럼 — Back + 프로젝트 타이틀만 ── */}
           <div style={{
             width: INFO_COL_W,
             flexShrink: 0,
@@ -538,8 +570,6 @@ export function ContentArea({ project, mode, isBlacking, visible, mobile, onBack
             background: '#FFFFFF',
             fontFamily: FONT,
             color: '#080706',
-            opacity: infoIn ? 1 : 0,
-            transition: 'opacity 400ms ease 400ms',
             zIndex: 4,
           }}>
             {/* Back 컨트롤 */}
@@ -562,31 +592,9 @@ export function ContentArea({ project, mode, isBlacking, visible, mobile, onBack
               ← Back
             </button>
 
-            {/* 프로젝트명 + 위치 */}
-            <div>
-              <div style={{ fontSize: 14, fontWeight: 500, lineHeight: 1.35, wordBreak: 'keep-all' }}>
-                {project.title}
-              </div>
-              <div style={{
-                fontSize: 11,
-                fontWeight: 300,
-                letterSpacing: '0.08em',
-                textTransform: 'uppercase',
-                opacity: 0.6,
-                marginTop: 6,
-              }}>
-                {project.location ?? ''}
-              </div>
-            </div>
-
-            {/* 메타 스택 — BIG 형식: 라벨 + 값 */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-              {[['TYPOLOGY', project.type], ['STATUS', project.status], ['YEAR', String(project.year)]].map(([l, v]) => (
-                <div key={l}>
-                  <div style={{ fontSize: 9, fontWeight: 300, letterSpacing: '0.1em', opacity: 0.45 }}>{l}</div>
-                  <div style={{ fontSize: 11, fontWeight: 400, letterSpacing: '0.04em', textTransform: 'uppercase', marginTop: 2 }}>{v}</div>
-                </div>
-              ))}
+            {/* 프로젝트 타이틀 — 고정 */}
+            <div style={{ fontSize: 14, fontWeight: 500, lineHeight: 1.35, wordBreak: 'keep-all' }}>
+              {project.title}
             </div>
           </div>
 
@@ -617,11 +625,46 @@ export function ContentArea({ project, mode, isBlacking, visible, mobile, onBack
                   gap: SLIDE_GAP_PX,
                   alignItems: 'center',
                   height: '100%',
-                  transform: `translateX(${viewportW / 2 - c0 - scrollPos}px)`,
+                  transform: `translateX(${-scrollPos}px)`,
                   transition: animated && !dragging ? `transform 600ms ${EASE}` : 'none',
                   willChange: 'transform',
                 }}
               >
+                {/* 트랙 첫 자식 — 정보 슬라이드 (projectSlides 데이터와 무관, project 필드 파생) */}
+                <div style={{
+                  width: INFO_SLIDE_W,
+                  flexShrink: 0,
+                  height: `${SLIDE_H_RATIO * 100}%`,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  justifyContent: 'flex-start',
+                  gap: 24,
+                  fontFamily: FONT,
+                  color: '#080706',
+                  opacity: infoIn ? 1 : 0,
+                  transition: 'opacity 400ms ease',
+                }}>
+                  <div style={{
+                    fontSize: 11,
+                    fontWeight: 300,
+                    letterSpacing: '0.08em',
+                    textTransform: 'uppercase',
+                    opacity: 0.6,
+                  }}>
+                    {project.location ?? ''}
+                  </div>
+
+                  {/* 메타 스택 — BIG 형식: 라벨 + 값 */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                    {[['TYPOLOGY', project.type], ['STATUS', project.status], ['YEAR', String(project.year)]].map(([l, v]) => (
+                      <div key={l}>
+                        <div style={{ fontSize: 9, fontWeight: 300, letterSpacing: '0.1em', opacity: 0.45 }}>{l}</div>
+                        <div style={{ fontSize: 11, fontWeight: 400, letterSpacing: '0.04em', textTransform: 'uppercase', marginTop: 2 }}>{v}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
                 {slides.length > 0 ? slides.map((slide, idx) => (
                   <div
                     key={idx}
@@ -631,7 +674,8 @@ export function ContentArea({ project, mode, isBlacking, visible, mobile, onBack
                       position: 'relative',
                     }}
                   >
-                    <SlideContent slide={slide} isCenter={idx === nearest} onDiagramHover={setDiagramHover} />
+                    {/* 트랙 자식 인덱스 = idx + 1 (정보 슬라이드가 0) */}
+                    <SlideContent slide={slide} nearCenter={isNearCenter(idx + 1)} onDiagramHover={setDiagramHover} />
                   </div>
                 )) : (
                   <div style={{
@@ -665,7 +709,7 @@ export function ContentArea({ project, mode, isBlacking, visible, mobile, onBack
               </span>
             )}
 
-            {/* 슬라이드 카운터 — 중앙 최근접 인덱스 */}
+            {/* 슬라이드 카운터 — 정보 슬라이드 제외한 콘텐츠 번호 */}
             {!morphing && (
               <div style={{
                 position: 'absolute',
@@ -680,14 +724,14 @@ export function ContentArea({ project, mode, isBlacking, visible, mobile, onBack
                 pointerEvents: 'none',
                 zIndex: 5,
               }}>
-                {String(nearest + 1).padStart(2, '0')} / {String(total).padStart(2, '0')}
+                {String(displayIdx).padStart(2, '0')} / {String(total).padStart(2, '0')}
               </div>
             )}
           </div>
         </div>
       )}
 
-      {/* ── 모프 레이어: 풀블리드 커버 → 트랙 첫 슬라이드 rect ── */}
+      {/* ── 모프 레이어: 풀블리드 커버 → 트랙 index 1(히어로) rect ── */}
       {morphing && morphRect && (
         project.coverImage ? (
           // eslint-disable-next-line @next/next/no-img-element

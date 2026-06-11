@@ -15,7 +15,7 @@ const NAV_ITEMS = [
 
 // 랜딩(/) 외 페이지 중 흰 배경(light) 레이아웃을 사용하는 경로
 // /work 계열(/work, /work/[slug])은 LandingExperience 흰 셸을 렌더하므로 항상 light
-const STATIC_LIGHT_PATHS = new Set(['/about', '/work'])
+const STATIC_LIGHT_PATHS = new Set(['/about', '/work', '/essays', '/contact'])
 
 function isStaticLight(pathname: string): boolean {
   return STATIC_LIGHT_PATHS.has(pathname) || pathname.startsWith('/work/')

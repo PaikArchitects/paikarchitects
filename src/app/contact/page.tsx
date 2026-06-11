@@ -1,4 +1,4 @@
-export default function EssaysPage() {
+export default function ContactPage() {
   return (
     <main style={{
       minHeight: '100vh',
@@ -15,7 +15,7 @@ export default function EssaysPage() {
         letterSpacing: '0.1em',
         opacity: 0.4,
       }}>
-        Essays — Coming Soon
+        Contact — Coming Soon
       </p>
     </main>
   );

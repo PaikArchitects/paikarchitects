@@ -9,6 +9,8 @@ import { useSiteChrome } from '@/components/SiteChromeContext'
 
 const FONT = "'Pretendard Variable', Pretendard, -apple-system, BlinkMacSystemFont, sans-serif"
 
+const HEADER_H = 80   // 모든 상태 공통. 필터 행 포함 여유치
+
 const FILTER_TYPES = ['All', ...Array.from(new Set(sortedProjects.map(p => p.type)))]
 
 function shuffle<T>(arr: T[]): T[] {
@@ -179,13 +181,13 @@ export function LandingExperience({ initialSlug, initialShowFilters = false }: L
       position: 'relative',
     }}>
 
-      {/* ── FILTER BAR — 헤더 존 바로 아래, 가운데 정렬 ── */}
+      {/* ── FILTER BAR — 헤더 존 내, 가운데 정렬. 표시 여부와 무관하게 레이아웃 고정 ── */}
       <div style={{
         position: 'absolute',
-        top: 64,
+        top: 50,
         left: 0,
         right: 0,
-        height: 40,
+        height: 24,
         display: 'flex',
         justifyContent: 'center',
         alignItems: 'center',
@@ -226,17 +228,17 @@ export function LandingExperience({ initialSlug, initialShowFilters = false }: L
         ))}
       </div>
 
-      {/* ── MAIN ── */}
+      {/* ── MAIN — 헤더 높이 전 상태 고정 (수직 점프 없음) ── */}
       <div style={{
         position: 'absolute',
-        top: showFilters ? 104 : 64,
+        top: HEADER_H,
         left: 0,
         right: 0,
         bottom: 0,
         display: 'flex',
         gap: 16,
         opacity: layoutVisible ? 1 : 0,
-        transition: 'opacity 400ms ease-out, top 300ms ease-out',
+        transition: 'opacity 400ms ease-out',
       }}>
         {!mobile && (
           <ProjectWall
