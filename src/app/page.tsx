@@ -118,17 +118,17 @@ export default function HomePage() {
 
   const layoutVisible = introPhase === 'done'
 
-  // 전역 헤더(ACP 모노그램 / 내비게이션) 색상 전환 — 헤더 존(상단 64px)은 항상 루트 다크 배경이므로
-  // 랜딩에서는 모노그램과 내비가 항상 흰색이어야 한다.
+  // 전역 헤더(ACP 모노그램 / 내비게이션) 색상 전환 — 헤더 존(상단 64px)이 흰 배경이므로
+  // 랜딩 헤더는 항상 흰 배경 위 → 다크 글리프.
   useEffect(() => {
-    setWordmarkOnLight(false)
-    setNavOnLight(false)
-  }, [setWordmarkOnLight, setNavOnLight])
+    setWordmarkOnLight(layoutVisible)
+    setNavOnLight(layoutVisible)
+  }, [setWordmarkOnLight, setNavOnLight, layoutVisible])
 
   return (
     <div style={{
       fontFamily: FONT,
-      background: '#080706',
+      background: '#FFFFFF',
       width: '100vw',
       height: '100vh',
       overflow: 'hidden',

@@ -119,7 +119,7 @@ export function ProjectWall({ projects, highlightSlug, activeSlug, revealed, onH
     <div
       className="project-wall-scroll light-panel"
       style={{
-        width: '33.333vw',
+        width: '28vw',
         height: '100%',
         flexShrink: 0,
         overflowY: 'auto',
