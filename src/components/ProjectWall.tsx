@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import type { Project } from '@/types'
+import { cldThumb } from '@/lib/cloudinary'
 
 const FONT = "'Pretendard Variable', Pretendard, -apple-system, BlinkMacSystemFont, sans-serif"
 
@@ -100,8 +101,9 @@ function WallCard({ project, index, tier, isHighlighted, isDimmed, revealed, exi
         {project.coverImage ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
-            src={project.coverImage}
+            src={cldThumb(project.coverImage, 480)}
             alt={project.title}
+            loading="lazy"
             style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
           />
         ) : (
@@ -116,6 +118,13 @@ export function ProjectWall({ projects, filterKey, highlightSlug, activeSlug, re
   const cardRefs = useRef<Record<string, HTMLDivElement | null>>({})
   const containerRef = useRef<HTMLDivElement>(null)
   const effectiveHighlight = activeSlug ?? highlightSlug
+
+  // 호버 시 크기 위계 중심을 호버 카드가 우선 점유 (scrollIntoView·불투명도는 비반응)
+  const [hoveredId, setHoveredId] = useState<string | null>(null)
+  const handleHover = (p: Project | null) => {
+    setHoveredId(p?.id ?? null)
+    onHover(p)
+  }
 
   // ── 필터링 2단계 시퀀스: 전 카드 위로 퇴장 → 목록 교체 후 캐스케이드 재입장 ──
   const [displayList, setDisplayList] = useState(projects)
@@ -149,8 +158,9 @@ export function ProjectWall({ projects, filterKey, highlightSlug, activeSlug, re
     }
   }, [effectiveHighlight])
 
-  // 하이라이트 카드의 리스트 인덱스 — 필터로 제외된 경우 -1 (전 카드 d>=2 취급)
-  const highlightIdx = displayList.findIndex(p => p.id === effectiveHighlight)
+  // 크기 위계 중심 카드의 리스트 인덱스 — 필터로 제외된 경우 -1 (전 카드 d>=2 취급)
+  const tierCenter = activeSlug ?? hoveredId ?? highlightSlug
+  const highlightIdx = displayList.findIndex(p => p.id === tierCenter)
 
   return (
     <div
@@ -186,7 +196,7 @@ export function ProjectWall({ projects, filterKey, highlightSlug, activeSlug, re
             revealed={revealed && phase === 'idle'}
             exiting={phase === 'exit'}
             registerRef={(el) => { cardRefs.current[project.id] = el }}
-            onHover={onHover}
+            onHover={handleHover}
             onSelect={onSelect}
           />
         )

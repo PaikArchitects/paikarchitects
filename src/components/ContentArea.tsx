@@ -8,7 +8,7 @@ const FONT = "'Pretendard Variable', Pretendard, -apple-system, BlinkMacSystemFo
 
 const INFO_SLIDE_W = 200
 const SLIDE_GAP_PX = 24
-const TRACK_INSET = 24       // 트랙 선행 여백 (paddingLeft — 스페이서 div 금지: 자식 인덱스 공간 유지)
+const TRACK_INSET = 24       // 트랙 뷰포트 좌측 오프셋 — 뷰포트 좌측 모서리가 곧 클립 라인 (Back/타이틀 좌측 라인과 정렬)
 const EASE = 'cubic-bezier(0.7, 0, 0.3, 1)'
 const MORPH_MS = 700
 const SLIDE_H_RATIO = 0.72   // image·credits·info 슬라이드 높이 (뷰포트 대비)
@@ -321,6 +321,7 @@ export function ContentArea({ project, mode, isBlacking, visible, mobile, onBack
   const [cursor, setCursor] = useState<{ x: number; y: number } | null>(null)
   const [diagramHover, setDiagramHover] = useState(false)
   const [infoIn, setInfoIn] = useState(false)
+  const [trackIn, setTrackIn] = useState(false)
   const dragState = useRef<{ startX: number; startScroll: number; moved: boolean } | null>(null)
 
   // 트랙 자식 인덱스 공간: 0 = 정보 슬라이드, 1.. = 콘텐츠 슬라이드
@@ -365,7 +366,7 @@ export function ContentArea({ project, mode, isBlacking, visible, mobile, onBack
       let cancelled = false
       requestAnimationFrame(() => requestAnimationFrame(() => {
         if (cancelled) return
-        // 히어로는 트랙 index 1 — 좌측 = leading inset(24) + 정보 슬라이드(200) + gap(24)
+        // 히어로는 트랙 index 1 — 루트 기준 좌측 = 뷰포트 오프셋(24) + 정보 슬라이드(200) + gap(24) = 248
         setMorphRect({
           top: (rh - th) / 2,
           left: TRACK_INSET + INFO_SLIDE_W + SLIDE_GAP_PX,
@@ -400,6 +401,17 @@ export function ContentArea({ project, mode, isBlacking, visible, mobile, onBack
     const raf = requestAnimationFrame(() => requestAnimationFrame(() => setInfoIn(true)))
     return () => cancelAnimationFrame(raf)
   }, [mode, morphing])
+
+  // 트랙 페이드 인 — 모프 종료·프로젝트 교체 시 false 리셋 후 400ms 페이드 (월 재배열 400ms와 동기)
+  useEffect(() => {
+    if (mode !== 'active' || morphing) {
+      setTrackIn(false)
+      return
+    }
+    setTrackIn(false)
+    const raf = requestAnimationFrame(() => requestAnimationFrame(() => setTrackIn(true)))
+    return () => cancelAnimationFrame(raf)
+  }, [mode, morphing, project.id])
 
   // active 중 프로젝트 교체 시 리셋
   useEffect(() => {
@@ -563,11 +575,12 @@ export function ContentArea({ project, mode, isBlacking, visible, mobile, onBack
 
       {mode === 'active' && (
         <>
-          {/* ── 슬라이드 뷰포트 — 콘텐츠 영역 전체 폭 ── */}
+          {/* ── 슬라이드 뷰포트 — 좌측 24px 안쪽에서 시작, 좌측 모서리 = 클립 라인 ── */}
           <div
             ref={viewportRef}
             style={{
-              width: '100%',
+              width: `calc(100% - ${TRACK_INSET}px)`,
+              marginLeft: TRACK_INSET,
               height: '100%',
               position: 'relative',
               overflow: 'hidden',
@@ -582,74 +595,97 @@ export function ContentArea({ project, mode, isBlacking, visible, mobile, onBack
             onMouseLeave={() => setCursor(null)}
           >
             {!morphing && (
-              <div
-                ref={trackRef}
-                style={{
-                  display: 'flex',
-                  gap: SLIDE_GAP_PX,
-                  alignItems: 'center',
-                  height: '100%',
-                  paddingLeft: TRACK_INSET,
-                  transform: `translateX(${-scrollPos}px)`,
-                  transition: animated && !dragging ? `transform 600ms ${EASE}` : 'none',
-                  willChange: 'transform',
-                }}
-              >
-                {/* 트랙 첫 자식 — 정보 슬라이드 (projectSlides 데이터와 무관, project 필드 파생) */}
-                <div style={{
-                  width: INFO_SLIDE_W,
-                  flexShrink: 0,
-                  height: `${SLIDE_H_RATIO * 100}%`,
-                  display: 'flex',
-                  flexDirection: 'column',
-                  justifyContent: 'flex-start',
-                  gap: 24,
-                  fontFamily: FONT,
-                  color: '#080706',
-                  opacity: infoIn ? 1 : 0,
-                  transition: 'opacity 400ms ease',
-                }}>
+              /* 페이드 래퍼 — 트랙 페이드 인 (rect 측정·transform은 내부 트랙에 그대로) */
+              <div style={{
+                height: '100%',
+                opacity: trackIn ? 1 : 0,
+                transition: 'opacity 400ms ease',
+              }}>
+                <div
+                  ref={trackRef}
+                  style={{
+                    display: 'flex',
+                    gap: SLIDE_GAP_PX,
+                    alignItems: 'center',
+                    height: '100%',
+                    transform: `translateX(${-scrollPos}px)`,
+                    transition: animated && !dragging ? `transform 600ms ${EASE}` : 'none',
+                    willChange: 'transform',
+                  }}
+                >
+                  {/* 트랙 첫 자식 — 정보 슬라이드 (projectSlides 데이터와 무관, project 필드 파생) */}
                   <div style={{
-                    fontSize: 11,
-                    fontWeight: 300,
-                    letterSpacing: '0.08em',
-                    textTransform: 'uppercase',
-                    opacity: 0.6,
+                    width: INFO_SLIDE_W,
+                    flexShrink: 0,
+                    height: `${SLIDE_H_RATIO * 100}%`,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    justifyContent: 'flex-start',
+                    gap: 24,
+                    fontFamily: FONT,
+                    color: '#080706',
+                    opacity: infoIn ? 1 : 0,
+                    transition: 'opacity 400ms ease',
                   }}>
-                    {project.location ?? ''}
+                    <div style={{
+                      fontSize: 11,
+                      fontWeight: 300,
+                      letterSpacing: '0.08em',
+                      textTransform: 'uppercase',
+                      opacity: 0.6,
+                    }}>
+                      {project.location ?? ''}
+                    </div>
+
+                    {/* 메타 스택 — BIG 형식: 라벨 + 값 */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                      {[['TYPOLOGY', project.type], ['STATUS', project.status], ['YEAR', String(project.year)]].map(([l, v]) => (
+                        <div key={l}>
+                          <div style={{ fontSize: 9, fontWeight: 300, letterSpacing: '0.1em', opacity: 0.45 }}>{l}</div>
+                          <div style={{ fontSize: 11, fontWeight: 400, letterSpacing: '0.04em', textTransform: 'uppercase', marginTop: 2 }}>{v}</div>
+                        </div>
+                      ))}
+                    </div>
                   </div>
 
-                  {/* 메타 스택 — BIG 형식: 라벨 + 값 */}
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-                    {[['TYPOLOGY', project.type], ['STATUS', project.status], ['YEAR', String(project.year)]].map(([l, v]) => (
-                      <div key={l}>
-                        <div style={{ fontSize: 9, fontWeight: 300, letterSpacing: '0.1em', opacity: 0.45 }}>{l}</div>
-                        <div style={{ fontSize: 11, fontWeight: 400, letterSpacing: '0.04em', textTransform: 'uppercase', marginTop: 2 }}>{v}</div>
-                      </div>
-                    ))}
-                  </div>
+                  {slides.length > 0 ? slides.map((slide, idx) => (
+                    <div
+                      key={idx}
+                      style={{
+                        height: isDiagram(slide) ? DIAGRAM_H_PCT : `${SLIDE_H_RATIO * 100}%`,
+                        flexShrink: 0,
+                        position: 'relative',
+                      }}
+                    >
+                      {/* 트랙 자식 인덱스 = idx + 1 (정보 슬라이드가 0) */}
+                      <SlideContent slide={slide} nearCenter={isNearCenter(idx + 1)} onDiagramHover={setDiagramHover} />
+                    </div>
+                  )) : (
+                    <div style={{
+                      height: `${SLIDE_H_RATIO * 100}%`,
+                      aspectRatio: '4 / 3',
+                      flexShrink: 0,
+                      background: project.coverColor,
+                    }} />
+                  )}
                 </div>
 
-                {slides.length > 0 ? slides.map((slide, idx) => (
-                  <div
-                    key={idx}
-                    style={{
-                      height: isDiagram(slide) ? DIAGRAM_H_PCT : `${SLIDE_H_RATIO * 100}%`,
-                      flexShrink: 0,
-                      position: 'relative',
-                    }}
-                  >
-                    {/* 트랙 자식 인덱스 = idx + 1 (정보 슬라이드가 0) */}
-                    <SlideContent slide={slide} nearCenter={isNearCenter(idx + 1)} onDiagramHover={setDiagramHover} />
-                  </div>
-                )) : (
-                  <div style={{
-                    height: `${SLIDE_H_RATIO * 100}%`,
-                    aspectRatio: '4 / 3',
-                    flexShrink: 0,
-                    background: project.coverColor,
-                  }} />
-                )}
+                {/* 슬라이드 카운터 — 정보 슬라이드 제외한 콘텐츠 번호 (트랙과 함께 페이드) */}
+                <div style={{
+                  position: 'absolute',
+                  bottom: 20,
+                  left: '50%',
+                  transform: 'translateX(-50%)',
+                  fontFamily: FONT,
+                  fontSize: 12,
+                  fontWeight: 300,
+                  color: '#0a0908',
+                  opacity: 0.6,
+                  pointerEvents: 'none',
+                  zIndex: 5,
+                }}>
+                  {String(displayIdx).padStart(2, '0')} / {String(total).padStart(2, '0')}
+                </div>
               </div>
             )}
 
@@ -672,25 +708,6 @@ export function ContentArea({ project, mode, isBlacking, visible, mobile, onBack
               }}>
                 {glyphSide === 'right' ? '›' : '‹'}
               </span>
-            )}
-
-            {/* 슬라이드 카운터 — 정보 슬라이드 제외한 콘텐츠 번호 */}
-            {!morphing && (
-              <div style={{
-                position: 'absolute',
-                bottom: 20,
-                left: '50%',
-                transform: 'translateX(-50%)',
-                fontFamily: FONT,
-                fontSize: 12,
-                fontWeight: 300,
-                color: '#0a0908',
-                opacity: 0.6,
-                pointerEvents: 'none',
-                zIndex: 5,
-              }}>
-                {String(displayIdx).padStart(2, '0')} / {String(total).padStart(2, '0')}
-              </div>
             )}
           </div>
 
