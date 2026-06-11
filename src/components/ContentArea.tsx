@@ -6,13 +6,13 @@ import { projectSlides } from '@/data/projectSlides'
 
 const FONT = "'Pretendard Variable', Pretendard, -apple-system, BlinkMacSystemFont, sans-serif"
 
-const INFO_COL_W = 200
 const INFO_SLIDE_W = 200
 const SLIDE_GAP_PX = 24
+const TRACK_INSET = 24       // 트랙 선행 여백 (paddingLeft — 스페이서 div 금지: 자식 인덱스 공간 유지)
 const EASE = 'cubic-bezier(0.7, 0, 0.3, 1)'
 const MORPH_MS = 700
 const SLIDE_H_RATIO = 0.72   // image·credits·info 슬라이드 높이 (뷰포트 대비)
-const DIAGRAM_H_PCT = '48%'  // diagramSet 이미지 영역 높이
+const DIAGRAM_H_PCT = '48%'  // diagramSet·단일 다이어그램 이미지 영역 높이
 // 어두운 사진 위 대비 확보용 흰 헤일로
 const GLYPH_SHADOW = '0 0 10px rgba(255,255,255,0.95), 0 0 3px rgba(255,255,255,0.95)'
 
@@ -36,6 +36,10 @@ function getSlides(project: Project): ProjectSlide[] {
   return projectSlides[project.id]
     ?? (project.coverImage ? [{ kind: 'image', src: project.coverImage }] : [])
 }
+
+// 다이어그램 판정 — diagramSet 또는 diagram 표기된 단일 이미지 (높이 48% 공통 적용)
+const isDiagram = (s: ProjectSlide) =>
+  s.kind === 'diagramSet' || (s.kind === 'image' && s.diagram === true)
 
 function splitCaption(caption: string): { label: string; description: string } {
   const sepIdx = caption.indexOf('—')
@@ -73,7 +77,8 @@ function ImageSlideView({ slide }: { slide: ImageSlide }) {
           color: '#0a0908',
           opacity: 0.7,
           pointerEvents: 'none',
-          whiteSpace: 'nowrap',
+          whiteSpace: 'normal',
+          wordBreak: 'keep-all',
         }}>
           <span style={{ fontWeight: 500 }}>{label}</span>
           {description && ` — ${description}`}
@@ -219,7 +224,8 @@ function DiagramSetSlideView({ slide, active, onHoverChange }: {
         textAlign: 'center',
         fontFamily: FONT,
         pointerEvents: 'none',
-        whiteSpace: 'nowrap',
+        whiteSpace: 'normal',
+        wordBreak: 'keep-all',
       }}>
         <div style={{ fontSize: 12, fontWeight: 300, color: '#0a0908', opacity: 0.7 }}>
           <span style={{ fontWeight: 500 }}>{item.label}</span> — {item.description}
@@ -359,10 +365,10 @@ export function ContentArea({ project, mode, isBlacking, visible, mobile, onBack
       let cancelled = false
       requestAnimationFrame(() => requestAnimationFrame(() => {
         if (cancelled) return
-        // 히어로는 트랙 index 1 — 좌측 = 뷰포트 좌측 + 정보 슬라이드(200) + gap(24)
+        // 히어로는 트랙 index 1 — 좌측 = leading inset(24) + 정보 슬라이드(200) + gap(24)
         setMorphRect({
           top: (rh - th) / 2,
-          left: INFO_COL_W + INFO_SLIDE_W + SLIDE_GAP_PX,
+          left: TRACK_INSET + INFO_SLIDE_W + SLIDE_GAP_PX,
           width: tw,
           height: th,
         })
@@ -556,54 +562,12 @@ export function ContentArea({ project, mode, isBlacking, visible, mobile, onBack
       )}
 
       {mode === 'active' && (
-        <div style={{ display: 'flex', width: '100%', height: '100%' }}>
-          {/* ── 좌측 고정 컬럼 — Back + 프로젝트 타이틀만 ── */}
-          <div style={{
-            width: INFO_COL_W,
-            flexShrink: 0,
-            height: '100%',
-            boxSizing: 'border-box',
-            padding: '32px 24px',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 24,
-            background: '#FFFFFF',
-            fontFamily: FONT,
-            color: '#080706',
-            zIndex: 4,
-          }}>
-            {/* Back 컨트롤 */}
-            <button
-              onClick={onBack}
-              style={{
-                alignSelf: 'flex-start',
-                background: 'none',
-                border: 'none',
-                padding: 0,
-                fontFamily: FONT,
-                fontSize: 11,
-                fontWeight: 300,
-                letterSpacing: '0.08em',
-                textTransform: 'uppercase',
-                color: '#080706',
-                cursor: 'pointer',
-              }}
-            >
-              ← Back
-            </button>
-
-            {/* 프로젝트 타이틀 — 고정 */}
-            <div style={{ fontSize: 14, fontWeight: 500, lineHeight: 1.35, wordBreak: 'keep-all' }}>
-              {project.title}
-            </div>
-          </div>
-
-          {/* ── 슬라이드 뷰포트 ── */}
+        <>
+          {/* ── 슬라이드 뷰포트 — 콘텐츠 영역 전체 폭 ── */}
           <div
             ref={viewportRef}
             style={{
-              flex: 1,
-              minWidth: 0,
+              width: '100%',
               height: '100%',
               position: 'relative',
               overflow: 'hidden',
@@ -625,6 +589,7 @@ export function ContentArea({ project, mode, isBlacking, visible, mobile, onBack
                   gap: SLIDE_GAP_PX,
                   alignItems: 'center',
                   height: '100%',
+                  paddingLeft: TRACK_INSET,
                   transform: `translateX(${-scrollPos}px)`,
                   transition: animated && !dragging ? `transform 600ms ${EASE}` : 'none',
                   willChange: 'transform',
@@ -669,7 +634,7 @@ export function ContentArea({ project, mode, isBlacking, visible, mobile, onBack
                   <div
                     key={idx}
                     style={{
-                      height: slide.kind === 'diagramSet' ? DIAGRAM_H_PCT : `${SLIDE_H_RATIO * 100}%`,
+                      height: isDiagram(slide) ? DIAGRAM_H_PCT : `${SLIDE_H_RATIO * 100}%`,
                       flexShrink: 0,
                       position: 'relative',
                     }}
@@ -728,7 +693,41 @@ export function ContentArea({ project, mode, isBlacking, visible, mobile, onBack
               </div>
             )}
           </div>
-        </div>
+
+          {/* ── Back + 타이틀 — 좌상단 오버레이 (트랙 위, 배경 투명) ── */}
+          <div style={{
+            position: 'absolute',
+            top: 32,
+            left: 24,
+            zIndex: 6,
+            fontFamily: FONT,
+            color: '#080706',
+          }}>
+            <button
+              onClick={onBack}
+              style={{
+                display: 'block',
+                background: 'none',
+                border: 'none',
+                padding: 0,
+                fontFamily: FONT,
+                fontSize: 11,
+                fontWeight: 300,
+                letterSpacing: '0.08em',
+                textTransform: 'uppercase',
+                color: '#080706',
+                cursor: 'pointer',
+              }}
+            >
+              ← Back
+            </button>
+
+            {/* 프로젝트 타이틀 — 데스크톱 항상 한 줄 */}
+            <div style={{ marginTop: 12, fontSize: 14, fontWeight: 500, lineHeight: 1.35, whiteSpace: 'nowrap' }}>
+              {project.title}
+            </div>
+          </div>
+        </>
       )}
 
       {/* ── 모프 레이어: 풀블리드 커버 → 트랙 index 1(히어로) rect ── */}

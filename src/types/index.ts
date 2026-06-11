@@ -40,6 +40,8 @@ export interface ImageSlide {
   src: string
   /** BIG 형식 캡션: "LABEL — description". 없으면 캡션 미표시 */
   caption?: string
+  /** true면 다이어그램으로 취급 — 트랙에서 DIAGRAM_H_PCT(48%) 높이 적용 */
+  diagram?: boolean
 }
 
 export interface DiagramItem {

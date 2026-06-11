@@ -5,6 +5,9 @@ import type { Project } from '@/types'
 
 const FONT = "'Pretendard Variable', Pretendard, -apple-system, BlinkMacSystemFont, sans-serif"
 
+// 하이라이트와의 리스트 거리(d) 기반 3단 높이: d=0 선택 / d=1 인접 / d>=2 그 외
+const TIER_HEIGHTS: Record<0 | 1 | 2, number> = { 0: 150, 1: 120, 2: 96 }
+
 interface ProjectWallProps {
   projects: Project[]
   filterKey: string
@@ -18,6 +21,7 @@ interface ProjectWallProps {
 interface WallCardProps {
   project: Project
   index: number
+  tier: 0 | 1 | 2
   isHighlighted: boolean
   isDimmed: boolean
   revealed: boolean
@@ -27,7 +31,7 @@ interface WallCardProps {
   onSelect: (project: Project) => void
 }
 
-function WallCard({ project, index, isHighlighted, isDimmed, revealed, exiting, registerRef, onHover, onSelect }: WallCardProps) {
+function WallCard({ project, index, tier, isHighlighted, isDimmed, revealed, exiting, registerRef, onHover, onSelect }: WallCardProps) {
   const [hover, setHover] = useState(false)
   const active = isHighlighted || hover
   const opacity = active ? 1 : isDimmed ? 0.3 : 0.45
@@ -40,17 +44,16 @@ function WallCard({ project, index, isHighlighted, isDimmed, revealed, exiting, 
       onClick={() => onSelect(project)}
       style={{
         display: 'flex',
-        height: 124,
+        height: TIER_HEIGHTS[tier],
         flexShrink: 0,
         justifyContent: 'flex-end',
         cursor: 'pointer',
         boxSizing: 'border-box',
-        borderLeft: active ? '2px solid #080706' : '2px solid transparent',
         opacity: exiting ? 0 : revealed ? 1 : 0,
         transform: exiting ? 'translateY(-16px)' : revealed ? 'translateY(0)' : 'translateY(8px)',
         transition: exiting
-          ? `opacity 250ms ease-in ${index * 15}ms, transform 250ms ease-in ${index * 15}ms`
-          : `opacity 0.4s ease ${index * 50}ms, transform 0.4s ease ${index * 50}ms, border-color 0.3s ease`,
+          ? `opacity 250ms ease-in ${index * 15}ms, transform 250ms ease-in ${index * 15}ms, height 400ms ease`
+          : `opacity 0.4s ease ${index * 50}ms, transform 0.4s ease ${index * 50}ms, height 400ms ease`,
       }}
     >
       <div style={{
@@ -58,9 +61,10 @@ function WallCard({ project, index, isHighlighted, isDimmed, revealed, exiting, 
         flexShrink: 0,
         display: 'flex',
         flexDirection: 'column',
-        justifyContent: 'center',
+        justifyContent: 'flex-start',
         alignItems: 'flex-end',
         textAlign: 'right',
+        paddingTop: 2,
         paddingLeft: 20,
         paddingRight: 8,
         boxSizing: 'border-box',
@@ -85,7 +89,7 @@ function WallCard({ project, index, isHighlighted, isDimmed, revealed, exiting, 
       </div>
       <div style={{
         height: '100%',
-        aspectRatio: '2.5 / 1',
+        aspectRatio: '2 / 1',
         flexShrink: 1,
         minWidth: 0,
         maxWidth: 'calc(100% - 188px)',
@@ -145,6 +149,9 @@ export function ProjectWall({ projects, filterKey, highlightSlug, activeSlug, re
     }
   }, [effectiveHighlight])
 
+  // 하이라이트 카드의 리스트 인덱스 — 필터로 제외된 경우 -1 (전 카드 d>=2 취급)
+  const highlightIdx = displayList.findIndex(p => p.id === effectiveHighlight)
+
   return (
     <div
       ref={containerRef}
@@ -166,11 +173,14 @@ export function ProjectWall({ projects, filterKey, highlightSlug, activeSlug, re
       {displayList.map((project, index) => {
         const isHighlighted = project.id === effectiveHighlight
         const isDimmed = activeSlug !== null && project.id !== activeSlug
+        const d = highlightIdx < 0 ? 2 : Math.abs(index - highlightIdx)
+        const tier = Math.min(d, 2) as 0 | 1 | 2
         return (
           <WallCard
             key={`${project.id}-${displayKey}`}
             project={project}
             index={index}
+            tier={tier}
             isHighlighted={isHighlighted}
             isDimmed={isDimmed}
             revealed={revealed && phase === 'idle'}

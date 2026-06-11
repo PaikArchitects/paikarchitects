@@ -125,12 +125,14 @@ export const projectSlides: Record<string, ProjectSlide[]> = {
       kind: 'image',
       src: 'https://res.cloudinary.com/drsybwqg0/image/upload/v1781128102/Diagram___3_Programs_1_e4g6ej.png',
       caption: 'THREE PROGRAMS — Office, amenity, and parking organized as three stacked volumes.',
+      diagram: true,
     },
     // 3. 컨셉 다이어그램 B — 단면 조닝
     {
       kind: 'image',
       src: 'https://res.cloudinary.com/drsybwqg0/image/upload/v1781128109/%EB%8B%A8%EB%A9%B4%EC%A1%B0%EB%8B%9D%EB%8B%A4%EC%9D%B4%EC%96%B4%EA%B7%B8%EB%9E%A8-01_rqmjyk.png',
       caption: 'SECTIONAL ZONING — Vertical organization of programs across the section.',
+      diagram: true,
     },
     // 4. 매스 프로세스 — 서브슬라이드 5장, 자동진행
     {
