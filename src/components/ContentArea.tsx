@@ -7,9 +7,13 @@ import { projectSlides } from '@/data/projectSlides'
 const FONT = "'Pretendard Variable', Pretendard, -apple-system, BlinkMacSystemFont, sans-serif"
 
 const INFO_COL_W = 200
-const SLIDE_GAP_PX = 16
+const SLIDE_GAP_PX = 24
 const EASE = 'cubic-bezier(0.7, 0, 0.3, 1)'
 const MORPH_MS = 700
+const SLIDE_H_RATIO = 0.72   // image·credits 슬라이드 높이 (뷰포트 대비)
+const DIAGRAM_H_PCT = '48%'  // diagramSet 이미지 영역 높이
+// 어두운 사진 위 대비 확보용 흰 헤일로
+const GLYPH_SHADOW = '0 0 10px rgba(255,255,255,0.95), 0 0 3px rgba(255,255,255,0.95)'
 
 interface ContentAreaProps {
   project: Project
@@ -121,7 +125,12 @@ function DiagramSetSlideView({ slide, isCenter, onHoverChange }: {
   return (
     <div
       ref={areaRef}
-      style={{ height: '100%', position: 'relative' }}
+      style={{
+        height: '100%',
+        position: 'relative',
+        // 내부 글리프 표시 중에는 네이티브 커서 숨김
+        cursor: cursor ? 'none' : 'default',
+      }}
       onMouseEnter={() => { setHovering(true); onHoverChange(true) }}
       onMouseLeave={() => { setHovering(false); setCursor(null); onHoverChange(false) }}
       onMouseMove={(e) => {
@@ -160,19 +169,20 @@ function DiagramSetSlideView({ slide, isCenter, onHoverChange }: {
         />
       ))}
 
-      {/* 내부 커서 추적 글리프 */}
+      {/* 내부 커서 추적 글리프 — 커서 지점에 중심 정렬 */}
       {cursor && (
         <span style={{
           position: 'absolute',
-          left: cursor.x + 20,
+          left: cursor.x,
           top: cursor.y,
-          transform: 'translateY(-50%)',
+          transform: 'translate(-50%, -50%)',
           pointerEvents: 'none',
           fontFamily: FONT,
-          fontSize: 20,
-          fontWeight: 200,
+          fontSize: 28,
+          fontWeight: 300,
           lineHeight: 1,
           color: '#080706',
+          textShadow: GLYPH_SHADOW,
           zIndex: 3,
           userSelect: 'none',
         }}>
@@ -203,7 +213,7 @@ function DiagramSetSlideView({ slide, isCenter, onHoverChange }: {
   )
 }
 
-// ── 크레딧: 90% 높이 흰 블록, 고정 420px ──
+// ── 크레딧: 슬라이드 높이의 흰 블록, 고정 420px ──
 function CreditsSlideView({ slide }: { slide: CreditsSlide }) {
   return (
     <div style={{
@@ -312,7 +322,7 @@ export function ContentArea({ project, mode, isBlacking, visible, mobile, onBack
       const aspect = img && img.naturalWidth > 0 && img.naturalHeight > 0
         ? img.naturalWidth / img.naturalHeight
         : 4 / 3
-      const th = rh * 0.9
+      const th = rh * SLIDE_H_RATIO
       const tw = th * aspect
       const vw = rw - INFO_COL_W
 
@@ -591,6 +601,8 @@ export function ContentArea({ project, mode, isBlacking, visible, mobile, onBack
               overflow: 'hidden',
               touchAction: 'pan-y',
               userSelect: 'none',
+              // 글리프 표시 중 네이티브 커서 숨김
+              cursor: dragging ? 'grabbing' : showGlyph ? 'none' : 'default',
             }}
             onPointerDown={onPointerDown}
             onPointerMove={onPointerMove}
@@ -614,7 +626,7 @@ export function ContentArea({ project, mode, isBlacking, visible, mobile, onBack
                   <div
                     key={idx}
                     style={{
-                      height: slide.kind === 'diagramSet' ? '60%' : '90%',
+                      height: slide.kind === 'diagramSet' ? DIAGRAM_H_PCT : `${SLIDE_H_RATIO * 100}%`,
                       flexShrink: 0,
                       position: 'relative',
                     }}
@@ -623,7 +635,7 @@ export function ContentArea({ project, mode, isBlacking, visible, mobile, onBack
                   </div>
                 )) : (
                   <div style={{
-                    height: '90%',
+                    height: `${SLIDE_H_RATIO * 100}%`,
                     aspectRatio: '4 / 3',
                     flexShrink: 0,
                     background: project.coverColor,
@@ -632,19 +644,20 @@ export function ContentArea({ project, mode, isBlacking, visible, mobile, onBack
               </div>
             )}
 
-            {/* 외부 커서 추적 글리프 */}
+            {/* 외부 커서 추적 글리프 — 커서 지점에 중심 정렬 */}
             {showGlyph && cursor && (
               <span style={{
                 position: 'absolute',
-                left: cursor.x + 20,
+                left: cursor.x,
                 top: cursor.y,
-                transform: 'translateY(-50%)',
+                transform: 'translate(-50%, -50%)',
                 pointerEvents: 'none',
                 fontFamily: FONT,
-                fontSize: 40,
-                fontWeight: 200,
+                fontSize: 64,
+                fontWeight: 300,
                 lineHeight: 1,
                 color: '#080706',
+                textShadow: GLYPH_SHADOW,
                 zIndex: 5,
                 userSelect: 'none',
               }}>

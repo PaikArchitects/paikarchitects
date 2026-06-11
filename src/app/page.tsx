@@ -118,12 +118,12 @@ export default function HomePage() {
 
   const layoutVisible = introPhase === 'done'
 
-  // 전역 헤더(ACP 모노그램 / 내비게이션) 색상 전환 — 헤더 존(상단 64px)이 흰 배경이므로
-  // 랜딩 헤더는 항상 흰 배경 위 → 다크 글리프.
+  // 전역 헤더(ACP 모노그램 / 내비게이션) 색상 전환 — 랜딩은 셸이 항상 흰색이므로
+  // 인트로 재생 중에도 다크 워드마크여야 한다.
   useEffect(() => {
-    setWordmarkOnLight(layoutVisible)
-    setNavOnLight(layoutVisible)
-  }, [setWordmarkOnLight, setNavOnLight, layoutVisible])
+    setWordmarkOnLight(true)
+    setNavOnLight(true)
+  }, [setWordmarkOnLight, setNavOnLight])
 
   return (
     <div style={{
