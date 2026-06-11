@@ -14,7 +14,12 @@ const NAV_ITEMS = [
 ] as const
 
 // 랜딩(/) 외 페이지 중 흰 배경(light) 레이아웃을 사용하는 경로
+// /work 계열(/work, /work/[slug])은 LandingExperience 흰 셸을 렌더하므로 항상 light
 const STATIC_LIGHT_PATHS = new Set(['/about', '/work'])
+
+function isStaticLight(pathname: string): boolean {
+  return STATIC_LIGHT_PATHS.has(pathname) || pathname.startsWith('/work/')
+}
 
 export function SiteHeader() {
   const pathname = usePathname()
@@ -26,8 +31,8 @@ export function SiteHeader() {
   } = useSiteChrome()
 
   const isLanding = pathname === '/'
-  const wordmarkOnLight = isLanding ? dynamicWordmarkOnLight : STATIC_LIGHT_PATHS.has(pathname)
-  const navOnLight = isLanding ? dynamicNavOnLight : STATIC_LIGHT_PATHS.has(pathname)
+  const wordmarkOnLight = isLanding ? dynamicWordmarkOnLight : isStaticLight(pathname)
+  const navOnLight = isLanding ? dynamicNavOnLight : isStaticLight(pathname)
 
   const layoutVisible = introPhase === 'done'
   const wordmarkActive = introPhase !== 'wordmark'
@@ -62,11 +67,12 @@ export function SiteHeader() {
         </span>
       </Link>
 
-      {/* ── NAVIGATION — fixed top-right ── */}
+      {/* ── NAVIGATION — 헤더 존(64px) 내 수평 중앙 ── */}
       <nav style={{
         position: 'fixed',
         top: 24,
-        right: 24,
+        left: '50%',
+        transform: 'translateX(-50%)',
         zIndex: 100,
         display: 'flex',
         flexDirection: 'row',
