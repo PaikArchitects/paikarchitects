@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { CreditsSlide, DiagramSetSlide, ImageSlide, Project, ProjectSlide } from '@/types'
 import { projectSlides } from '@/data/projectSlides'
+import { useFinePointer } from '@/hooks/useFinePointer'
 
 const FONT = "'Pretendard Variable', Pretendard, -apple-system, BlinkMacSystemFont, sans-serif"
 
@@ -13,6 +14,18 @@ const EASE = 'cubic-bezier(0.7, 0, 0.3, 1)'
 const MORPH_MS = 700
 const SLIDE_H_RATIO = 0.72   // image·credits·info 슬라이드 높이 (뷰포트 대비)
 const DIAGRAM_H_PCT = '48%'  // diagramSet·단일 다이어그램 이미지 영역 높이
+
+// ── 모바일 치수 — 트랙 문법의 축소 이식 (BIG 방식) ──
+const M_SLIDE_H_RATIO = 0.36   // 모바일 image·credits·info 높이 (콘텐츠 영역 대비)
+const M_DIAGRAM_H_PCT = '24%'  // 모바일 다이어그램 높이 (diagramSet + diagram:true 단일 공통)
+const M_SLIDE_GAP_PX = 16
+const M_INFO_SLIDE_W = 150
+const M_CLIP_INSET = 20        // 모바일 트랙 뷰포트 좌측 클립 (데스크톱 24의 등가)
+
+// ── 플릭(관성) — 기존 600ms transition을 그대로 타는 단발 보간 ──
+const FLICK_VELOCITY_MIN = 0.4   // px/ms — 이 속도 초과 시 플릭 판정
+const FLICK_COEF = 280           // 속도 → 추가 이동량 계수
+
 // 어두운 사진 위 대비 확보용 흰 헤일로
 const GLYPH_SHADOW = '0 0 10px rgba(255,255,255,0.95), 0 0 3px rgba(255,255,255,0.95)'
 
@@ -37,7 +50,7 @@ function getSlides(project: Project): ProjectSlide[] {
     ?? (project.coverImage ? [{ kind: 'image', src: project.coverImage }] : [])
 }
 
-// 다이어그램 판정 — diagramSet 또는 diagram 표기된 단일 이미지 (높이 48% 공통 적용)
+// 다이어그램 판정 — diagramSet 또는 diagram 표기된 단일 이미지 (다이어그램 높이 공통 적용)
 const isDiagram = (s: ProjectSlide) =>
   s.kind === 'diagramSet' || (s.kind === 'image' && s.diagram === true)
 
@@ -89,9 +102,11 @@ function ImageSlideView({ slide }: { slide: ImageSlide }) {
 }
 
 // ── 다이어그램 세트: 중앙 근접(active) 시에만 내부 인터랙션 활성 ──
-function DiagramSetSlideView({ slide, active, onHoverChange }: {
+// finePointer=false: 글리프/커서 치환/호버 로직 없음. 탭(클릭) 이동과 자동진행은 유지.
+function DiagramSetSlideView({ slide, active, finePointer, onHoverChange }: {
   slide: DiagramSetSlide
   active: boolean
+  finePointer: boolean
   onHoverChange: (hovering: boolean) => void
 }) {
   const [subIdx, setSubIdx] = useState(0)
@@ -141,21 +156,22 @@ function DiagramSetSlideView({ slide, active, onHoverChange }: {
       style={{
         height: '100%',
         position: 'relative',
-        // 내부 글리프 표시 중에만 네이티브 커서 숨김. 비활성 시 뷰포트 커서 상속
-        cursor: active ? (cursor ? 'none' : 'default') : 'inherit',
+        // fine pointer일 때만 커서 치환. 내부 글리프 표시 중에만 네이티브 커서 숨김
+        cursor: finePointer ? (active ? (cursor ? 'none' : 'default') : 'inherit') : undefined,
       }}
       onMouseEnter={() => {
-        if (!active) return
+        if (!finePointer || !active) return
         setHovering(true)
         onHoverChange(true)
       }}
       onMouseLeave={() => {
+        if (!finePointer) return
         setHovering(false)
         setCursor(null)
         onHoverChange(false)
       }}
       onMouseMove={(e) => {
-        if (!active) return
+        if (!finePointer || !active) return
         setHovering(true)
         onHoverChange(true)
         const rect = areaRef.current?.getBoundingClientRect()
@@ -193,8 +209,8 @@ function DiagramSetSlideView({ slide, active, onHoverChange }: {
         />
       ))}
 
-      {/* 내부 커서 추적 글리프 — 커서 지점에 중심 정렬 */}
-      {active && cursor && (
+      {/* 내부 커서 추적 글리프 — 커서 지점에 중심 정렬 (fine pointer 전용) */}
+      {finePointer && active && cursor && (
         <span style={{
           position: 'absolute',
           left: cursor.x,
@@ -282,16 +298,17 @@ function CreditsSlideView({ slide }: { slide: CreditsSlide }) {
   )
 }
 
-function SlideContent({ slide, nearCenter, onDiagramHover }: {
+function SlideContent({ slide, nearCenter, finePointer, onDiagramHover }: {
   slide: ProjectSlide
   nearCenter: boolean
+  finePointer: boolean
   onDiagramHover: (hovering: boolean) => void
 }) {
   switch (slide.kind) {
     case 'image':
       return <ImageSlideView slide={slide} />
     case 'diagramSet':
-      return <DiagramSetSlideView slide={slide} active={nearCenter} onHoverChange={onDiagramHover} />
+      return <DiagramSetSlideView slide={slide} active={nearCenter} finePointer={finePointer} onHoverChange={onDiagramHover} />
     case 'credits':
       return <CreditsSlideView slide={slide} />
   }
@@ -300,6 +317,14 @@ function SlideContent({ slide, nearCenter, onDiagramHover }: {
 export function ContentArea({ project, mode, isBlacking, visible, mobile, onBack }: ContentAreaProps) {
   const slides = getSlides(project)
   const total = Math.max(slides.length, 1)
+  const finePointer = useFinePointer()
+
+  // 모바일/데스크톱 치수 — 1회 해석 후 사용 (매직넘버 인라인 산포 금지)
+  const slideHRatio = mobile ? M_SLIDE_H_RATIO : SLIDE_H_RATIO
+  const diagramHPct = mobile ? M_DIAGRAM_H_PCT : DIAGRAM_H_PCT
+  const slideGap = mobile ? M_SLIDE_GAP_PX : SLIDE_GAP_PX
+  const infoSlideW = mobile ? M_INFO_SLIDE_W : INFO_SLIDE_W
+  const clipInset = mobile ? M_CLIP_INSET : TRACK_INSET
 
   const rootRef = useRef<HTMLDivElement>(null)
   const viewportRef = useRef<HTMLDivElement>(null)
@@ -317,12 +342,15 @@ export function ContentArea({ project, mode, isBlacking, visible, mobile, onBack
   const [rects, setRects] = useState<{ x: number; w: number }[]>([])
   const [viewportW, setViewportW] = useState(0)
   const [dragging, setDragging] = useState(false)
-  const [animated, setAnimated] = useState(false)      // 화살표/키보드 이동 시에만 transition
+  const [animated, setAnimated] = useState(false)      // 화살표/키보드/플릭 이동 시에만 transition
   const [cursor, setCursor] = useState<{ x: number; y: number } | null>(null)
   const [diagramHover, setDiagramHover] = useState(false)
   const [infoIn, setInfoIn] = useState(false)
   const [trackIn, setTrackIn] = useState(false)
-  const dragState = useRef<{ startX: number; startScroll: number; moved: boolean } | null>(null)
+  const dragState = useRef<{
+    startX: number; startScroll: number; moved: boolean
+    lastX: number; lastT: number; v: number   // 마지막 두 샘플 기반 속도 (px/ms)
+  } | null>(null)
 
   // 트랙 자식 인덱스 공간: 0 = 정보 슬라이드, 1.. = 콘텐츠 슬라이드
   const centers = rects.map(r => r.x + r.w / 2)
@@ -357,7 +385,7 @@ export function ContentArea({ project, mode, isBlacking, visible, mobile, onBack
       const aspect = img && img.naturalWidth > 0 && img.naturalHeight > 0
         ? img.naturalWidth / img.naturalHeight
         : 4 / 3
-      const th = rh * SLIDE_H_RATIO
+      const th = rh * slideHRatio
       const tw = th * aspect
 
       setMorphing(true)
@@ -366,10 +394,11 @@ export function ContentArea({ project, mode, isBlacking, visible, mobile, onBack
       let cancelled = false
       requestAnimationFrame(() => requestAnimationFrame(() => {
         if (cancelled) return
-        // 히어로는 트랙 index 1 — 루트 기준 좌측 = 뷰포트 오프셋(24) + 정보 슬라이드(200) + gap(24) = 248
+        // 히어로는 트랙 index 1 — 루트 기준 좌측 = 클립 인셋 + 정보 슬라이드 + gap
+        // (데스크톱 24+200+24=248 / 모바일 20+150+16=186)
         setMorphRect({
           top: (rh - th) / 2,
-          left: TRACK_INSET + INFO_SLIDE_W + SLIDE_GAP_PX,
+          left: clipInset + infoSlideW + slideGap,
           width: tw,
           height: th,
         })
@@ -390,6 +419,7 @@ export function ContentArea({ project, mode, isBlacking, visible, mobile, onBack
       setDiagramHover(false)
       setCursor(null)
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode])
 
   // 정보 슬라이드 텍스트 — 모프 완료 후 400ms 페이드인
@@ -465,9 +495,16 @@ export function ContentArea({ project, mode, isBlacking, visible, mobile, onBack
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [mode])
 
-  // ── 드래그: 이동량 직접 반영, 놓아도 스냅하지 않음 ──
+  // ── 드래그: 이동량 직접 반영, 놓아도 스냅하지 않음. 빠르게 놓으면 플릭 관성 ──
   const onPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
-    dragState.current = { startX: e.clientX, startScroll: scrollPos, moved: false }
+    dragState.current = {
+      startX: e.clientX,
+      startScroll: scrollPos,
+      moved: false,
+      lastX: e.clientX,
+      lastT: e.timeStamp,
+      v: 0,
+    }
     setDragging(true)
     setAnimated(false)
     e.currentTarget.setPointerCapture(e.pointerId)
@@ -482,14 +519,30 @@ export function ContentArea({ project, mode, isBlacking, visible, mobile, onBack
     if (!d) return
     const dx = e.clientX - d.startX
     if (Math.abs(dx) >= 5) d.moved = true
+    // 마지막 두 샘플로 속도 추정 (px/ms)
+    const dt = e.timeStamp - d.lastT
+    if (dt > 0) {
+      d.v = (e.clientX - d.lastX) / dt
+      d.lastX = e.clientX
+      d.lastT = e.timeStamp
+    }
     setScrollPos(clampScroll(d.startScroll - dx))
   }
   const onPointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
     const d = dragState.current
     dragState.current = null
     setDragging(false)
-    if (!d || d.moved) return
-    // 클릭 (이동량 < 5px): 커서가 우측 반 → 다음, 좌측 반 → 이전
+    if (!d) return
+    if (d.moved) {
+      // 플릭 관성 — 터치/마우스 동일 적용 (기존 600ms transition을 그대로 탄다)
+      if (Math.abs(d.v) > FLICK_VELOCITY_MIN) {
+        setAnimated(true)
+        setScrollPos(clampScroll(scrollPos - d.v * FLICK_COEF))
+      }
+      return
+    }
+    // 클릭 (이동량 < 5px) — 마우스 전용. 터치 탭은 무동작 (이동은 스와이프 전용)
+    if (e.pointerType !== 'mouse') return
     const vp = viewportRef.current
     if (!vp) return
     const rect = vp.getBoundingClientRect()
@@ -497,10 +550,10 @@ export function ContentArea({ project, mode, isBlacking, visible, mobile, onBack
     else goPrev()
   }
 
-  // ── 외부 커서 추적 글리프 ──
+  // ── 외부 커서 추적 글리프 — fine pointer(hover+pointer:fine)일 때만 ──
   const glyphSide: 'left' | 'right' | null =
     cursor && viewportW > 0 ? (cursor.x > viewportW / 2 ? 'right' : 'left') : null
-  const showGlyph = !mobile && !morphing && cursor !== null && !dragging && !diagramHover &&
+  const showGlyph = finePointer && !morphing && cursor !== null && !dragging && !diagramHover &&
     glyphSide !== null &&
     (glyphSide === 'right' ? scrollPos < maxScroll - 1 : scrollPos > 1)
 
@@ -575,12 +628,12 @@ export function ContentArea({ project, mode, isBlacking, visible, mobile, onBack
 
       {mode === 'active' && (
         <>
-          {/* ── 슬라이드 뷰포트 — 좌측 24px 안쪽에서 시작, 좌측 모서리 = 클립 라인 ── */}
+          {/* ── 슬라이드 뷰포트 — 좌측 클립 인셋 안쪽에서 시작, 좌측 모서리 = 클립 라인 ── */}
           <div
             ref={viewportRef}
             style={{
-              width: `calc(100% - ${TRACK_INSET}px)`,
-              marginLeft: TRACK_INSET,
+              width: `calc(100% - ${clipInset}px)`,
+              marginLeft: clipInset,
               height: '100%',
               position: 'relative',
               overflow: 'hidden',
@@ -605,7 +658,7 @@ export function ContentArea({ project, mode, isBlacking, visible, mobile, onBack
                   ref={trackRef}
                   style={{
                     display: 'flex',
-                    gap: SLIDE_GAP_PX,
+                    gap: slideGap,
                     alignItems: 'center',
                     height: '100%',
                     transform: `translateX(${-scrollPos}px)`,
@@ -615,9 +668,9 @@ export function ContentArea({ project, mode, isBlacking, visible, mobile, onBack
                 >
                   {/* 트랙 첫 자식 — 정보 슬라이드 (projectSlides 데이터와 무관, project 필드 파생) */}
                   <div style={{
-                    width: INFO_SLIDE_W,
+                    width: infoSlideW,
                     flexShrink: 0,
-                    height: `${SLIDE_H_RATIO * 100}%`,
+                    height: `${slideHRatio * 100}%`,
                     display: 'flex',
                     flexDirection: 'column',
                     justifyContent: 'flex-start',
@@ -652,17 +705,17 @@ export function ContentArea({ project, mode, isBlacking, visible, mobile, onBack
                     <div
                       key={idx}
                       style={{
-                        height: isDiagram(slide) ? DIAGRAM_H_PCT : `${SLIDE_H_RATIO * 100}%`,
+                        height: isDiagram(slide) ? diagramHPct : `${slideHRatio * 100}%`,
                         flexShrink: 0,
                         position: 'relative',
                       }}
                     >
                       {/* 트랙 자식 인덱스 = idx + 1 (정보 슬라이드가 0) */}
-                      <SlideContent slide={slide} nearCenter={isNearCenter(idx + 1)} onDiagramHover={setDiagramHover} />
+                      <SlideContent slide={slide} nearCenter={isNearCenter(idx + 1)} finePointer={finePointer} onDiagramHover={setDiagramHover} />
                     </div>
                   )) : (
                     <div style={{
-                      height: `${SLIDE_H_RATIO * 100}%`,
+                      height: `${slideHRatio * 100}%`,
                       aspectRatio: '4 / 3',
                       flexShrink: 0,
                       background: project.coverColor,
@@ -711,11 +764,11 @@ export function ContentArea({ project, mode, isBlacking, visible, mobile, onBack
             )}
           </div>
 
-          {/* ── Back + 타이틀 — 좌상단 오버레이 (트랙 위, 배경 투명) ── */}
+          {/* ── Back + 타이틀 — 좌상단 오버레이 (트랙 위, 배경 투명). 모바일은 위치만 20/20 ── */}
           <div style={{
             position: 'absolute',
-            top: 32,
-            left: 24,
+            top: mobile ? 20 : 32,
+            left: mobile ? 20 : 24,
             zIndex: 6,
             fontFamily: FONT,
             color: '#080706',
@@ -739,8 +792,21 @@ export function ContentArea({ project, mode, isBlacking, visible, mobile, onBack
               ← Back
             </button>
 
-            {/* 프로젝트 타이틀 — 데스크톱 항상 한 줄 */}
-            <div style={{ marginTop: 12, fontSize: 14, fontWeight: 500, lineHeight: 1.35, whiteSpace: 'nowrap' }}>
+            {/* 프로젝트 타이틀 — 데스크톱 항상 한 줄 / 모바일 최대 2줄 클램프 */}
+            <div style={{
+              marginTop: 12,
+              fontSize: 14,
+              fontWeight: 500,
+              lineHeight: 1.35,
+              ...(mobile
+                ? {
+                    display: '-webkit-box',
+                    WebkitLineClamp: 2,
+                    WebkitBoxOrient: 'vertical' as const,
+                    overflow: 'hidden',
+                  }
+                : { whiteSpace: 'nowrap' as const }),
+            }}>
               {project.title}
             </div>
           </div>

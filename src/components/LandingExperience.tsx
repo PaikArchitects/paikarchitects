@@ -5,6 +5,7 @@ import { sortedProjects } from '@/data/projects'
 import type { Project } from '@/types'
 import { ProjectWall } from '@/components/ProjectWall'
 import { ContentArea } from '@/components/ContentArea'
+import { MobileProjectSheet } from '@/components/MobileProjectSheet'
 import { useSiteChrome } from '@/components/SiteChromeContext'
 
 const FONT = "'Pretendard Variable', Pretendard, -apple-system, BlinkMacSystemFont, sans-serif"
@@ -29,6 +30,7 @@ interface LandingExperienceProps {
 
 export function LandingExperience({ initialSlug, initialShowFilters = false }: LandingExperienceProps) {
   const [mobile, setMobile] = useState(false)
+  const mobileRef = useRef(false)   // popstate 등 마운트 시 1회 등록 핸들러의 stale closure 방지
   const { introPhase, setWordmarkOnLight, setNavOnLight } = useSiteChrome()
 
   // 딥링크: 마운트 시 해당 프로젝트를 active로 설정 (sortedProjects에 없으면 무시)
@@ -39,6 +41,7 @@ export function LandingExperience({ initialSlug, initialShowFilters = false }: L
     initialShowFilters || (initialSlug ? sortedProjects.some(p => p.id === initialSlug) : false)
   )
   const [activeFilter, setActiveFilter] = useState<string>('All')
+  const [sheetOpen, setSheetOpen] = useState(false)
 
   const filteredProjects = useMemo(
     () => activeFilter === 'All' ? sortedProjects : sortedProjects.filter(p => p.type === activeFilter),
@@ -63,11 +66,20 @@ export function LandingExperience({ initialSlug, initialShowFilters = false }: L
 
   // mobile detection
   useEffect(() => {
-    const fn = () => setMobile(window.innerWidth < 768)
+    const fn = () => {
+      const m = window.innerWidth < 768
+      mobileRef.current = m
+      setMobile(m)
+    }
     fn()
     window.addEventListener('resize', fn)
     return () => window.removeEventListener('resize', fn)
   }, [])
+
+  // 딥링크: /work 직접 진입 + 모바일 → 마운트 후 시트 오픈
+  useEffect(() => {
+    if (initialShowFilters && window.innerWidth < 768) setSheetOpen(true)
+  }, [initialShowFilters])
 
   // 셔플 — blackout fade, 끝에 도달하면 재셔플 (필터 기준)
   const advanceShuffle = useCallback(() => {
@@ -92,15 +104,22 @@ export function LandingExperience({ initialSlug, initialShowFilters = false }: L
     setHoveredProject(prev => (prev && !filteredProjects.includes(prev) ? null : prev))
   }, [filteredProjects])
 
-  // 셔플 타이머 — hover 또는 active 중에는 일시정지
+  // 셔플 타이머 — hover, active 또는 시트 오픈 중에는 일시정지
   useEffect(() => {
     if (introPhase !== 'done') return
-    if (activeProject || hoveredProject) return
+    if (activeProject || hoveredProject || sheetOpen) return
     const timer = setInterval(advanceShuffle, 6000)
     return () => clearInterval(timer)
-  }, [introPhase, activeProject, hoveredProject, advanceShuffle])
+  }, [introPhase, activeProject, hoveredProject, sheetOpen, advanceShuffle])
 
   const handleBack = useCallback(() => {
+    if (mobileRef.current) {
+      // 모바일: BIG처럼 시트 리스트로 복귀
+      setActiveProject(null)
+      setSheetOpen(true)
+      window.history.pushState({}, '', '/work')
+      return
+    }
     setActiveProject(null)
     // 필터 브라우징 상태에서 닫으면 /work, 아니면 /
     window.history.pushState({}, '', showFilters ? '/work' : '/')
@@ -116,7 +135,7 @@ export function LandingExperience({ initialSlug, initialShowFilters = false }: L
     return () => window.removeEventListener('keydown', onKey)
   }, [activeProject, handleBack])
 
-  // 브라우저 뒤로가기/앞으로가기 → URL과 active/필터 표시 상태 동기화
+  // 브라우저 뒤로가기/앞으로가기 → URL과 active/필터/시트 상태 동기화
   useEffect(() => {
     const onPopState = () => {
       const path = window.location.pathname
@@ -125,12 +144,15 @@ export function LandingExperience({ initialSlug, initialShowFilters = false }: L
         const p = sortedProjects.find(p => p.id === slug) ?? null
         setActiveProject(p)
         if (p) setShowFilters(true)
+        if (mobileRef.current) setSheetOpen(false)
       } else if (path === '/work') {
         setActiveProject(null)
         setShowFilters(true)
+        if (mobileRef.current) setSheetOpen(true)
       } else {
         setActiveProject(null)
         setShowFilters(false)
+        if (mobileRef.current) setSheetOpen(false)
       }
     }
     window.addEventListener('popstate', onPopState)
@@ -148,6 +170,29 @@ export function LandingExperience({ initialSlug, initialShowFilters = false }: L
     setShowFilters(true)
     window.history.pushState({}, '', `/work/${p.id}`)
   }
+
+  // 모바일 선택 시퀀스: 시트 뒤 풀블리드를 선택작 커버로 교체 → 시트 하강 → 모프
+  const handleSelectMobile = (p: Project) => {
+    setHoveredProject(p)
+    setSheetOpen(false)
+    window.setTimeout(() => {
+      setActiveProject(p)
+      setHoveredProject(null)
+      setShowFilters(true)
+      window.history.pushState({}, '', `/work/${p.id}`)
+    }, 250)
+  }
+
+  const handleSheetOpen = () => {
+    setSheetOpen(true)
+    window.history.pushState({}, '', '/work')
+  }
+
+  const handleSheetClose = useCallback(() => {
+    setSheetOpen(false)
+    setShowFilters(false)
+    window.history.pushState({}, '', '/')
+  }, [])
 
   const handleFilter = (t: string) => {
     if (t === activeFilter) return
@@ -181,7 +226,7 @@ export function LandingExperience({ initialSlug, initialShowFilters = false }: L
       position: 'relative',
     }}>
 
-      {/* ── FILTER BAR — 헤더 존 내, 가운데 정렬. 표시 여부와 무관하게 레이아웃 고정 ── */}
+      {/* ── FILTER BAR — 헤더 존 내, 가운데 정렬. 모바일은 시트 칩이 전담하므로 숨김 ── */}
       <div style={{
         position: 'absolute',
         top: 50,
@@ -192,8 +237,8 @@ export function LandingExperience({ initialSlug, initialShowFilters = false }: L
         justifyContent: 'center',
         alignItems: 'center',
         gap: 28,
-        opacity: showFilters ? 1 : 0,
-        pointerEvents: showFilters ? 'auto' : 'none',
+        opacity: showFilters && !mobile ? 1 : 0,
+        pointerEvents: showFilters && !mobile ? 'auto' : 'none',
         transition: 'opacity 300ms ease-out',
         zIndex: 50,
       }}>
@@ -261,6 +306,46 @@ export function LandingExperience({ initialSlug, initialShowFilters = false }: L
           onBack={handleBack}
         />
       </div>
+
+      {/* ── 모바일: PROJECTS 핸들 버튼 — Idle에서만 노출 ── */}
+      {mobile && !activeProject && introPhase === 'done' && !sheetOpen && (
+        <button
+          onClick={handleSheetOpen}
+          style={{
+            position: 'absolute',
+            bottom: 28,
+            left: '50%',
+            transform: 'translateX(-50%)',
+            background: 'none',
+            border: 'none',
+            padding: 0,
+            cursor: 'pointer',
+            fontFamily: FONT,
+            fontSize: 11,
+            fontWeight: 300,
+            textTransform: 'uppercase',
+            letterSpacing: '0.12em',
+            color: '#FFFFFF',
+            textShadow: '0 0 12px rgba(0,0,0,0.45)',
+            zIndex: 40,
+          }}
+        >
+          PROJECTS
+        </button>
+      )}
+
+      {/* ── 모바일: 바텀 시트 ── */}
+      {mobile && (
+        <MobileProjectSheet
+          open={sheetOpen}
+          projects={filteredProjects}
+          filterTypes={FILTER_TYPES}
+          activeFilter={activeFilter}
+          onFilter={handleFilter}
+          onSelect={handleSelectMobile}
+          onClose={handleSheetClose}
+        />
+      )}
 
     </div>
   )
