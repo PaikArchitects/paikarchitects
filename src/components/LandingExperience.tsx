@@ -5,12 +5,12 @@ import { sortedProjects } from '@/data/projects'
 import type { Project } from '@/types'
 import { ProjectWall } from '@/components/ProjectWall'
 import { ContentArea } from '@/components/ContentArea'
-import { MobileProjectSheet } from '@/components/MobileProjectSheet'
+import { MobileProjectWall } from '@/components/MobileProjectWall'
 import { useSiteChrome } from '@/components/SiteChromeContext'
 
 const FONT = "'Pretendard Variable', Pretendard, -apple-system, BlinkMacSystemFont, sans-serif"
 
-const HEADER_H = 80   // 모든 상태 공통. 필터 행 포함 여유치
+const HEADER_H = 80   // 데스크톱 헤더 존. 필터 행 포함 여유치
 
 const FILTER_TYPES = ['All', ...Array.from(new Set(sortedProjects.map(p => p.type)))]
 
@@ -41,7 +41,6 @@ export function LandingExperience({ initialSlug, initialShowFilters = false }: L
     initialShowFilters || (initialSlug ? sortedProjects.some(p => p.id === initialSlug) : false)
   )
   const [activeFilter, setActiveFilter] = useState<string>('All')
-  const [sheetOpen, setSheetOpen] = useState(false)
 
   const filteredProjects = useMemo(
     () => activeFilter === 'All' ? sortedProjects : sortedProjects.filter(p => p.type === activeFilter),
@@ -76,12 +75,7 @@ export function LandingExperience({ initialSlug, initialShowFilters = false }: L
     return () => window.removeEventListener('resize', fn)
   }, [])
 
-  // 딥링크: /work 직접 진입 + 모바일 → 마운트 후 시트 오픈
-  useEffect(() => {
-    if (initialShowFilters && window.innerWidth < 768) setSheetOpen(true)
-  }, [initialShowFilters])
-
-  // 셔플 — blackout fade, 끝에 도달하면 재셔플 (필터 기준)
+  // 셔플 — blackout fade, 끝에 도달하면 재셔플 (필터 기준). 데스크톱 전용
   const advanceShuffle = useCallback(() => {
     setIsBlacking(true)
     setTimeout(() => {
@@ -104,25 +98,20 @@ export function LandingExperience({ initialSlug, initialShowFilters = false }: L
     setHoveredProject(prev => (prev && !filteredProjects.includes(prev) ? null : prev))
   }, [filteredProjects])
 
-  // 셔플 타이머 — hover, active 또는 시트 오픈 중에는 일시정지
+  // 셔플 타이머 — 모바일 폐지. hover/active 중에는 일시정지
   useEffect(() => {
     if (introPhase !== 'done') return
-    if (activeProject || hoveredProject || sheetOpen) return
+    if (mobile) return
+    if (activeProject || hoveredProject) return
     const timer = setInterval(advanceShuffle, 6000)
     return () => clearInterval(timer)
-  }, [introPhase, activeProject, hoveredProject, sheetOpen, advanceShuffle])
+  }, [introPhase, mobile, activeProject, hoveredProject, advanceShuffle])
 
   const handleBack = useCallback(() => {
-    if (mobileRef.current) {
-      // 모바일: BIG처럼 시트 리스트로 복귀
-      setActiveProject(null)
-      setSheetOpen(true)
-      window.history.pushState({}, '', '/work')
-      return
-    }
     setActiveProject(null)
-    // 필터 브라우징 상태에서 닫으면 /work, 아니면 /
-    window.history.pushState({}, '', showFilters ? '/work' : '/')
+    // 모바일은 수축 시 항상 /work (모바일에서 /와 /work는 동일 화면)
+    // 데스크톱: 필터 브라우징 상태에서 닫으면 /work, 아니면 /
+    window.history.pushState({}, '', mobileRef.current || showFilters ? '/work' : '/')
   }, [showFilters])
 
   // ESC → active 종료 (Back과 동일 경로 처리)
@@ -135,7 +124,7 @@ export function LandingExperience({ initialSlug, initialShowFilters = false }: L
     return () => window.removeEventListener('keydown', onKey)
   }, [activeProject, handleBack])
 
-  // 브라우저 뒤로가기/앞으로가기 → URL과 active/필터/시트 상태 동기화
+  // 브라우저 뒤로가기/앞으로가기 → URL과 active/필터 상태 동기화
   useEffect(() => {
     const onPopState = () => {
       const path = window.location.pathname
@@ -144,15 +133,12 @@ export function LandingExperience({ initialSlug, initialShowFilters = false }: L
         const p = sortedProjects.find(p => p.id === slug) ?? null
         setActiveProject(p)
         if (p) setShowFilters(true)
-        if (mobileRef.current) setSheetOpen(false)
       } else if (path === '/work') {
         setActiveProject(null)
         setShowFilters(true)
-        if (mobileRef.current) setSheetOpen(true)
       } else {
         setActiveProject(null)
         setShowFilters(false)
-        if (mobileRef.current) setSheetOpen(false)
       }
     }
     window.addEventListener('popstate', onPopState)
@@ -171,27 +157,13 @@ export function LandingExperience({ initialSlug, initialShowFilters = false }: L
     window.history.pushState({}, '', `/work/${p.id}`)
   }
 
-  // 모바일 선택 시퀀스: 시트 뒤 풀블리드를 선택작 커버로 교체 → 시트 하강 → 모프
-  const handleSelectMobile = (p: Project) => {
-    setHoveredProject(p)
-    setSheetOpen(false)
-    window.setTimeout(() => {
-      setActiveProject(p)
-      setHoveredProject(null)
-      setShowFilters(true)
-      window.history.pushState({}, '', `/work/${p.id}`)
-    }, 250)
-  }
-
-  const handleSheetOpen = () => {
-    setSheetOpen(true)
-    window.history.pushState({}, '', '/work')
-  }
-
-  const handleSheetClose = useCallback(() => {
-    setSheetOpen(false)
-    setShowFilters(false)
-    window.history.pushState({}, '', '/')
+  // 모바일 월: 카드 탭 → 인라인 확장 + URL push
+  const handleActivate = useCallback((slug: string) => {
+    const p = sortedProjects.find(p => p.id === slug)
+    if (!p) return
+    setActiveProject(p)
+    setShowFilters(true)
+    window.history.pushState({}, '', `/work/${slug}`)
   }, [])
 
   const handleFilter = (t: string) => {
@@ -226,66 +198,68 @@ export function LandingExperience({ initialSlug, initialShowFilters = false }: L
       position: 'relative',
     }}>
 
-      {/* ── FILTER BAR — 헤더 존 내, 가운데 정렬. 모바일은 시트 칩이 전담하므로 숨김 ── */}
-      <div style={{
-        position: 'absolute',
-        top: 50,
-        left: 0,
-        right: 0,
-        height: 24,
-        display: 'flex',
-        justifyContent: 'center',
-        alignItems: 'center',
-        gap: 28,
-        opacity: showFilters && !mobile ? 1 : 0,
-        pointerEvents: showFilters && !mobile ? 'auto' : 'none',
-        transition: 'opacity 300ms ease-out',
-        zIndex: 50,
-      }}>
-        {FILTER_TYPES.map(t => (
-          <button
-            key={t}
-            onClick={() => handleFilter(t)}
-            style={{
-              background: 'none',
-              border: 'none',
-              cursor: 'pointer',
-              fontFamily: FONT,
-              fontSize: 11,
-              fontWeight: t === activeFilter ? 500 : 300,
-              letterSpacing: '0.08em',
-              textTransform: 'uppercase',
-              color: '#080706',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6,
-            }}
-          >
-            {/* 불릿 — 선택된 항목 앞에만 */}
-            <span style={{
-              fontSize: 7,
-              lineHeight: 1,
-              opacity: t === activeFilter ? 1 : 0,
-              transition: 'opacity 200ms',
-            }}>●</span>
-            {t}
-          </button>
-        ))}
-      </div>
+      {/* ── FILTER BAR — 데스크톱 전용, 헤더 존 내 가운데 정렬. 모바일은 월 칩 행이 전담 ── */}
+      {!mobile && (
+        <div style={{
+          position: 'absolute',
+          top: 50,
+          left: 0,
+          right: 0,
+          height: 24,
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          gap: 28,
+          opacity: showFilters ? 1 : 0,
+          pointerEvents: showFilters ? 'auto' : 'none',
+          transition: 'opacity 300ms ease-out',
+          zIndex: 50,
+        }}>
+          {FILTER_TYPES.map(t => (
+            <button
+              key={t}
+              onClick={() => handleFilter(t)}
+              style={{
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                fontFamily: FONT,
+                fontSize: 11,
+                fontWeight: t === activeFilter ? 500 : 300,
+                letterSpacing: '0.08em',
+                textTransform: 'uppercase',
+                color: '#080706',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+              }}
+            >
+              {/* 불릿 — 선택된 항목 앞에만 */}
+              <span style={{
+                fontSize: 7,
+                lineHeight: 1,
+                opacity: t === activeFilter ? 1 : 0,
+                transition: 'opacity 200ms',
+              }}>●</span>
+              {t}
+            </button>
+          ))}
+        </div>
+      )}
 
-      {/* ── MAIN — 헤더 높이 전 상태 고정 (수직 점프 없음) ── */}
-      <div style={{
-        position: 'absolute',
-        top: HEADER_H,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        display: 'flex',
-        gap: 16,
-        opacity: layoutVisible ? 1 : 0,
-        transition: 'opacity 400ms ease-out',
-      }}>
-        {!mobile && (
+      {/* ── MAIN (데스크톱) — 헤더 높이 전 상태 고정 (수직 점프 없음) ── */}
+      {!mobile && (
+        <div style={{
+          position: 'absolute',
+          top: HEADER_H,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          display: 'flex',
+          gap: 16,
+          opacity: layoutVisible ? 1 : 0,
+          transition: 'opacity 400ms ease-out',
+        }}>
           <ProjectWall
             projects={filteredProjects}
             filterKey={activeFilter}
@@ -295,55 +269,28 @@ export function LandingExperience({ initialSlug, initialShowFilters = false }: L
             onHover={handleHover}
             onSelect={handleSelect}
           />
-        )}
 
-        <ContentArea
-          project={displayProject}
-          mode={activeProject ? 'active' : 'idle'}
-          isBlacking={isBlacking}
-          visible={layoutVisible}
-          mobile={mobile}
-          onBack={handleBack}
-        />
-      </div>
-
-      {/* ── 모바일: PROJECTS 핸들 버튼 — Idle에서만 노출 ── */}
-      {mobile && !activeProject && introPhase === 'done' && !sheetOpen && (
-        <button
-          onClick={handleSheetOpen}
-          style={{
-            position: 'absolute',
-            bottom: 28,
-            left: '50%',
-            transform: 'translateX(-50%)',
-            background: 'none',
-            border: 'none',
-            padding: 0,
-            cursor: 'pointer',
-            fontFamily: FONT,
-            fontSize: 11,
-            fontWeight: 300,
-            textTransform: 'uppercase',
-            letterSpacing: '0.12em',
-            color: '#FFFFFF',
-            textShadow: '0 0 12px rgba(0,0,0,0.45)',
-            zIndex: 40,
-          }}
-        >
-          PROJECTS
-        </button>
+          <ContentArea
+            project={displayProject}
+            mode={activeProject ? 'active' : 'idle'}
+            isBlacking={isBlacking}
+            visible={layoutVisible}
+            onBack={handleBack}
+          />
+        </div>
       )}
 
-      {/* ── 모바일: 바텀 시트 ── */}
+      {/* ── MOBILE — 월 우선(Wall-First): 수직 피드 + 인라인 트랙 ── */}
       {mobile && (
-        <MobileProjectSheet
-          open={sheetOpen}
+        <MobileProjectWall
           projects={filteredProjects}
           filterTypes={FILTER_TYPES}
           activeFilter={activeFilter}
           onFilter={handleFilter}
-          onSelect={handleSelectMobile}
-          onClose={handleSheetClose}
+          activeSlug={activeProject?.id ?? null}
+          onActivate={handleActivate}
+          onDeactivate={handleBack}
+          revealed={layoutVisible}
         />
       )}
 

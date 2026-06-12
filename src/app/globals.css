@@ -10,6 +10,18 @@
   display: none;
 }
 
+/* ── MOBILE PROJECT WALL — 칩 행 / 수평 트랙 스크롤바 숨김 ── */
+.mpw-chips,
+.mpw-track {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.mpw-chips::-webkit-scrollbar,
+.mpw-track::-webkit-scrollbar {
+  display: none;
+}
+
 /* ── WORDMARK INTRO / ACP MONOGRAM ── */
 @keyframes wordmarkFadeIn {
   from { opacity: 0; }
@@ -39,6 +51,7 @@
     top 1600ms cubic-bezier(0.7, 0, 0.3, 1),
     left 1600ms cubic-bezier(0.7, 0, 0.3, 1),
     transform 1600ms cubic-bezier(0.7, 0, 0.3, 1),
+    font-size 1600ms cubic-bezier(0.7, 0, 0.3, 1),
     color 0.3s ease-out;
 }
 
@@ -64,7 +77,8 @@
   transition:
     top 1600ms cubic-bezier(0.7, 0, 0.3, 1),
     left 1600ms cubic-bezier(0.7, 0, 0.3, 1),
-    transform 1600ms cubic-bezier(0.7, 0, 0.3, 1);
+    transform 1600ms cubic-bezier(0.7, 0, 0.3, 1),
+    font-size 1600ms cubic-bezier(0.7, 0, 0.3, 1);
 }
 
 .wordmark-intro .word {
@@ -97,6 +111,73 @@
 .wordmark-intro.collapsed .spacer {
   max-width: 0;
   opacity: 0;
+}
+
+/* ── SITE NAVIGATION — 데스크톱: 헤더 존 수평 중앙 ── */
+.site-nav {
+  position: fixed;
+  top: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 100;
+  display: flex;
+  flex-direction: row;
+  gap: 32px;
+  align-items: center;
+  transition: opacity 400ms ease-out;
+}
+
+.site-nav-link {
+  font-family: 'Pretendard Variable', Pretendard, -apple-system, BlinkMacSystemFont, sans-serif;
+  font-weight: 300;
+  font-size: 13px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  text-decoration: none;
+  transition: color 0.3s ease-out;
+}
+
+.site-nav-link:hover {
+  text-decoration: underline;
+}
+
+/* ── MOBILE HEADER BAR — 데스크톱에서는 비표시 ── */
+.mobile-header-bar {
+  display: none;
+}
+
+/* ── MOBILE (<768px) — 컴팩트 헤더: 불투명 56px 바 + 워드마크 22px + 내비 우측 정렬 ── */
+@media (max-width: 767px) {
+  .mobile-header-bar {
+    display: block;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 56px;
+    background: #FFFFFF;
+    z-index: 90; /* 워드마크·내비 아래, 콘텐츠 위 */
+  }
+
+  .wordmark-intro.moved {
+    top: 16px;
+    left: 16px;
+    font-size: 22px;
+  }
+
+  .site-nav {
+    top: 0;
+    left: auto;
+    right: 16px;
+    transform: none;
+    height: 56px;
+    gap: 14px;
+  }
+
+  .site-nav-link {
+    font-size: 10px;
+    letter-spacing: 0.06em;
+  }
 }
 
 /* ── Design Tokens ── */

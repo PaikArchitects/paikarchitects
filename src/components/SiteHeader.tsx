@@ -4,8 +4,6 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useSiteChrome } from './SiteChromeContext'
 
-const FONT = "'Pretendard Variable', Pretendard, -apple-system, BlinkMacSystemFont, sans-serif"
-
 const NAV_ITEMS = [
   { label: 'ABOUT',    href: '/about'   },
   { label: 'WORKS',    href: '/work'    },
@@ -39,6 +37,10 @@ export function SiteHeader() {
 
   return (
     <>
+      {/* ── 모바일 전용 불투명 헤더 바(56px) — 콘텐츠의 헤더 존 침범을 구조적으로 차단.
+           데스크톱에서는 display:none (globals.css) ── */}
+      <div className="mobile-header-bar" aria-hidden="true" />
+
       {/* ── ACP MONOGRAM — 홈 링크 ── */}
       <Link
         href="/"
@@ -67,37 +69,20 @@ export function SiteHeader() {
         </span>
       </Link>
 
-      {/* ── NAVIGATION — 헤더 존(64px) 내 수평 중앙 ── */}
-      <nav style={{
-        position: 'fixed',
-        top: 24,
-        left: '50%',
-        transform: 'translateX(-50%)',
-        zIndex: 100,
-        display: 'flex',
-        flexDirection: 'row',
-        gap: 32,
-        alignItems: 'center',
-        opacity: layoutVisible ? 1 : 0,
-        pointerEvents: layoutVisible ? 'auto' : 'none',
-        transition: 'opacity 400ms ease-out',
-      }}>
+      {/* ── NAVIGATION — 데스크톱: 헤더 존 수평 중앙 / 모바일: 56px 바 내 우측 정렬 (globals.css) ── */}
+      <nav
+        className="site-nav"
+        style={{
+          opacity: layoutVisible ? 1 : 0,
+          pointerEvents: layoutVisible ? 'auto' : 'none',
+        }}
+      >
         {NAV_ITEMS.map(({ label, href }) => (
           <Link
             key={label}
             href={href}
-            style={{
-              fontFamily: FONT,
-              fontWeight: 300,
-              fontSize: 13,
-              letterSpacing: '0.08em',
-              textTransform: 'uppercase',
-              color: navOnLight ? '#0a0908' : '#ffffff',
-              textDecoration: 'none',
-              transition: 'color 0.3s ease-out',
-            }}
-            onMouseEnter={e => { e.currentTarget.style.textDecoration = 'underline' }}
-            onMouseLeave={e => { e.currentTarget.style.textDecoration = 'none' }}
+            className="site-nav-link"
+            style={{ color: navOnLight ? '#0a0908' : '#ffffff' }}
           >
             {label}
           </Link>

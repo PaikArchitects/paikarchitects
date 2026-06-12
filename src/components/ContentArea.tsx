@@ -15,13 +15,6 @@ const MORPH_MS = 700
 const SLIDE_H_RATIO = 0.72   // image·credits·info 슬라이드 높이 (뷰포트 대비)
 const DIAGRAM_H_PCT = '48%'  // diagramSet·단일 다이어그램 이미지 영역 높이
 
-// ── 모바일 치수 — 트랙 문법의 축소 이식 (BIG 방식) ──
-const M_SLIDE_H_RATIO = 0.36   // 모바일 image·credits·info 높이 (콘텐츠 영역 대비)
-const M_DIAGRAM_H_PCT = '24%'  // 모바일 다이어그램 높이 (diagramSet + diagram:true 단일 공통)
-const M_SLIDE_GAP_PX = 16
-const M_INFO_SLIDE_W = 150
-const M_CLIP_INSET = 20        // 모바일 트랙 뷰포트 좌측 클립 (데스크톱 24의 등가)
-
 // ── 플릭(관성) — 기존 600ms transition을 그대로 타는 단발 보간 ──
 const FLICK_VELOCITY_MIN = 0.4   // px/ms — 이 속도 초과 시 플릭 판정
 const FLICK_COEF = 280           // 속도 → 추가 이동량 계수
@@ -34,7 +27,6 @@ interface ContentAreaProps {
   mode: 'idle' | 'active'
   isBlacking: boolean
   visible: boolean
-  mobile: boolean
   onBack: () => void
 }
 
@@ -314,17 +306,10 @@ function SlideContent({ slide, nearCenter, finePointer, onDiagramHover }: {
   }
 }
 
-export function ContentArea({ project, mode, isBlacking, visible, mobile, onBack }: ContentAreaProps) {
+export function ContentArea({ project, mode, isBlacking, visible, onBack }: ContentAreaProps) {
   const slides = getSlides(project)
   const total = Math.max(slides.length, 1)
   const finePointer = useFinePointer()
-
-  // 모바일/데스크톱 치수 — 1회 해석 후 사용 (매직넘버 인라인 산포 금지)
-  const slideHRatio = mobile ? M_SLIDE_H_RATIO : SLIDE_H_RATIO
-  const diagramHPct = mobile ? M_DIAGRAM_H_PCT : DIAGRAM_H_PCT
-  const slideGap = mobile ? M_SLIDE_GAP_PX : SLIDE_GAP_PX
-  const infoSlideW = mobile ? M_INFO_SLIDE_W : INFO_SLIDE_W
-  const clipInset = mobile ? M_CLIP_INSET : TRACK_INSET
 
   const rootRef = useRef<HTMLDivElement>(null)
   const viewportRef = useRef<HTMLDivElement>(null)
@@ -385,7 +370,7 @@ export function ContentArea({ project, mode, isBlacking, visible, mobile, onBack
       const aspect = img && img.naturalWidth > 0 && img.naturalHeight > 0
         ? img.naturalWidth / img.naturalHeight
         : 4 / 3
-      const th = rh * slideHRatio
+      const th = rh * SLIDE_H_RATIO
       const tw = th * aspect
 
       setMorphing(true)
@@ -394,11 +379,10 @@ export function ContentArea({ project, mode, isBlacking, visible, mobile, onBack
       let cancelled = false
       requestAnimationFrame(() => requestAnimationFrame(() => {
         if (cancelled) return
-        // 히어로는 트랙 index 1 — 루트 기준 좌측 = 클립 인셋 + 정보 슬라이드 + gap
-        // (데스크톱 24+200+24=248 / 모바일 20+150+16=186)
+        // 히어로는 트랙 index 1 — 루트 기준 좌측 = 클립 인셋 + 정보 슬라이드 + gap (24+200+24=248)
         setMorphRect({
           top: (rh - th) / 2,
-          left: clipInset + infoSlideW + slideGap,
+          left: TRACK_INSET + INFO_SLIDE_W + SLIDE_GAP_PX,
           width: tw,
           height: th,
         })
@@ -632,8 +616,8 @@ export function ContentArea({ project, mode, isBlacking, visible, mobile, onBack
           <div
             ref={viewportRef}
             style={{
-              width: `calc(100% - ${clipInset}px)`,
-              marginLeft: clipInset,
+              width: `calc(100% - ${TRACK_INSET}px)`,
+              marginLeft: TRACK_INSET,
               height: '100%',
               position: 'relative',
               overflow: 'hidden',
@@ -658,7 +642,7 @@ export function ContentArea({ project, mode, isBlacking, visible, mobile, onBack
                   ref={trackRef}
                   style={{
                     display: 'flex',
-                    gap: slideGap,
+                    gap: SLIDE_GAP_PX,
                     alignItems: 'center',
                     height: '100%',
                     transform: `translateX(${-scrollPos}px)`,
@@ -668,9 +652,9 @@ export function ContentArea({ project, mode, isBlacking, visible, mobile, onBack
                 >
                   {/* 트랙 첫 자식 — 정보 슬라이드 (projectSlides 데이터와 무관, project 필드 파생) */}
                   <div style={{
-                    width: infoSlideW,
+                    width: INFO_SLIDE_W,
                     flexShrink: 0,
-                    height: `${slideHRatio * 100}%`,
+                    height: `${SLIDE_H_RATIO * 100}%`,
                     display: 'flex',
                     flexDirection: 'column',
                     justifyContent: 'flex-start',
@@ -705,7 +689,7 @@ export function ContentArea({ project, mode, isBlacking, visible, mobile, onBack
                     <div
                       key={idx}
                       style={{
-                        height: isDiagram(slide) ? diagramHPct : `${slideHRatio * 100}%`,
+                        height: isDiagram(slide) ? DIAGRAM_H_PCT : `${SLIDE_H_RATIO * 100}%`,
                         flexShrink: 0,
                         position: 'relative',
                       }}
@@ -715,7 +699,7 @@ export function ContentArea({ project, mode, isBlacking, visible, mobile, onBack
                     </div>
                   )) : (
                     <div style={{
-                      height: `${slideHRatio * 100}%`,
+                      height: `${SLIDE_H_RATIO * 100}%`,
                       aspectRatio: '4 / 3',
                       flexShrink: 0,
                       background: project.coverColor,
@@ -764,11 +748,11 @@ export function ContentArea({ project, mode, isBlacking, visible, mobile, onBack
             )}
           </div>
 
-          {/* ── Back + 타이틀 — 좌상단 오버레이 (트랙 위, 배경 투명). 모바일은 위치만 20/20 ── */}
+          {/* ── Back + 타이틀 — 좌상단 오버레이 (트랙 위, 배경 투명) ── */}
           <div style={{
             position: 'absolute',
-            top: mobile ? 20 : 32,
-            left: mobile ? 20 : 24,
+            top: 32,
+            left: 24,
             zIndex: 6,
             fontFamily: FONT,
             color: '#080706',
@@ -792,20 +776,13 @@ export function ContentArea({ project, mode, isBlacking, visible, mobile, onBack
               ← Back
             </button>
 
-            {/* 프로젝트 타이틀 — 데스크톱 항상 한 줄 / 모바일 최대 2줄 클램프 */}
+            {/* 프로젝트 타이틀 — 항상 한 줄 */}
             <div style={{
               marginTop: 12,
               fontSize: 14,
               fontWeight: 500,
               lineHeight: 1.35,
-              ...(mobile
-                ? {
-                    display: '-webkit-box',
-                    WebkitLineClamp: 2,
-                    WebkitBoxOrient: 'vertical' as const,
-                    overflow: 'hidden',
-                  }
-                : { whiteSpace: 'nowrap' as const }),
+              whiteSpace: 'nowrap',
             }}>
               {project.title}
             </div>
