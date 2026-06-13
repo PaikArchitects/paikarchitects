@@ -12,16 +12,18 @@ const CHIPS_H = 44           // 필터 칩 행 높이
 const EASE = 'cubic-bezier(0.7, 0, 0.3, 1)'
 const MORPH_MS = 500         // 성장/수축 모프 + 동시 스크롤
 
-// ── 콘덴스드 월 — 3단 크기 위계. WALL_SCALE 단일 배율 (1차 배포 후 시각 검증으로 확정) ──
+// ── 콘덴스드 월 — 3단 크기 위계. 배율 확정 (v4.1): TIERS가 최종값, WALL_SCALE 1.0 고정 ──
 const WALL_SCALE = 1.0
 const TIERS = [
-  { w: 192, h: 128, opacity: 1 },     // d=0 위계 중심
-  { w: 150, h: 100, opacity: 0.45 },  // d=1
-  { w: 114, h: 76,  opacity: 0.3 },   // d≥2
+  { w: 288, h: 192, opacity: 1 },     // d=0 위계 중심 (구 192×128의 150%)
+  { w: 201, h: 134, opacity: 0.45 },  // d=1 (d=0과 d≥2의 산술 중간)
+  { w: 114, h: 76,  opacity: 0.3 },   // d≥2 (불변)
 ]
-const PAIR_TEXT_W = 130      // 텍스트 블록 폭 — 우정렬로 썸네일에 flush
+const PAIR_TEXT_W = 130      // 측면 텍스트 블록 폭 — 우정렬로 썸네일에 flush
 const PAIR_GAP = 8
 const ITEM_GAP = 14
+const TOP_TEXT_H = 24        // d=0 상단 텍스트 행 — 아이템 높이에 포함, 티어 transition과 함께 보간
+const BACK_ROW_H = 36        // 확장 블록 BACK 행 높이 — 타이틀 보간 종착 산출에 사용
 const TIER_TRANSITION = 'width 400ms ease, height 400ms ease, opacity 400ms ease'
 
 // ── 트랙 수직 상수 — 히어로 H = (100vw − 32px) × 2/3. 어떤 슬라이드 조합에서도 총 높이 불변 ──
@@ -296,11 +298,13 @@ function MobileSlide({ slide }: { slide: ProjectSlide }) {
 }
 
 // ── 확장 블록 — BACK 행 / 타이틀 행 / 트랙 [①히어로 ②정보 ③이후 슬라이드] / 카운터 행 ──
-function ExpandedBlock({ project, onBack, heroRef, heroHidden }: {
+function ExpandedBlock({ project, onBack, heroRef, heroHidden, titleMorphing, titleRef }: {
   project: Project
   onBack: () => void
   heroRef: (el: HTMLDivElement | null) => void
   heroHidden: boolean
+  titleMorphing: boolean                            // 상단 텍스트 → 타이틀 직접 보간 중 — 실제 행은 숨김
+  titleRef: (el: HTMLDivElement | null) => void
 }) {
   const restSlides = getRestSlides(project)
   const total = restSlides.length + 1   // 히어로 포함, 정보 슬라이드 제외
@@ -328,14 +332,14 @@ function ExpandedBlock({ project, onBack, heroRef, heroHidden }: {
 
   return (
     <div>
-      {/* BACK 행 */}
+      {/* BACK 행 — 타이틀 보간 중 숨김, 모프 완료 시점에 타이틀 위로 페이드 인 */}
       <button
         onClick={onBack}
         style={{
           display: 'flex',
           alignItems: 'center',
           width: '100%',
-          height: 36,
+          height: BACK_ROW_H,
           padding: '0 16px',
           background: 'none',
           border: 'none',
@@ -347,26 +351,32 @@ function ExpandedBlock({ project, onBack, heroRef, heroHidden }: {
           textTransform: 'uppercase',
           color: '#080706',
           cursor: 'pointer',
+          opacity: titleMorphing ? 0 : 1,
+          transition: 'opacity 200ms ease',
         }}
       >
         ← BACK
       </button>
 
-      {/* 타이틀 행 — 2줄 허용 */}
-      <div style={{
-        padding: '0 16px',
-        marginBottom: 12,
-        fontFamily: FONT,
-        fontSize: 16,
-        fontWeight: 600,
-        lineHeight: 1.35,
-        color: '#080706',
-        wordBreak: 'keep-all',
-        display: '-webkit-box',
-        WebkitLineClamp: 2,
-        WebkitBoxOrient: 'vertical' as const,
-        overflow: 'hidden',
-      }}>
+      {/* 타이틀 행 — 2줄 허용. 보간 중에는 오버레이가 대신 렌더 (transition 없이 즉시 교대) */}
+      <div
+        ref={titleRef}
+        style={{
+          padding: '0 16px',
+          marginBottom: 12,
+          fontFamily: FONT,
+          fontSize: 16,
+          fontWeight: 600,
+          lineHeight: 1.35,
+          color: '#080706',
+          wordBreak: 'keep-all',
+          display: '-webkit-box',
+          WebkitLineClamp: 2,
+          WebkitBoxOrient: 'vertical' as const,
+          overflow: 'hidden',
+          opacity: titleMorphing ? 0 : 1,
+        }}
+      >
         {project.title}
       </div>
 
@@ -456,9 +466,19 @@ interface ViewRect {
   height: number
 }
 
+// 모프 시작 시점 캡처 — 썸네일/히어로 rect + (d=0 경로) 타이틀 rect
+interface PendingMorph {
+  slug: string
+  from: ViewRect
+  titleFrom: { top: number; left: number } | null
+}
+
 /**
  * 모바일 콘덴스드 월 — 데스크톱 ProjectWall 문법의 축소·중앙정렬 이식.
  * [텍스트|썸네일] 페어 수직 피드 + 3단 크기 위계(뷰포트 중앙 기준) + 셔플 자동 스크롤.
+ * 중앙 정렬 기준은 모든 티어에서 썸네일 단독의 중심 — 티어 전환 시 썸네일 수평 고정.
+ * d=0에서만 텍스트가 썸네일 상단으로 이동(크로스페이드), 탭 시 상단 타이틀이
+ * active 타이틀 행으로 직접 보간된다 (13→16px / w400→600, 모프와 동일 500ms·easing).
  * 탭 = 썸네일이 풀폭 히어로로 FLIP 성장 모프, 확장 블록은 가용 영역 수직 중앙 정렬.
  * 상태 소유는 LandingExperience (URL 동기화 일원화).
  */
@@ -471,6 +491,8 @@ export function MobileProjectWall({
   const thumbEls = useRef<Record<string, HTMLElement | null>>({})
   const heroEls = useRef<Record<string, HTMLDivElement | null>>({})
   const blockEls = useRef<Record<string, HTMLDivElement | null>>({})
+  const topTitleEls = useRef<Record<string, HTMLDivElement | null>>({})  // d=0 상단 타이틀
+  const expTitleEls = useRef<Record<string, HTMLDivElement | null>>({})  // 확장 블록 타이틀
 
   // 마운트 직후 1프레임은 전환 비활성 — 딥링크 진입 시 모프 생략(즉시 확장 상태)
   const [transitionsOn, setTransitionsOn] = useState(false)
@@ -637,12 +659,21 @@ export function MobileProjectWall({
   // ── 모프 (FLIP) ──
   const [overlay, setOverlay] = useState<{ src: string | null; color: string; init: ViewRect } | null>(null)
   const overlayElRef = useRef<HTMLDivElement>(null)
+  // 타이틀 오버레이 — d=0 상단 텍스트 ↔ active 타이틀 직접 보간 (이미지 오버레이와 동일 rAF)
+  const [titleOverlay, setTitleOverlay] = useState<{
+    text: string
+    init: { top: number; left: number }
+    fontSize: number
+    fontWeight: number
+  } | null>(null)
+  const titleOverlayElRef = useRef<HTMLDivElement>(null)
   const [morphSlug, setMorphSlug] = useState<string | null>(null)   // 모프 중 히어로/썸네일 숨김
-  const pendingTapRef = useRef<{ slug: string; from: ViewRect } | null>(null)
-  const pendingBackRef = useRef<{ slug: string; from: ViewRect } | null>(null)
+  const pendingTapRef = useRef<PendingMorph | null>(null)
+  const pendingBackRef = useRef<PendingMorph | null>(null)
 
   const clearMorphVisuals = useCallback(() => {
     setOverlay(null)
+    setTitleOverlay(null)
     setMorphSlug(null)
   }, [])
 
@@ -665,7 +696,16 @@ export function MobileProjectWall({
     const thumb = thumbEls.current[p.id]
     if (thumb && transitionsOnRef.current) {
       const r = thumb.getBoundingClientRect()
-      pendingTapRef.current = { slug: p.id, from: { top: r.top, left: r.left, width: r.width, height: r.height } }
+      // d=0 탭 — 상단 타이틀이 active 타이틀로 직접 보간되도록 시작 rect 캡처
+      const i = displayList.findIndex(x => x.id === p.id)
+      const d = Math.abs(i - Math.min(centerIdx, displayList.length - 1))
+      const topTitle = d === 0 ? topTitleEls.current[p.id] : null
+      const tr = topTitle ? topTitle.getBoundingClientRect() : null
+      pendingTapRef.current = {
+        slug: p.id,
+        from: { top: r.top, left: r.left, width: r.width, height: r.height },
+        titleFrom: tr ? { top: tr.top, left: tr.left } : null,
+      }
     }
     onActivate(p.id)
   }
@@ -678,7 +718,13 @@ export function MobileProjectWall({
     const hero = heroEls.current[p.id]
     if (hero && transitionsOnRef.current) {
       const r = hero.getBoundingClientRect()
-      pendingBackRef.current = { slug: p.id, from: { top: r.top, left: r.left, width: r.width, height: r.height } }
+      const expTitle = expTitleEls.current[p.id]
+      const tr = expTitle ? expTitle.getBoundingClientRect() : null
+      pendingBackRef.current = {
+        slug: p.id,
+        from: { top: r.top, left: r.left, width: r.width, height: r.height },
+        titleFrom: tr ? { top: tr.top, left: tr.left } : null,
+      }
     }
     onDeactivate()
   }
@@ -718,6 +764,7 @@ export function MobileProjectWall({
         const heroW = vw - 32
         const heroH = heroW * 2 / 3
         const from = pending.from
+        const titleFrom = pending.titleFrom
         const getTo = (): ViewRect => ({
           top: HEADER_H + itemEl.offsetTop + heroOffset - clamp(getTarget()),
           left: 16,
@@ -729,15 +776,28 @@ export function MobileProjectWall({
           color: project.coverColor,
           init: from,
         })
+        if (titleFrom) {
+          setTitleOverlay({ text: project.title, init: titleFrom, fontSize: 13, fontWeight: 400 })
+        }
         setMorphSlug(activeSlug)
         animateScroll(getTarget, MORPH_MS, (e) => {
           const el = overlayElRef.current
-          if (!el) return
-          const to = getTo()
-          el.style.top = `${from.top + (to.top - from.top) * e}px`
-          el.style.left = `${from.left + (to.left - from.left) * e}px`
-          el.style.width = `${from.width + (to.width - from.width) * e}px`
-          el.style.height = `${from.height + (to.height - from.height) * e}px`
+          if (el) {
+            const to = getTo()
+            el.style.top = `${from.top + (to.top - from.top) * e}px`
+            el.style.left = `${from.left + (to.left - from.left) * e}px`
+            el.style.width = `${from.width + (to.width - from.width) * e}px`
+            el.style.height = `${from.height + (to.height - from.height) * e}px`
+          }
+          // 상단 타이틀 → active 타이틀 직접 보간 — 히어로 좌측(16px) 추종, 13→16px / w400→600
+          const tEl = titleOverlayElRef.current
+          if (tEl && titleFrom) {
+            const toTop = HEADER_H + itemEl.offsetTop + BACK_ROW_H - clamp(getTarget())
+            tEl.style.top = `${titleFrom.top + (toTop - titleFrom.top) * e}px`
+            tEl.style.left = `${titleFrom.left + (16 - titleFrom.left) * e}px`
+            tEl.style.fontSize = `${13 + 3 * e}px`
+            tEl.style.fontWeight = String(Math.round(400 + 200 * e))
+          }
         }, clearMorphVisuals)
       } else {
         animateScroll(getTarget, MORPH_MS)
@@ -750,7 +810,8 @@ export function MobileProjectWall({
       const project = displayList.find(p => p.id === prev)
       if (!itemEl) return
       const tier0 = tierFor(0)
-      const getTarget = () => itemEl.offsetTop + tier0.h / 2 - c.clientHeight / 2
+      // d=0 아이템 = 상단 텍스트 행(24px) + 썸네일 — 묶음 중심이 뷰포트 중앙에 오도록
+      const getTarget = () => itemEl.offsetTop + (TOP_TEXT_H + tier0.h) / 2 - c.clientHeight / 2
 
       if (!transitionsOnRef.current) {
         c.scrollTop = clamp(getTarget())
@@ -761,13 +822,13 @@ export function MobileProjectWall({
       const pending = pendingBackRef.current
       pendingBackRef.current = null
       if (pending && pending.slug === prev && project) {
-        // 역모프 — 히어로 rect → 위계 중심(d=0) 썸네일 최종 rect
+        // 역모프 — 히어로 rect → 위계 중심(d=0) 썸네일 최종 rect. 중앙 기준 = 썸네일 단독의 중심
         const vw = window.innerWidth
-        const pairW = PAIR_TEXT_W + PAIR_GAP + tier0.w
-        const thumbLeft = (vw - pairW) / 2 + PAIR_TEXT_W + PAIR_GAP
+        const thumbLeft = (vw - tier0.w) / 2
         const from = pending.from
+        const titleFrom = pending.titleFrom
         const getTo = (): ViewRect => ({
-          top: HEADER_H + itemEl.offsetTop - clamp(getTarget()),
+          top: HEADER_H + itemEl.offsetTop + TOP_TEXT_H - clamp(getTarget()),
           left: thumbLeft,
           width: tier0.w,
           height: tier0.h,
@@ -777,15 +838,28 @@ export function MobileProjectWall({
           color: project.coverColor,
           init: from,
         })
+        if (titleFrom) {
+          setTitleOverlay({ text: project.title, init: titleFrom, fontSize: 16, fontWeight: 600 })
+        }
         setMorphSlug(prev)
         animateScroll(getTarget, MORPH_MS, (e) => {
           const el = overlayElRef.current
-          if (!el) return
-          const to = getTo()
-          el.style.top = `${from.top + (to.top - from.top) * e}px`
-          el.style.left = `${from.left + (to.left - from.left) * e}px`
-          el.style.width = `${from.width + (to.width - from.width) * e}px`
-          el.style.height = `${from.height + (to.height - from.height) * e}px`
+          if (el) {
+            const to = getTo()
+            el.style.top = `${from.top + (to.top - from.top) * e}px`
+            el.style.left = `${from.left + (to.left - from.left) * e}px`
+            el.style.width = `${from.width + (to.width - from.width) * e}px`
+            el.style.height = `${from.height + (to.height - from.height) * e}px`
+          }
+          // active 타이틀 → 상단 타이틀 역보간 — 썸네일 좌측 에지 추종, 16→13px / w600→400
+          const tEl = titleOverlayElRef.current
+          if (tEl && titleFrom) {
+            const toTop = HEADER_H + itemEl.offsetTop + (TOP_TEXT_H - 13 * 1.35) / 2 - clamp(getTarget())
+            tEl.style.top = `${titleFrom.top + (toTop - titleFrom.top) * e}px`
+            tEl.style.left = `${titleFrom.left + (thumbLeft - titleFrom.left) * e}px`
+            tEl.style.fontSize = `${16 - 3 * e}px`
+            tEl.style.fontWeight = String(Math.round(600 - 200 * e))
+          }
         }, clearMorphVisuals)
       } else {
         animateScroll(getTarget, MORPH_MS)
@@ -952,7 +1026,9 @@ export function MobileProjectWall({
           const expanded = p.id === activeSlug
           const showTrack = expanded || p.id === closingSlug
           const isMorphTarget = morphSlug === p.id
-          const tier = tierFor(Math.abs(i - Math.min(centerIdx, displayList.length - 1)))
+          const titleMorphing = isMorphTarget && titleOverlay != null
+          const d = Math.abs(i - Math.min(centerIdx, displayList.length - 1))
+          const tier = tierFor(d)
 
           // 단계별 transition — 폴드/펼침은 stagger 지연 포함, idle은 모프 500ms
           let delayMs = 0
@@ -986,84 +1062,129 @@ export function MobileProjectWall({
                 <div style={{ overflow: 'hidden' }}>
                   <div
                     onClick={() => handleTap(p)}
-                    style={{
-                      height: tier.h,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: PAIR_GAP,
-                      opacity: tier.opacity,
-                      transition: 'height 400ms ease, opacity 400ms ease',
-                    }}
+                    style={{ opacity: tier.opacity, transition: 'opacity 400ms ease' }}
                   >
-                    {/* 텍스트 블록 — 우정렬로 썸네일에 flush. 성장 시작과 동시에 페이드 아웃 */}
+                    {/* 상단 텍스트 행 — d=0 전용. 높이 24px가 티어 transition(400ms)과 함께 보간 */}
                     <div style={{
-                      width: PAIR_TEXT_W,
-                      flexShrink: 0,
-                      textAlign: 'right',
-                      opacity: isMorphTarget && expanded ? 0 : 1,
-                      transition: 'opacity 200ms ease',
+                      height: d === 0 ? TOP_TEXT_H : 0,
+                      overflow: 'hidden',
+                      display: 'flex',
+                      justifyContent: 'center',
+                      transition: 'height 400ms ease',
                     }}>
                       <div style={{
-                        fontFamily: FONT,
-                        fontSize: 13,
-                        fontWeight: 400,
-                        lineHeight: 1.3,
-                        color: '#080706',
-                        wordBreak: 'keep-all',
-                        display: '-webkit-box',
-                        WebkitLineClamp: 2,
-                        WebkitBoxOrient: 'vertical' as const,
-                        overflow: 'hidden',
+                        width: tier.w,
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: PAIR_GAP,
+                        // 보간 중에는 크로스페이드 중단 — 모프 완료 시 타이틀이 즉시 제자리 교대
+                        opacity: titleMorphing || d === 0 ? 1 : 0,
+                        transition: titleMorphing
+                          ? 'width 400ms ease'
+                          : `width 400ms ease, opacity 150ms ease ${d === 0 ? 60 : 0}ms`,
                       }}>
-                        {p.title}
-                      </div>
-                      <div style={{
-                        marginTop: 2,
-                        fontFamily: FONT,
-                        fontSize: 9,
-                        fontWeight: 300,
-                        textTransform: 'uppercase',
-                        letterSpacing: '0.08em',
-                        color: '#080706',
-                        opacity: 0.45,
-                      }}>
-                        {p.type}
+                        {/* 프로젝트명 — 1줄 ellipsis. 탭 시 페이드 없이 오버레이가 직접 보간 */}
+                        <div
+                          ref={el => { topTitleEls.current[p.id] = el }}
+                          style={{
+                            minWidth: 0,
+                            fontFamily: FONT,
+                            fontSize: 13,
+                            fontWeight: 400,
+                            lineHeight: 1.35,
+                            color: '#080706',
+                            whiteSpace: 'nowrap',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            visibility: titleMorphing ? 'hidden' : 'visible',
+                          }}
+                        >
+                          {p.title}
+                        </div>
+                        {/* 카테고리 — 우측 병기, 탭 시 단독 페이드 아웃 (200ms) */}
+                        <div style={{
+                          flexShrink: 0,
+                          marginLeft: 'auto',
+                          fontFamily: FONT,
+                          fontSize: 9,
+                          fontWeight: 300,
+                          textTransform: 'uppercase',
+                          letterSpacing: '0.08em',
+                          color: '#080706',
+                          opacity: expanded ? 0 : 0.45,
+                          transition: 'opacity 200ms ease',
+                        }}>
+                          {p.type}
+                        </div>
                       </div>
                     </div>
 
-                    {/* 썸네일 — 티어 크기, 3:2 크롭 */}
-                    {p.coverImage ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        ref={el => { thumbEls.current[p.id] = el }}
-                        src={cldCard(p.coverImage, 480)}
-                        alt={p.title}
-                        loading="lazy"
-                        draggable={false}
-                        style={{
-                          width: tier.w,
-                          height: tier.h,
-                          objectFit: 'cover',
-                          display: 'block',
-                          flexShrink: 0,
-                          opacity: isMorphTarget ? 0 : 1,
-                          transition: TIER_TRANSITION,
-                        }}
-                      />
-                    ) : (
+                    {/* 썸네일 행 — 중앙 정렬 기준 = 썸네일 단독의 중심 (티어 전환 시 수평 고정) */}
+                    <div style={{ display: 'flex', justifyContent: 'center' }}>
                       <div
                         ref={el => { thumbEls.current[p.id] = el }}
                         style={{
+                          position: 'relative',
                           width: tier.w,
                           height: tier.h,
-                          background: p.coverColor,
                           flexShrink: 0,
                           opacity: isMorphTarget ? 0 : 1,
                           transition: TIER_TRANSITION,
                         }}
-                      />
-                    )}
+                      >
+                        {p.coverImage ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={cldCard(p.coverImage, 480)}
+                            alt={p.title}
+                            loading="lazy"
+                            draggable={false}
+                            style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+                          />
+                        ) : (
+                          <div style={{ width: '100%', height: '100%', background: p.coverColor }} />
+                        )}
+
+                        {/* 측면 텍스트 — d≥1 페어 문법, 썸네일 좌측 바깥 배치. d=0 승격 시 상단과 크로스페이드 */}
+                        <div style={{
+                          position: 'absolute',
+                          right: `calc(100% + ${PAIR_GAP}px)`,
+                          top: '50%',
+                          transform: 'translateY(-50%)',
+                          width: PAIR_TEXT_W,
+                          textAlign: 'right',
+                          opacity: d === 0 ? 0 : 1,
+                          transition: `opacity 150ms ease ${d === 0 ? 0 : 60}ms`,
+                        }}>
+                          <div style={{
+                            fontFamily: FONT,
+                            fontSize: 13,
+                            fontWeight: 400,
+                            lineHeight: 1.3,
+                            color: '#080706',
+                            wordBreak: 'keep-all',
+                            display: '-webkit-box',
+                            WebkitLineClamp: 2,
+                            WebkitBoxOrient: 'vertical' as const,
+                            overflow: 'hidden',
+                          }}>
+                            {p.title}
+                          </div>
+                          <div style={{
+                            marginTop: 2,
+                            fontFamily: FONT,
+                            fontSize: 9,
+                            fontWeight: 300,
+                            textTransform: 'uppercase',
+                            letterSpacing: '0.08em',
+                            color: '#080706',
+                            opacity: 0.45,
+                          }}>
+                            {p.type}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -1078,6 +1199,8 @@ export function MobileProjectWall({
                         onBack={() => handleBack(p)}
                         heroRef={el => { heroEls.current[p.id] = el }}
                         heroHidden={isMorphTarget}
+                        titleMorphing={titleMorphing}
+                        titleRef={el => { expTitleEls.current[p.id] = el }}
                       />
                     </div>
                   )}
@@ -1114,6 +1237,28 @@ export function MobileProjectWall({
           ) : (
             <div style={{ width: '100%', height: '100%', background: overlay.color }} />
           )}
+        </div>
+      )}
+
+      {/* ── 타이틀 오버레이 — 상단 텍스트 ↔ active 타이틀 직접 보간 (13↔16px / w400↔600) ── */}
+      {titleOverlay && (
+        <div
+          ref={titleOverlayElRef}
+          style={{
+            position: 'fixed',
+            top: titleOverlay.init.top,
+            left: titleOverlay.init.left,
+            fontFamily: FONT,
+            fontSize: titleOverlay.fontSize,
+            fontWeight: titleOverlay.fontWeight,
+            lineHeight: 1.35,
+            color: '#080706',
+            whiteSpace: 'nowrap',
+            pointerEvents: 'none',
+            zIndex: 61,
+          }}
+        >
+          {titleOverlay.text}
         </div>
       )}
     </div>
