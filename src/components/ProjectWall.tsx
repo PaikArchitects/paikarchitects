@@ -57,8 +57,7 @@ function WallCard({ project, index, tier, isHighlighted, isDimmed, revealed, exi
           : `opacity 0.4s ease ${index * 50}ms, transform 0.4s ease ${index * 50}ms, height 400ms ease`,
       }}
     >
-      <div style={{
-        width: 180,
+      <div className="wall-card-text" style={{
         flexShrink: 0,
         display: 'flex',
         flexDirection: 'column',
@@ -88,12 +87,11 @@ function WallCard({ project, index, tier, isHighlighted, isDimmed, revealed, exi
           {project.type}
         </div>
       </div>
-      <div style={{
+      <div className="wall-card-img" style={{
         height: '100%',
         aspectRatio: '2 / 1',
         flexShrink: 1,
         minWidth: 0,
-        maxWidth: 'calc(100% - 188px)',
         overflow: 'hidden',
         opacity,
         transition: 'opacity 0.3s ease',
@@ -167,7 +165,7 @@ export function ProjectWall({ projects, filterKey, highlightSlug, activeSlug, re
       ref={containerRef}
       className="project-wall-scroll light-panel"
       style={{
-        width: '28vw',
+        width: 'clamp(300px, 28vw, 28vw)',
         height: '100%',
         flexShrink: 0,
         overflowY: 'auto',

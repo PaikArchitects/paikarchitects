@@ -66,7 +66,7 @@ function ImageSlideView({ slide }: { slide: ImageSlide }) {
         src={slide.src}
         alt=""
         draggable={false}
-        style={{ height: '100%', width: 'auto', display: 'block', objectFit: 'cover' }}
+        className="slide-img"
       />
       {slide.caption && (
         <div style={{
@@ -179,7 +179,8 @@ function DiagramSetSlideView({ slide, active, finePointer, onHoverChange }: {
         src={slide.items[0].src}
         alt=""
         draggable={false}
-        style={{ height: '100%', width: 'auto', display: 'block', visibility: 'hidden' }}
+        className="slide-img"
+        style={{ visibility: 'hidden' }}
       />
 
       {slide.items.map((it, i) => (

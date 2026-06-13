@@ -30,6 +30,9 @@ interface LandingExperienceProps {
 
 export function LandingExperience({ initialSlug, initialShowFilters = false }: LandingExperienceProps) {
   const [mobile, setMobile] = useState(false)
+  const [tablet, setTablet] = useState(false)   // 768~1439px — 데스크탑 축소형
+  const [filterOpen, setFilterOpen] = useState(false)   // 태블릿 필터 토글 펼침 상태
+  const filterToggleRef = useRef<HTMLDivElement>(null)
   const mobileRef = useRef(false)   // popstate 등 마운트 시 1회 등록 핸들러의 stale closure 방지
   const { introPhase, setWordmarkOnLight, setNavOnLight } = useSiteChrome()
 
@@ -63,17 +66,38 @@ export function LandingExperience({ initialSlug, initialShowFilters = false }: L
     filteredRef.current = filteredProjects
   }, [filteredProjects])
 
-  // mobile detection
+  // mobile / tablet detection — 모바일 <768, 태블릿 768~1439, 데스크탑 >=1440
   useEffect(() => {
     const fn = () => {
-      const m = window.innerWidth < 768
+      const w = window.innerWidth
+      const m = w < 768
       mobileRef.current = m
       setMobile(m)
+      setTablet(w >= 768 && w < 1440)
     }
     fn()
     window.addEventListener('resize', fn)
     return () => window.removeEventListener('resize', fn)
   }, [])
+
+  // 태블릿 필터 토글 — 바깥 영역 클릭 / ESC 시 닫힘
+  useEffect(() => {
+    if (!filterOpen) return
+    const onDown = (e: MouseEvent) => {
+      if (filterToggleRef.current && !filterToggleRef.current.contains(e.target as Node)) {
+        setFilterOpen(false)
+      }
+    }
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setFilterOpen(false)
+    }
+    window.addEventListener('mousedown', onDown)
+    window.addEventListener('keydown', onKey)
+    return () => {
+      window.removeEventListener('mousedown', onDown)
+      window.removeEventListener('keydown', onKey)
+    }
+  }, [filterOpen])
 
   // 셔플 — blackout fade, 끝에 도달하면 재셔플 (필터 기준). 데스크톱 전용
   const advanceShuffle = useCallback(() => {
@@ -198,8 +222,8 @@ export function LandingExperience({ initialSlug, initialShowFilters = false }: L
       position: 'relative',
     }}>
 
-      {/* ── FILTER BAR — 데스크톱 전용, 헤더 존 내 가운데 정렬. 모바일은 월 칩 행이 전담 ── */}
-      {!mobile && (
+      {/* ── FILTER BAR — 데스크톱(>=1440) 전용, 헤더 존 내 가운데 가로 1열. 모바일은 월 칩 행이 전담 ── */}
+      {!mobile && !tablet && (
         <div style={{
           position: 'absolute',
           top: 50,
@@ -244,6 +268,87 @@ export function LandingExperience({ initialSlug, initialShowFilters = false }: L
               {t}
             </button>
           ))}
+        </div>
+      )}
+
+      {/* ── FILTER TOGGLE — 태블릿(768~1439) 전용. 상단 중앙 단일 토글 버튼 + 세로 펼침 패널 ── */}
+      {!mobile && tablet && (
+        <div
+          ref={filterToggleRef}
+          style={{
+            position: 'absolute',
+            top: 50,
+            left: 0,
+            right: 0,
+            display: 'flex',
+            justifyContent: 'center',
+            opacity: showFilters ? 1 : 0,
+            pointerEvents: showFilters ? 'auto' : 'none',
+            transition: 'opacity 300ms ease-out',
+            zIndex: 50,
+          }}
+        >
+          <div style={{ position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+            {/* 토글 트리거 — 현재 필터명 + ▾ */}
+            <button
+              onClick={() => setFilterOpen(o => !o)}
+              style={{
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                fontFamily: FONT,
+                fontSize: 11,
+                fontWeight: 500,
+                letterSpacing: '0.08em',
+                textTransform: 'uppercase',
+                color: '#080706',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+              }}
+            >
+              {activeFilter}
+              <span style={{
+                fontSize: 9,
+                lineHeight: 1,
+                transform: filterOpen ? 'rotate(180deg)' : 'none',
+                transition: 'transform 200ms ease',
+              }}>▾</span>
+            </button>
+
+            {/* 펼침 패널 — 세로 스택 */}
+            {filterOpen && (
+              <div style={{
+                marginTop: 10,
+                background: '#FFFFFF',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                gap: 9,
+                padding: '12px 18px',
+              }}>
+                {FILTER_TYPES.map(t => (
+                  <button
+                    key={t}
+                    onClick={() => { handleFilter(t); setFilterOpen(false) }}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      cursor: 'pointer',
+                      fontFamily: FONT,
+                      fontSize: 11,
+                      fontWeight: t === activeFilter ? 500 : 300,
+                      letterSpacing: '0.08em',
+                      textTransform: 'uppercase',
+                      color: '#080706',
+                    }}
+                  >
+                    {t}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       )}
 

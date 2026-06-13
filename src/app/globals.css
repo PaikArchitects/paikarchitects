@@ -10,6 +10,42 @@
   display: none;
 }
 
+/* ── PROJECT WALL CARD — 인라인 → 클래스 이관 (데스크탑 기본값 유지, 태블릿만 덮어씀) ── */
+.wall-card-text {
+  width: 180px;
+}
+
+.wall-card-img {
+  max-width: calc(100% - 188px);
+}
+
+@media (max-width: 1439px) {
+  .wall-card-text {
+    width: 150px;
+  }
+  .wall-card-img {
+    max-width: calc(100% - 158px);
+  }
+}
+
+/* ── CONTENT AREA SLIDE IMAGE — 데스크탑: height 기준 cover / 태블릿: 가로폭 클램프 contain ── */
+.slide-img {
+  height: 100%;
+  width: auto;
+  display: block;
+  object-fit: cover;
+}
+
+@media (max-width: 1439px) {
+  .slide-img {
+    max-width: 100%;
+    height: auto;
+    max-height: 100%;
+    object-fit: contain;
+    margin: auto;
+  }
+}
+
 /* ── MOBILE PROJECT WALL — 칩 행 / 수평 트랙 스크롤바 숨김 ── */
 .mpw-chips,
 .mpw-track {
@@ -177,6 +213,19 @@
   .site-nav-link {
     font-size: 10px;
     letter-spacing: 0.06em;
+  }
+}
+
+/* ── TABLET (768~1439px) — 내비 중앙 정렬 해제 → 우측 이동으로 좌상단 워드마크와 분리 ── */
+@media (min-width: 768px) and (max-width: 1439px) {
+  .site-nav {
+    left: auto;
+    right: 24px;
+    transform: none;
+    gap: 24px;
+  }
+  .site-nav-link {
+    font-size: 12px;
   }
 }
 
