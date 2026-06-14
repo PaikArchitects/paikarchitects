@@ -40,8 +40,16 @@ function WallCard({ project, index, tier, isHighlighted, isDimmed, revealed, exi
   return (
     <div
       ref={registerRef}
-      onMouseEnter={() => { setHover(true); onHover(project) }}
-      onMouseLeave={() => { setHover(false); onHover(null) }}
+      onPointerEnter={(e) => {
+        if (e.pointerType !== 'mouse') return   // 터치/펜은 hover 미발생 (stuck hover 방지)
+        setHover(true)
+        onHover(project)
+      }}
+      onPointerLeave={(e) => {
+        if (e.pointerType !== 'mouse') return
+        setHover(false)
+        onHover(null)
+      }}
       onClick={() => onSelect(project)}
       style={{
         display: 'flex',

@@ -30,9 +30,6 @@ interface LandingExperienceProps {
 
 export function LandingExperience({ initialSlug, initialShowFilters = false }: LandingExperienceProps) {
   const [mobile, setMobile] = useState(false)
-  const [tablet, setTablet] = useState(false)   // 768~1439px — 데스크탑 축소형
-  const [filterOpen, setFilterOpen] = useState(false)   // 태블릿 필터 토글 펼침 상태
-  const filterToggleRef = useRef<HTMLDivElement>(null)
   const mobileRef = useRef(false)   // popstate 등 마운트 시 1회 등록 핸들러의 stale closure 방지
   const { introPhase, setWordmarkOnLight, setNavOnLight } = useSiteChrome()
 
@@ -58,6 +55,10 @@ export function LandingExperience({ initialSlug, initialShowFilters = false }: L
 
   const [hoveredProject, setHoveredProject] = useState<Project | null>(null)
 
+  // 데스크톱 필터 바 가로 오버플로 어포던스 (768~1439 좁은 폭에서 칩이 한 줄을 넘을 때)
+  const filterScrollRef = useRef<HTMLDivElement>(null)
+  const [filterFade, setFilterFade] = useState({ left: false, right: false })
+
   useEffect(() => {
     shuffleQueueRef.current = shuffleQueue
   }, [shuffleQueue])
@@ -66,38 +67,42 @@ export function LandingExperience({ initialSlug, initialShowFilters = false }: L
     filteredRef.current = filteredProjects
   }, [filteredProjects])
 
-  // mobile / tablet detection — 모바일 <768, 태블릿 768~1439, 데스크탑 >=1440
+  // mobile detection — 모바일 <768, 그 외(태블릿 768~1439 포함) 데스크탑 분기
   useEffect(() => {
     const fn = () => {
       const w = window.innerWidth
       const m = w < 768
       mobileRef.current = m
       setMobile(m)
-      setTablet(w >= 768 && w < 1440)
     }
     fn()
     window.addEventListener('resize', fn)
     return () => window.removeEventListener('resize', fn)
   }, [])
 
-  // 태블릿 필터 토글 — 바깥 영역 클릭 / ESC 시 닫힘
+  // 데스크톱 필터 바 오버플로 페이드 갱신 — scrollLeft 기반 좌/우 스크롤 가능 여부 감지
+  const updateFilterFade = () => {
+    const el = filterScrollRef.current
+    if (!el) return
+    setFilterFade({
+      left: el.scrollLeft > 1,
+      right: el.scrollLeft < el.scrollWidth - el.clientWidth - 1,
+    })
+  }
   useEffect(() => {
-    if (!filterOpen) return
-    const onDown = (e: MouseEvent) => {
-      if (filterToggleRef.current && !filterToggleRef.current.contains(e.target as Node)) {
-        setFilterOpen(false)
-      }
+    updateFilterFade()
+    window.addEventListener('resize', updateFilterFade)
+    return () => window.removeEventListener('resize', updateFilterFade)
+  }, [mobile, showFilters])
+
+  // 휠 세로 스크롤 → 필터 바 가로 스크롤 (혼용 환경)
+  const handleFilterWheel = (e: React.WheelEvent) => {
+    const el = filterScrollRef.current
+    if (!el || el.scrollWidth <= el.clientWidth) return
+    if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
+      el.scrollLeft += e.deltaY
     }
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setFilterOpen(false)
-    }
-    window.addEventListener('mousedown', onDown)
-    window.addEventListener('keydown', onKey)
-    return () => {
-      window.removeEventListener('mousedown', onDown)
-      window.removeEventListener('keydown', onKey)
-    }
-  }, [filterOpen])
+  }
 
   // 셔플 — blackout fade, 끝에 도달하면 재셔플 (필터 기준). 데스크톱 전용
   const advanceShuffle = useCallback(() => {
@@ -222,133 +227,109 @@ export function LandingExperience({ initialSlug, initialShowFilters = false }: L
       position: 'relative',
     }}>
 
-      {/* ── FILTER BAR — 데스크톱(>=1440) 전용, 헤더 존 내 가운데 가로 1열. 모바일은 월 칩 행이 전담 ── */}
-      {!mobile && !tablet && (
+      {/* ── FILTER BAR — 데스크톱 분기(>=768) 공용, 헤더 존 내 가운데 가로 1열. 좁은 폭은 가로 스크롤 + 어포던스. 모바일(<768)은 월 칩 행이 전담 ── */}
+      {!mobile && (
         <div style={{
           position: 'absolute',
           top: 50,
           left: 0,
           right: 0,
           height: 24,
-          display: 'flex',
-          justifyContent: 'center',
-          alignItems: 'center',
-          gap: 28,
           opacity: showFilters ? 1 : 0,
           pointerEvents: showFilters ? 'auto' : 'none',
           transition: 'opacity 300ms ease-out',
           zIndex: 50,
         }}>
-          {FILTER_TYPES.map(t => (
-            <button
-              key={t}
-              onClick={() => handleFilter(t)}
-              style={{
-                background: 'none',
-                border: 'none',
-                cursor: 'pointer',
-                fontFamily: FONT,
-                fontSize: 11,
-                fontWeight: t === activeFilter ? 500 : 300,
-                letterSpacing: '0.08em',
-                textTransform: 'uppercase',
-                color: '#080706',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 6,
-              }}
-            >
-              {/* 불릿 — 선택된 항목 앞에만 */}
-              <span style={{
-                fontSize: 7,
-                lineHeight: 1,
-                opacity: t === activeFilter ? 1 : 0,
-                transition: 'opacity 200ms',
-              }}>●</span>
-              {t}
-            </button>
-          ))}
-        </div>
-      )}
-
-      {/* ── FILTER TOGGLE — 태블릿(768~1439) 전용. 상단 중앙 단일 토글 버튼 + 세로 펼침 패널 ── */}
-      {!mobile && tablet && (
-        <div
-          ref={filterToggleRef}
-          style={{
-            position: 'absolute',
-            top: 50,
-            left: 0,
-            right: 0,
-            display: 'flex',
-            justifyContent: 'center',
-            opacity: showFilters ? 1 : 0,
-            pointerEvents: showFilters ? 'auto' : 'none',
-            transition: 'opacity 300ms ease-out',
-            zIndex: 50,
-          }}
-        >
-          <div style={{ position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-            {/* 토글 트리거 — 현재 필터명 + ▾ */}
-            <button
-              onClick={() => setFilterOpen(o => !o)}
-              style={{
-                background: 'none',
-                border: 'none',
-                cursor: 'pointer',
-                fontFamily: FONT,
-                fontSize: 11,
-                fontWeight: 500,
-                letterSpacing: '0.08em',
-                textTransform: 'uppercase',
-                color: '#080706',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 6,
-              }}
-            >
-              {activeFilter}
-              <span style={{
-                fontSize: 9,
-                lineHeight: 1,
-                transform: filterOpen ? 'rotate(180deg)' : 'none',
-                transition: 'transform 200ms ease',
-              }}>▾</span>
-            </button>
-
-            {/* 펼침 패널 — 세로 스택 */}
-            {filterOpen && (
-              <div style={{
-                marginTop: 10,
-                background: '#FFFFFF',
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                gap: 9,
-                padding: '12px 18px',
-              }}>
-                {FILTER_TYPES.map(t => (
-                  <button
-                    key={t}
-                    onClick={() => { handleFilter(t); setFilterOpen(false) }}
-                    style={{
-                      background: 'none',
-                      border: 'none',
-                      cursor: 'pointer',
-                      fontFamily: FONT,
-                      fontSize: 11,
-                      fontWeight: t === activeFilter ? 500 : 300,
-                      letterSpacing: '0.08em',
-                      textTransform: 'uppercase',
-                      color: '#080706',
-                    }}
-                  >
-                    {t}
-                  </button>
-                ))}
-              </div>
-            )}
+          {/* 스크롤 컨테이너 — 넓은 폭: 내부 행이 margin auto로 가운데(현행 동일). 좁은 폭: 가로 스크롤 */}
+          <div
+            ref={filterScrollRef}
+            className="mpw-chips"
+            onScroll={updateFilterFade}
+            onWheel={handleFilterWheel}
+            style={{
+              height: '100%',
+              display: 'flex',
+              overflowX: 'auto',
+              overflowY: 'hidden',
+              touchAction: 'pan-x',
+            }}
+          >
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 28,
+              margin: '0 auto',
+              flexShrink: 0,
+            }}>
+              {FILTER_TYPES.map(t => (
+                <button
+                  key={t}
+                  onClick={() => handleFilter(t)}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    cursor: 'pointer',
+                    fontFamily: FONT,
+                    fontSize: 11,
+                    fontWeight: t === activeFilter ? 500 : 300,
+                    letterSpacing: '0.08em',
+                    textTransform: 'uppercase',
+                    color: '#080706',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    whiteSpace: 'nowrap',
+                    flexShrink: 0,
+                  }}
+                >
+                  {/* 불릿 — 선택된 항목 앞에만 */}
+                  <span style={{
+                    fontSize: 7,
+                    lineHeight: 1,
+                    opacity: t === activeFilter ? 1 : 0,
+                    transition: 'opacity 200ms',
+                  }}>●</span>
+                  {t}
+                </button>
+              ))}
+            </div>
           </div>
+
+          {/* 오버플로 어포던스 — 스크롤 가능 방향에만 그라데이션 + 화살표 글리프 표시 */}
+          <div style={{
+            position: 'absolute',
+            left: 0,
+            top: 0,
+            bottom: 0,
+            width: 32,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'flex-start',
+            paddingLeft: 4,
+            background: 'linear-gradient(to right, #FFFFFF, rgba(255,255,255,0))',
+            color: '#080706',
+            fontSize: 13,
+            opacity: filterFade.left ? 1 : 0,
+            transition: 'opacity 200ms ease',
+            pointerEvents: 'none',
+          }}>‹</div>
+          <div style={{
+            position: 'absolute',
+            right: 0,
+            top: 0,
+            bottom: 0,
+            width: 32,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'flex-end',
+            paddingRight: 4,
+            background: 'linear-gradient(to left, #FFFFFF, rgba(255,255,255,0))',
+            color: '#080706',
+            fontSize: 13,
+            opacity: filterFade.right ? 1 : 0,
+            transition: 'opacity 200ms ease',
+            pointerEvents: 'none',
+          }}>›</div>
         </div>
       )}
 
