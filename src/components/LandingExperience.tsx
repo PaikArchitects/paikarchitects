@@ -377,6 +377,7 @@ export function LandingExperience({ initialSlug, initialShowFilters = false }: L
           onActivate={handleActivate}
           onDeactivate={handleBack}
           revealed={layoutVisible}
+          showFilters={showFilters}
         />
       )}
 

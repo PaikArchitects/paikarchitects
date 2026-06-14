@@ -455,6 +455,7 @@ interface MobileProjectWallProps {
   onActivate: (slug: string) => void
   onDeactivate: () => void
   revealed: boolean              // layoutVisible (introPhase === 'done')
+  showFilters: boolean           // WORK 진입 시 true — 필터 칩 행 표시 여부 (M1)
 }
 
 type WallPhase = 'pre' | 'folding' | 'unfolding' | 'idle'
@@ -484,7 +485,7 @@ interface PendingMorph {
  */
 export function MobileProjectWall({
   projects, filterTypes, activeFilter, onFilter,
-  activeSlug, onActivate, onDeactivate, revealed,
+  activeSlug, onActivate, onDeactivate, revealed, showFilters,
 }: MobileProjectWallProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const itemEls = useRef<Record<string, HTMLDivElement | null>>({})
@@ -527,6 +528,9 @@ export function MobileProjectWall({
     return () => clearTimeout(t)
   }, [phase])
 
+  // M3: 월(비확장) 상태의 "첫 아이템 상단 정렬"을 적용할 시점 표시 — 최초 mount + 필터 교체 직후
+  const pendingTopAlignRef = useRef(true)
+
   // 필터 변경 → 접힘 → 80ms 정지 → 리스트 교체 + 펼침
   const firstFilterRef = useRef(true)
   useEffect(() => {
@@ -542,6 +546,7 @@ export function MobileProjectWall({
       const c = containerRef.current
       if (c) c.scrollTop = 0
       setCenterIdx(0)
+      pendingTopAlignRef.current = true   // M3: 필터 교체 후 펼침 완료(idle) 시 첫 아이템 상단 정렬
     }, foldTotal + FOLD_PAUSE_MS)
     return () => clearTimeout(t)
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -737,7 +742,9 @@ export function MobileProjectWall({
     if (activeSlug === prev) return
     const c = containerRef.current
     if (!c) return
-    const availCenter = CHIPS_H + (c.clientHeight - CHIPS_H) / 2
+    // 칩 행 숨김 시(루트에서 카드 바로 탭→확장 경로 포함) CHIPS_H 예약을 0으로 분기 (M1)
+    const chipsH = showFilters ? CHIPS_H : 0
+    const availCenter = chipsH + (c.clientHeight - chipsH) / 2
     const clamp = (v: number) => Math.max(0, Math.min(v, c.scrollHeight - c.clientHeight))
 
     if (activeSlug) {
@@ -878,9 +885,24 @@ export function MobileProjectWall({
     const itemEl = itemEls.current[activeSlug]
     const block = blockEls.current[activeSlug]
     if (!c || !itemEl || !block) return
-    const availCenter = CHIPS_H + (c.clientHeight - CHIPS_H) / 2
+    const chipsH = showFilters ? CHIPS_H : 0
+    const availCenter = chipsH + (c.clientHeight - chipsH) / 2
     const target = itemEl.offsetTop + block.offsetHeight / 2 - availCenter
     c.scrollTop = Math.max(0, Math.min(target, c.scrollHeight - c.clientHeight))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phase])
+
+  // M3: 월(비확장) 상태의 첫 아이템 상단 정렬 — 최초 진입 / 필터 교체 후 펼침 완료(idle) 시 1회.
+  // active 확장 시의 availCenter 중앙 정렬(동결)과 별개. 첫 d=0 아이템의 top을 칩 행 바로 아래(칩 숨김 시 헤더 바로 아래)에 둔다.
+  useEffect(() => {
+    if (phase !== 'idle' || !pendingTopAlignRef.current) return
+    pendingTopAlignRef.current = false
+    if (activeSlug) return   // 딥링크/확장 경로는 별도 중앙 정렬 처리
+    const c = containerRef.current
+    const first = displayList[0] ? itemEls.current[displayList[0].id] : null
+    if (!c || !first) return
+    const chipsH = showFilters ? CHIPS_H : 0
+    c.scrollTop = Math.max(0, Math.min(first.offsetTop - chipsH, c.scrollHeight - c.clientHeight))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [phase])
 
@@ -907,6 +929,35 @@ export function MobileProjectWall({
     window.addEventListener('resize', updateChipFade)
     return () => window.removeEventListener('resize', updateChipFade)
   }, [])
+
+  // ── 칩 행 마우스 드래그-투-스크롤 (혼용 환경) — 터치는 네이티브 스크롤 유지 (M2) ──
+  const chipDragRef = useRef<{ startX: number; startScroll: number; moved: boolean } | null>(null)
+  const chipMovedRef = useRef(false)   // 드래그 직후 칩 클릭(필터 선택) 억제 플래그
+  const onChipPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.pointerType !== 'mouse') return   // 터치는 Pointer 드래그 미적용 (이중 스크롤 방지)
+    const el = chipsRef.current
+    if (!el) return
+    chipMovedRef.current = false
+    chipDragRef.current = { startX: e.clientX, startScroll: el.scrollLeft, moved: false }
+    el.setPointerCapture(e.pointerId)
+  }
+  const onChipPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    const d = chipDragRef.current
+    const el = chipsRef.current
+    if (!d || !el) return
+    const dx = e.clientX - d.startX
+    if (Math.abs(dx) >= 5) d.moved = true   // 5px 이상 이동 시에만 드래그로 판정
+    el.scrollLeft = d.startScroll - dx
+    updateChipFade()
+  }
+  const onChipPointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
+    const d = chipDragRef.current
+    chipDragRef.current = null
+    if (!d) return
+    const el = chipsRef.current
+    if (el && el.hasPointerCapture(e.pointerId)) el.releasePointerCapture(e.pointerId)
+    chipMovedRef.current = d.moved   // 이동량 ≥5px이면 직후 onClick(필터 선택) 억제
+  }
 
   // ── 피드 스크롤 — 위계 갱신(rAF 스로틀) + 사용자 조작 판정(프로그래매틱 제외) ──
   const handleFeedScroll = () => {
@@ -946,25 +997,34 @@ export function MobileProjectWall({
         transition: 'opacity 400ms ease-out',
       }}
     >
-      {/* ── 필터 칩 행 — sticky + 오버플로 그라디언트 ── */}
+      {/* ── 필터 칩 행 — WORK 진입(showFilters) 시에만 렌더 (M1). sticky + 오버플로 화살표 ── */}
+      {showFilters && (
       <div style={{ position: 'sticky', top: 0, zIndex: 5, height: CHIPS_H, background: '#FFFFFF' }}>
         <div
           ref={chipsRef}
           className="mpw-chips"
           onScroll={updateChipFade}
+          onPointerDown={onChipPointerDown}
+          onPointerMove={onChipPointerMove}
+          onPointerUp={onChipPointerUp}
           style={{
             height: '100%',
             display: 'flex',
             alignItems: 'center',
             gap: 24,
             overflowX: 'auto',
+            touchAction: 'pan-x',
             padding: '0 16px',
           }}
         >
           {filterTypes.map(t => (
             <button
               key={t}
-              onClick={() => onFilter(t)}
+              onClick={() => {
+                // 마우스 드래그(이동 ≥5px) 직후의 클릭은 필터 선택으로 처리하지 않음 (M2)
+                if (chipMovedRef.current) { chipMovedRef.current = false; return }
+                onFilter(t)
+              }}
               style={{
                 background: 'none',
                 border: 'none',
@@ -995,30 +1055,43 @@ export function MobileProjectWall({
           ))}
         </div>
 
-        {/* 오버플로 어포던스 — 스크롤 가능 방향에만 표시 */}
+        {/* 오버플로 어포던스 — 스크롤 가능 방향에만 그라데이션 + 화살표 글리프 (데스크톱 필터 바와 동일) */}
         <div style={{
           position: 'absolute',
           left: 0,
           top: 0,
           bottom: 0,
           width: 32,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'flex-start',
+          paddingLeft: 4,
           background: 'linear-gradient(to right, #FFFFFF, rgba(255,255,255,0))',
+          color: '#080706',
+          fontSize: 13,
           opacity: chipFade.left ? 1 : 0,
           transition: 'opacity 200ms ease',
           pointerEvents: 'none',
-        }} />
+        }}>‹</div>
         <div style={{
           position: 'absolute',
           right: 0,
           top: 0,
           bottom: 0,
           width: 32,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'flex-end',
+          paddingRight: 4,
           background: 'linear-gradient(to left, #FFFFFF, rgba(255,255,255,0))',
+          color: '#080706',
+          fontSize: 13,
           opacity: chipFade.right ? 1 : 0,
           transition: 'opacity 200ms ease',
           pointerEvents: 'none',
-        }} />
+        }}>›</div>
       </div>
+      )}
 
       {/* ── 콘덴스드 월 피드 — 상하 50vh 패딩으로 첫/마지막 아이템도 중앙 도달 가능 ── */}
       <div style={{ paddingTop: '50vh', paddingBottom: '50vh' }}>
