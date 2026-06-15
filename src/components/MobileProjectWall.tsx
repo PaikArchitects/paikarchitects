@@ -522,6 +522,12 @@ export function MobileProjectWall({
   const expTitleEls = useRef<Record<string, HTMLDivElement | null>>({})  // 확장 블록 타이틀
   const firstRevealRef = useRef(true)   // 최초 진입(인트로 완료 후 첫 펼침) 1회 식별
 
+  // PART1 — 첫 화면 한정 상단 고정(topPin): 첫 카드를 상단에 d=0으로 고정, 첫 사용자 스크롤 시 해제 → 중앙 위계 합류
+  const [topPin, setTopPin] = useState(false)
+  const topPinRef = useRef(false)
+  const setTopPinBoth = (v: boolean) => { topPinRef.current = v; setTopPin(v) }
+  const topPinReleaseRef = useRef(false)   // 해제 시 paddingTop 0→50vh 복원에 따른 위치 점프 보정 대기
+
   // 마운트 직후 1프레임은 전환 비활성 — 딥링크 진입 시 모프 생략(즉시 확장 상태)
   const [transitionsOn, setTransitionsOn] = useState(false)
   const transitionsOnRef = useRef(false)
@@ -550,6 +556,8 @@ export function MobileProjectWall({
       firstRevealRef.current = false
       const c = containerRef.current
       if (c) c.scrollTop = 0            // 상단 정렬 보장
+      setCenterIdx(0)
+      setTopPinBoth(true)              // PART1-2(a): firstReveal idle 직행 직후 상단 고정 진입
       const raf = requestAnimationFrame(() => requestAnimationFrame(() => setPhase('idle')))
       return () => cancelAnimationFrame(raf)
     }
@@ -582,6 +590,7 @@ export function MobileProjectWall({
       const c = containerRef.current
       if (c) c.scrollTop = 0
       setCenterIdx(0)
+      setTopPinBoth(true)                 // PART1-2(b): 필터 교체 후에도 첫 카드 상단 d=0 고정
       pendingTopAlignRef.current = true   // M3: 필터 교체 후 펼침 완료(idle) 시 첫 아이템 상단 정렬
     }, foldTotal + FOLD_PAUSE_MS)
     return () => clearTimeout(t)
@@ -686,7 +695,7 @@ export function MobileProjectWall({
 
   // 셔플 타이머 — 무조작 6초 주기. 터치/스크롤/active 진입 시 정지, 무조작 8초 후 재개
   useEffect(() => {
-    if (!revealed || activeSlug || phase !== 'idle') return
+    if (!revealed || activeSlug || phase !== 'idle' || topPin) return   // PART1-5: topPin 동안 셔플 억제 — 첫 스크롤 해제 후 기동
     lastShuffleRef.current = Date.now()
     const id = setInterval(() => {
       const now = Date.now()
@@ -695,7 +704,7 @@ export function MobileProjectWall({
       advanceShuffle()
     }, 500)
     return () => clearInterval(id)
-  }, [revealed, activeSlug, phase, advanceShuffle])
+  }, [revealed, activeSlug, phase, advanceShuffle, topPin])
 
   // ── 모프 (FLIP) ──
   const [overlay, setOverlay] = useState<{ src: string | null; color: string; init: ViewRect } | null>(null)
@@ -739,7 +748,8 @@ export function MobileProjectWall({
       const r = thumb.getBoundingClientRect()
       // d=0 탭 — 상단 타이틀이 active 타이틀로 직접 보간되도록 시작 rect 캡처
       const i = displayList.findIndex(x => x.id === p.id)
-      const d = Math.abs(i - Math.min(centerIdx, displayList.length - 1))
+      const effCenterIdx = topPin ? 0 : Math.min(centerIdx, displayList.length - 1)   // PART1-3: topPin 동안 첫 카드(i=0) d=0
+      const d = Math.abs(i - effCenterIdx)
       const topTitle = d === 0 ? topTitleEls.current[p.id] : null
       const tr = topTitle ? topTitle.getBoundingClientRect() : null
       pendingTapRef.current = {
@@ -997,13 +1007,30 @@ export function MobileProjectWall({
 
   // ── 피드 스크롤 — 위계 갱신(rAF 스로틀) + 사용자 조작 판정(프로그래매틱 제외) ──
   const handleFeedScroll = () => {
-    if (!programmaticRef.current) lastUserRef.current = Date.now()
+    if (!programmaticRef.current) {
+      lastUserRef.current = Date.now()
+      if (topPinRef.current) {
+        // PART1-4: 프로그래매틱(셔플)이 아닌 실제 사용자 스크롤 → 상단 고정 해제.
+        // paddingTop 0→50vh 복원 위치 점프 보정은 useLayoutEffect(topPin)에서 페인트 직전 적용.
+        topPinReleaseRef.current = true
+        setTopPinBoth(false)
+      }
+    }
     if (centerRafRef.current != null) return
     centerRafRef.current = requestAnimationFrame(() => {
       centerRafRef.current = null
       updateCenter()
     })
   }
+
+  // PART1-4: topPin true→false 전이 시, paddingTop 0→50vh 복원으로 콘텐츠가 50vh 아래로 밀리는 것을
+  // 동일 scrollTop 증분으로 상쇄해 시각 위치를 보존한다. useLayoutEffect → 페인트 직전 보정(가시 점프 제거).
+  useLayoutEffect(() => {
+    if (topPin || !topPinReleaseRef.current) return
+    topPinReleaseRef.current = false
+    const c = containerRef.current
+    if (c) c.scrollTop += window.innerHeight * 0.5   // 50vh는 뷰포트 기준 → window.innerHeight*0.5 (c.clientHeight는 헤더 56px만큼 작음)
+  }, [topPin])
 
   const handlePointerDown = () => {
     lastUserRef.current = Date.now()
@@ -1051,6 +1078,7 @@ export function MobileProjectWall({
             overflowX: 'auto',
             touchAction: 'pan-x',
             padding: '0 16px',
+            userSelect: 'none',   // PART2-3: 마우스 드래그 시 텍스트 선택 방지 (드래그 끊김/이상 이동 제거)
           }}
         >
           {filterTypes.map(t => (
@@ -1130,13 +1158,15 @@ export function MobileProjectWall({
       )}
 
       {/* ── 콘덴스드 월 피드 — 상하 50vh 패딩으로 첫/마지막 아이템도 중앙 도달 가능 ── */}
-      <div style={{ paddingTop: '50vh', paddingBottom: '50vh' }}>
+      {/* PART1-3: topPin 동안 상단 패딩 제거(0) → 첫 카드가 칩 행(sticky) 바로 아래 상단 정렬. paddingBottom 50vh는 유지 */}
+      <div style={{ paddingTop: topPin ? 0 : '50vh', paddingBottom: '50vh' }}>
         {displayList.map((p, i) => {
           const expanded = p.id === activeSlug
           const showTrack = expanded || p.id === closingSlug
           const isMorphTarget = morphSlug === p.id
           const titleMorphing = isMorphTarget && titleOverlay != null
-          const d = Math.abs(i - Math.min(centerIdx, displayList.length - 1))
+          const effCenterIdx = topPin ? 0 : Math.min(centerIdx, displayList.length - 1)   // PART1-3: topPin 동안 첫 카드(i=0) d=0
+          const d = Math.abs(i - effCenterIdx)
           const tier = tierFor(d)
 
           // 단계별 transition — 폴드/펼침은 stagger 지연 포함, idle은 모프 500ms
