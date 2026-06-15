@@ -311,6 +311,29 @@ function ExpandedBlock({ project, onBack, heroRef, heroHidden, titleMorphing, ti
   const trackRef = useRef<HTMLDivElement>(null)
   const [counterIdx, setCounterIdx] = useState(1)
 
+  // ── 트랙 마우스 드래그-투-스크롤 (P1) — 마우스 전용. 터치/펜은 네이티브 스크롤 위임 (이중 스크롤 방지) ──
+  const trackDrag = useRef<{ startX: number; startScroll: number; moved: boolean } | null>(null)
+  const onTrackPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.pointerType !== 'mouse') return          // 터치/펜 = 네이티브 스크롤 위임
+    const el = trackRef.current
+    if (!el) return
+    trackDrag.current = { startX: e.clientX, startScroll: el.scrollLeft, moved: false }
+    el.setPointerCapture(e.pointerId)
+  }
+  const onTrackPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    const d = trackDrag.current
+    const el = trackRef.current
+    if (!d || !el) return
+    const dx = e.clientX - d.startX
+    if (Math.abs(dx) >= 5) d.moved = true
+    el.scrollLeft = d.startScroll - dx           // 스냅은 네이티브가 pointerup 후 처리
+  }
+  const onTrackPointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
+    const el = trackRef.current
+    if (el && el.hasPointerCapture(e.pointerId)) el.releasePointerCapture(e.pointerId)
+    trackDrag.current = null
+  }
+
   // 스냅 안착 기준 카운터 — 트랙 중앙 최근접 자식 (0=히어로→01, 1=정보→01 유지, j≥2→j)
   const handleScroll = () => {
     const el = trackRef.current
@@ -385,6 +408,9 @@ function ExpandedBlock({ project, onBack, heroRef, heroHidden, titleMorphing, ti
         ref={trackRef}
         className="mpw-track"
         onScroll={handleScroll}
+        onPointerDown={onTrackPointerDown}
+        onPointerMove={onTrackPointerMove}
+        onPointerUp={onTrackPointerUp}
         style={{
           position: 'relative',
           marginLeft: 16,
@@ -1135,7 +1161,7 @@ export function MobileProjectWall({
                 <div style={{ overflow: 'hidden' }}>
                   <div
                     onClick={() => handleTap(p)}
-                    style={{ opacity: tier.opacity, transition: 'opacity 400ms ease' }}
+                    style={{ opacity: tier.opacity, transition: 'opacity 400ms ease', cursor: 'pointer' }}
                   >
                     {/* 상단 텍스트 행 — d=0 전용. 높이 24px가 티어 transition(400ms)과 함께 보간 */}
                     <div style={{
