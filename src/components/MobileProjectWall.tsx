@@ -520,6 +520,7 @@ export function MobileProjectWall({
   const blockEls = useRef<Record<string, HTMLDivElement | null>>({})
   const topTitleEls = useRef<Record<string, HTMLDivElement | null>>({})  // d=0 상단 타이틀
   const expTitleEls = useRef<Record<string, HTMLDivElement | null>>({})  // 확장 블록 타이틀
+  const firstRevealRef = useRef(true)   // 최초 진입(인트로 완료 후 첫 펼침) 1회 식별
 
   // 마운트 직후 1프레임은 전환 비활성 — 딥링크 진입 시 모프 생략(즉시 확장 상태)
   const [transitionsOn, setTransitionsOn] = useState(false)
@@ -541,8 +542,17 @@ export function MobileProjectWall({
   useEffect(() => { displayLenRef.current = displayList.length }, [displayList])
 
   // pre(접힘) 상태에서 인트로 완료/리스트 교체 시 펼침 시작
+  // — 단, 최초 진입(firstReveal)은 unfolding 과도기를 생략하고 즉시 idle로 직행
+  //   (folded 리스트가 0fr→펼쳐지는 동안 첫 카드가 중앙처럼 보였다가 점프하는 현상 제거)
   useEffect(() => {
     if (!revealed || phase !== 'pre') return
+    if (firstRevealRef.current) {
+      firstRevealRef.current = false
+      const c = containerRef.current
+      if (c) c.scrollTop = 0            // 상단 정렬 보장
+      const raf = requestAnimationFrame(() => requestAnimationFrame(() => setPhase('idle')))
+      return () => cancelAnimationFrame(raf)
+    }
     const raf = requestAnimationFrame(() => requestAnimationFrame(() => setPhase('unfolding')))
     return () => cancelAnimationFrame(raf)
   }, [revealed, phase])
