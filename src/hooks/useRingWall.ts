@@ -1,0 +1,341 @@
+'use client'
+
+// ── useRingWall — 가상 링(Virtual Ring) 물리 코어 (WALL_RING_SPEC §2) ──
+//
+// 월을 스크롤 문서가 아닌 "N개 카드가 가상의 원 위에 배열된 링"으로 다룬다.
+// 유일한 위치 상태는 연속 실수 offset (단위: 인덱스) 하나이며, 모든 카드의
+// 위치는 offset과 애니메이션 중인 높이 배열로부터의 순수 함수 파생이다.
+//
+// 입력 리스너(휠·포인터·click 캡처)와 ResizeObserver는 containerRef에 직접
+// 등록한다 — React 합성 wheel 이벤트는 루트에 passive로 부착되어
+// preventDefault가 불가능하므로 non-passive 직접 등록이 필수다.
+
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import type { RefObject } from 'react'
+
+// ── 원형 산술 (순수 함수) ──
+
+export const mod = (a: number, n: number) => ((a % n) + n) % n
+
+/** 부호 있는 원형 델타 — 결과 범위 (-n/2, n/2] */
+export const signedCircDelta = (from: number, to: number, n: number) => {
+  let d = mod(to - from, n)
+  if (d > n / 2) d -= n
+  return d
+}
+
+/** 무부호 원형 거리 (티어 계산용) */
+export const circDist = (a: number, b: number, n: number) =>
+  Math.min(mod(a - b, n), mod(b - a, n))
+
+// ── 물리 상수 ──
+
+const MIN_SLOT_HEIGHT = 96   // 최소 티어 높이 — 윈도 반경·px→idx 환산 기준 (96+gap=112)
+const VELOCITY_MAX = 12      // idx/s
+const VELOCITY_EPS = 0.02    // idx/s — 미만이면 0 스냅
+const VELOCITY_TAU = 0.18    // s — 관성 감쇠 시상수
+const HEIGHT_TAU = 0.12      // s — 높이 수렴 시상수 (기존 400ms ease 체감 등가)
+const HEIGHT_EPS = 0.5       // px — 미만이면 목표값 스냅
+const WHEEL_GAIN = 2.5
+const TAP_THRESHOLD = 8      // px — 총 이동이 이상이면 탭이 아니라 드래그
+const FLICK_SAMPLES = 3      // 플릭 속도 산출에 쓰는 최근 move 샘플 수
+const MAX_DT = 0.1           // s — 탭 복귀 등 거대 프레임 간격 클램프
+
+const clamp = (v: number, lo: number, hi: number) => Math.min(Math.max(v, lo), hi)
+
+const easeInOutCubic = (t: number) =>
+  t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2
+
+// ── API ──
+
+export interface RingWallOptions {
+  count: number                              // N (표시 목록 길이)
+  getSlotHeight: (index: number) => number   // 인덱스 → 목표 티어 높이 (렌더러가 주입)
+  gap: number                                // 16
+}
+
+export interface RingSlot {
+  slot: number      // 중앙 기준 슬롯 번호 ∈ [-R, +R]
+  index: number     // mod(base + slot, N)
+  turn: number      // 회전수 — React key용
+  yCenter: number   // 카드 세로 중심의 컨테이너 좌표 (px)
+}
+
+export interface RingWallApi {
+  containerRef: RefObject<HTMLDivElement | null>
+  offset: number                             // 현재 오프셋 (매 프레임 갱신)
+  heights: number[]                          // 애니메이션 중인 실측 높이 배열 (length N)
+  slots: RingSlot[]
+  moveTo: (index: number) => void            // 최단 원형 경로 트위닝
+  jumpTo: (index: number) => void            // 즉시 이동 (필터 스왑용)
+  isSettled: boolean
+}
+
+interface Tween {
+  from: number
+  to: number
+  start: number
+  duration: number
+}
+
+interface DragState {
+  active: boolean
+  captured: boolean
+  pointerId: number
+  lastY: number
+  moved: number
+  samples: { t: number; y: number }[]
+}
+
+export function useRingWall({ count, getSlotHeight, gap }: RingWallOptions): RingWallApi {
+  const containerRef = useRef<HTMLDivElement | null>(null)
+
+  // 루프 내부 계산은 ref 미러로 수행 — stale closure 방지 (§2-C)
+  const countRef = useRef(count)
+  countRef.current = count
+  const gapRef = useRef(gap)
+  gapRef.current = gap
+  const getSlotHeightRef = useRef(getSlotHeight)
+  getSlotHeightRef.current = getSlotHeight
+
+  const offsetRef = useRef(0)
+  const velocityRef = useRef(0)
+  const tweenRef = useRef<Tween | null>(null)
+  const heightsRef = useRef<number[]>([])
+  const dragRef = useRef<DragState | null>(null)
+  const suppressClickRef = useRef(false)
+  const rafRef = useRef<number | null>(null)
+  const lastTimeRef = useRef(0)
+
+  // count 변경 시 높이 배열을 목표값으로 즉시 재구성
+  if (heightsRef.current.length !== count) {
+    heightsRef.current = Array.from({ length: count }, (_, i) => getSlotHeight(i))
+  }
+
+  // 초기값은 결정적(getSlotHeight는 props 파생) — SSR/hydration 안전
+  const [frame, setFrame] = useState(() => ({
+    offset: 0,
+    heights: Array.from({ length: count }, (_, i) => getSlotHeight(i)),
+    settled: true,
+  }))
+  const [containerHeight, setContainerHeight] = useState(0)
+
+  // ── 단일 rAF 물리 루프: 관성 + 트위닝 + 높이 수렴 (§2-C) ──
+  const tick = useCallback((now: number) => {
+    const dt = clamp((now - lastTimeRef.current) / 1000, 0, MAX_DT)
+    lastTimeRef.current = now
+    const n = countRef.current
+    let active = false
+
+    const tween = tweenRef.current
+    if (tween) {
+      const p = tween.duration <= 0 ? 1 : Math.min((now - tween.start) / tween.duration, 1)
+      offsetRef.current = tween.from + (tween.to - tween.from) * easeInOutCubic(p)
+      if (p >= 1) tweenRef.current = null
+      else active = true
+    } else if (dragRef.current?.active) {
+      active = true   // 오프셋은 pointermove가 직접 갱신 — 루프는 커밋만 담당
+    } else if (velocityRef.current !== 0) {
+      offsetRef.current += velocityRef.current * dt
+      velocityRef.current *= Math.exp(-dt / VELOCITY_TAU)
+      if (Math.abs(velocityRef.current) < VELOCITY_EPS) velocityRef.current = 0
+      else active = true
+    }
+
+    const heights = heightsRef.current
+    const ease = 1 - Math.exp(-dt / HEIGHT_TAU)
+    for (let i = 0; i < n; i++) {
+      const target = getSlotHeightRef.current(i)
+      const diff = target - heights[i]
+      if (diff === 0) continue
+      if (Math.abs(diff) < HEIGHT_EPS) {
+        heights[i] = target
+      } else {
+        heights[i] += diff * ease
+        active = true
+      }
+    }
+
+    setFrame({ offset: offsetRef.current, heights: heights.slice(), settled: !active })
+    // 슬립: 트위닝 없음 ∧ velocity 0 ∧ 전 높이 수렴 ∧ 드래그 아님 → rAF 취소
+    if (active) rafRef.current = requestAnimationFrame(tick)
+    else rafRef.current = null
+  }, [])
+
+  const wake = useCallback(() => {
+    if (rafRef.current !== null) return
+    lastTimeRef.current = performance.now()
+    rafRef.current = requestAnimationFrame(tick)
+  }, [tick])
+
+  // ── 프로그래매틱 이동 ──
+
+  const moveTo = useCallback((index: number) => {
+    const n = countRef.current
+    if (n <= 0) return
+    const from = offsetRef.current
+    const delta = signedCircDelta(mod(from, n), index, n)
+    velocityRef.current = 0
+    if (Math.abs(delta) < 1e-3) {
+      tweenRef.current = null
+      offsetRef.current = from + delta
+      wake()   // 스냅 커밋 1프레임
+      return
+    }
+    tweenRef.current = {
+      from,
+      to: from + delta,   // 최단 원형 경로
+      start: performance.now(),
+      duration: clamp(250 + 90 * Math.abs(delta), 350, 900),
+    }
+    wake()
+  }, [wake])
+
+  const jumpTo = useCallback((index: number) => {
+    const n = countRef.current
+    tweenRef.current = null
+    velocityRef.current = 0
+    offsetRef.current = n > 0 ? mod(index, n) : 0
+    heightsRef.current = Array.from({ length: n }, (_, i) => getSlotHeightRef.current(i))
+    setFrame({ offset: offsetRef.current, heights: heightsRef.current.slice(), settled: true })
+  }, [])
+
+  // 티어 목표 변경(호버 등) 시 웨이크 — 높이 수렴 루프만 동작, 오프셋 부동
+  useEffect(() => {
+    wake()
+  }, [getSlotHeight, wake])
+
+  // ── 입력 계층 + ResizeObserver (§2-D) ──
+  useEffect(() => {
+    const el = containerRef.current
+    if (!el) return
+
+    const pxPerIdx = MIN_SLOT_HEIGHT + gapRef.current   // 112 = 최소 슬롯 간격 px→idx 환산
+
+    // 휠 (마우스 전담) — 페이지 스크롤 차단을 위해 non-passive 필수
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault()
+      tweenRef.current = null   // 입력 우선 — 트위닝 즉시 취소
+      velocityRef.current = clamp(
+        velocityRef.current + (e.deltaY / pxPerIdx) * WHEEL_GAIN,
+        -VELOCITY_MAX,
+        VELOCITY_MAX,
+      )
+      wake()
+    }
+
+    // 드래그 (터치/펜 전용 — 마우스는 휠 전담, 클릭 선택과의 충돌 방지)
+    const onPointerDown = (e: PointerEvent) => {
+      if (e.pointerType === 'mouse') return
+      suppressClickRef.current = false
+      tweenRef.current = null
+      velocityRef.current = 0
+      dragRef.current = {
+        active: true,
+        captured: false,
+        pointerId: e.pointerId,
+        lastY: e.clientY,
+        moved: 0,
+        samples: [{ t: e.timeStamp, y: e.clientY }],
+      }
+      wake()
+    }
+
+    const onPointerMove = (e: PointerEvent) => {
+      const drag = dragRef.current
+      if (!drag?.active || e.pointerId !== drag.pointerId) return
+      const dy = e.clientY - drag.lastY
+      drag.lastY = e.clientY
+      drag.moved += Math.abs(dy)
+      if (drag.moved >= TAP_THRESHOLD && !drag.captured) {
+        // 드래그 확정 시점에야 캡처 — 미리 캡처하면 탭의 click이 컨테이너로
+        // 리타기팅되어 카드 onClick(선택)이 발화하지 않는다
+        el.setPointerCapture(e.pointerId)
+        drag.captured = true
+        suppressClickRef.current = true
+      }
+      if (drag.captured) offsetRef.current -= dy / pxPerIdx
+      drag.samples.push({ t: e.timeStamp, y: e.clientY })
+      if (drag.samples.length > FLICK_SAMPLES + 1) drag.samples.shift()
+      wake()
+    }
+
+    const endDrag = (e: PointerEvent, flick: boolean) => {
+      const drag = dragRef.current
+      if (!drag?.active || e.pointerId !== drag.pointerId) return
+      drag.active = false
+      if (flick && drag.captured && drag.samples.length >= 2) {
+        // 최근 샘플 평균 속도로 velocity 부여 (플릭 관성)
+        const first = drag.samples[0]
+        const last = drag.samples[drag.samples.length - 1]
+        const dtMs = last.t - first.t
+        if (dtMs > 0) {
+          const vPx = (last.y - first.y) / (dtMs / 1000)
+          velocityRef.current = clamp(-vPx / pxPerIdx, -VELOCITY_MAX, VELOCITY_MAX)
+        }
+      }
+      wake()
+    }
+    const onPointerUp = (e: PointerEvent) => endDrag(e, true)
+    const onPointerCancel = (e: PointerEvent) => endDrag(e, false)
+
+    // 이동 ≥ 8px였던 제스처의 잔여 click을 캡처 단계에서 차단 (탭만 선택 발화)
+    const onClickCapture = (e: MouseEvent) => {
+      if (!suppressClickRef.current) return
+      suppressClickRef.current = false
+      e.preventDefault()
+      e.stopPropagation()
+    }
+
+    const ro = new ResizeObserver(() => setContainerHeight(el.clientHeight))
+    ro.observe(el)
+    setContainerHeight(el.clientHeight)
+
+    el.addEventListener('wheel', onWheel, { passive: false })
+    el.addEventListener('pointerdown', onPointerDown)
+    el.addEventListener('pointermove', onPointerMove)
+    el.addEventListener('pointerup', onPointerUp)
+    el.addEventListener('pointercancel', onPointerCancel)
+    el.addEventListener('click', onClickCapture, true)
+
+    return () => {
+      ro.disconnect()
+      el.removeEventListener('wheel', onWheel)
+      el.removeEventListener('pointerdown', onPointerDown)
+      el.removeEventListener('pointermove', onPointerMove)
+      el.removeEventListener('pointerup', onPointerUp)
+      el.removeEventListener('pointercancel', onPointerCancel)
+      el.removeEventListener('click', onClickCapture, true)
+      if (rafRef.current !== null) {
+        cancelAnimationFrame(rafRef.current)
+        rafRef.current = null
+      }
+    }
+  }, [wake])
+
+  // ── 슬롯 배치 — 중앙 대칭 누적 (§2-B) ──
+  const { offset, heights, settled } = frame
+  const slots = useMemo<RingSlot[]>(() => {
+    const n = count
+    if (n <= 0 || containerHeight <= 0) return []
+    // 윈도 반경 — 리사이즈 시 재계산
+    const R = Math.ceil(containerHeight / 2 / (MIN_SLOT_HEIGHT + gap)) + 2
+    const base = Math.floor(offset)
+    const frac = offset - base
+    const idxOf = (s: number) => mod(base + s, n)
+    const hAt = (i: number) => heights[i] ?? MIN_SLOT_HEIGHT
+    const spacing = (a: number, b: number) => (hAt(idxOf(a)) + hAt(idxOf(b))) / 2 + gap
+    // frac=0이고 높이가 수렴하면 슬롯 0은 수학적으로 정중앙 — 높이 변화는
+    // 중앙에서 바깥으로 대칭 전파되므로 별도 보정이 없다
+    const y: Record<number, number> = { 0: containerHeight / 2 - frac * spacing(0, 1) }
+    for (let s = 1; s <= R; s++) y[s] = y[s - 1] + spacing(s - 1, s)
+    for (let s = -1; s >= -R; s--) y[s] = y[s + 1] - spacing(s, s + 1)
+    const out: RingSlot[] = []
+    for (let s = -R; s <= R; s++) {
+      out.push({ slot: s, index: idxOf(s), turn: Math.floor((base + s) / n), yCenter: y[s] })
+    }
+    return out
+  }, [offset, heights, containerHeight, count, gap])
+
+  return { containerRef, offset, heights, slots, moveTo, jumpTo, isSettled: settled }
+}
