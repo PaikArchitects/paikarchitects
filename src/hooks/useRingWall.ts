@@ -1,10 +1,14 @@
 'use client'
 
-// ── useRingWall — 가상 링(Virtual Ring) 물리 코어 (WALL_RING_SPEC §2) ──
+// ── useRingWall — 가상 링(Virtual Ring) 물리 코어 (WALL_RING_SPEC 개정판) ──
 //
 // 월을 스크롤 문서가 아닌 "N개 카드가 가상의 원 위에 배열된 링"으로 다룬다.
 // 유일한 위치 상태는 연속 실수 offset (단위: 인덱스) 하나이며, 모든 카드의
 // 위치는 offset과 애니메이션 중인 높이 배열로부터의 순수 함수 파생이다.
+//
+// 이중 모드 (§1): 최악 조건(전 카드 d>=2)에서도 순환 둘레가 뷰포트+버퍼를
+// 채우는 N에서만 루프. 그 미만이면 순환 항을 제거한 유한 스택(축퇴형) —
+// 원형/선형 분기는 offset 산술·슬롯 범위·입력 게이트에만 존재한다 (§3).
 //
 // 입력 리스너(휠·포인터·click 캡처)와 ResizeObserver는 containerRef에 직접
 // 등록한다 — React 합성 wheel 이벤트는 루트에 passive로 부착되어
@@ -31,6 +35,7 @@ export const circDist = (a: number, b: number, n: number) =>
 // ── 물리 상수 ──
 
 const MIN_SLOT_HEIGHT = 96   // 최소 티어 높이 — 윈도 반경·px→idx 환산 기준 (96+gap=112)
+const LOOP_BUFFER = 150      // px — 루프 성립 판정 안전 버퍼 (§1)
 const VELOCITY_MAX = 12      // idx/s
 const VELOCITY_EPS = 0.02    // idx/s — 미만이면 0 스냅
 const VELOCITY_TAU = 0.18    // s — 관성 감쇠 시상수
@@ -55,9 +60,9 @@ export interface RingWallOptions {
 }
 
 export interface RingSlot {
-  slot: number      // 중앙 기준 슬롯 번호 ∈ [-R, +R]
-  index: number     // mod(base + slot, N)
-  turn: number      // 회전수 — React key용
+  slot: number      // 중앙 기준 슬롯 번호 ∈ [-Rlo, +Rhi]
+  index: number     // 루프: mod(base + slot, N) / 유한: base + slot (유효 범위만 렌더)
+  turn: number      // 회전수 — React key용. 유한 모드에서는 항상 0
   yCenter: number   // 카드 세로 중심의 컨테이너 좌표 (px)
 }
 
@@ -66,7 +71,8 @@ export interface RingWallApi {
   offset: number                             // 현재 오프셋 (매 프레임 갱신)
   heights: number[]                          // 애니메이션 중인 실측 높이 배열 (length N)
   slots: RingSlot[]
-  moveTo: (index: number) => void            // 최단 원형 경로 트위닝
+  isLoop: boolean                            // §1 모드 판정 — false면 유한 스택
+  moveTo: (index: number) => void            // 루프: 최단 원형 경로 / 유한: 선형 트위닝
   jumpTo: (index: number) => void            // 즉시 이동 (필터 스왑용)
   isSettled: boolean
 }
@@ -120,6 +126,12 @@ export function useRingWall({ count, getSlotHeight, gap }: RingWallOptions): Rin
   }))
   const [containerHeight, setContainerHeight] = useState(0)
 
+  // ── 모드 판정 (§1) — count·containerHeight 변경 시에만 재평가 ──
+  // 최악 조건(전 카드 d>=2 = MIN_SLOT_HEIGHT)에서도 뷰포트+버퍼가 채워질 때만 루프
+  const isLoop = count * (MIN_SLOT_HEIGHT + gap) >= containerHeight + LOOP_BUFFER
+  const isLoopRef = useRef(isLoop)
+  isLoopRef.current = isLoop
+
   // ── 단일 rAF 물리 루프: 관성 + 트위닝 + 높이 수렴 (§2-C) ──
   const tick = useCallback((now: number) => {
     const dt = clamp((now - lastTimeRef.current) / 1000, 0, MAX_DT)
@@ -140,6 +152,15 @@ export function useRingWall({ count, getSlotHeight, gap }: RingWallOptions): Rin
       velocityRef.current *= Math.exp(-dt / VELOCITY_TAU)
       if (Math.abs(velocityRef.current) < VELOCITY_EPS) velocityRef.current = 0
       else active = true
+    }
+
+    // 유한 모드 offset 클램프 [0, N-1] (§3-A) — 모드 전환 잔여 운동 흡수
+    if (!isLoopRef.current && n > 0) {
+      const max = n - 1
+      if (offsetRef.current < 0 || offsetRef.current > max) {
+        offsetRef.current = clamp(offsetRef.current, 0, max)
+        velocityRef.current = 0
+      }
     }
 
     const heights = heightsRef.current
@@ -174,17 +195,21 @@ export function useRingWall({ count, getSlotHeight, gap }: RingWallOptions): Rin
     const n = countRef.current
     if (n <= 0) return
     const from = offsetRef.current
-    const delta = signedCircDelta(mod(from, n), index, n)
+    // 루프: 최단 원형 경로 / 유한: 클램프된 인덱스로 선형 이동 (§3-A)
+    const to = isLoopRef.current
+      ? from + signedCircDelta(mod(from, n), index, n)
+      : clamp(index, 0, n - 1)
+    const delta = to - from
     velocityRef.current = 0
     if (Math.abs(delta) < 1e-3) {
       tweenRef.current = null
-      offsetRef.current = from + delta
+      offsetRef.current = to
       wake()   // 스냅 커밋 1프레임
       return
     }
     tweenRef.current = {
       from,
-      to: from + delta,   // 최단 원형 경로
+      to,
       start: performance.now(),
       duration: clamp(250 + 90 * Math.abs(delta), 350, 900),
     }
@@ -195,15 +220,17 @@ export function useRingWall({ count, getSlotHeight, gap }: RingWallOptions): Rin
     const n = countRef.current
     tweenRef.current = null
     velocityRef.current = 0
-    offsetRef.current = n > 0 ? mod(index, n) : 0
+    offsetRef.current = n > 0
+      ? (isLoopRef.current ? mod(index, n) : clamp(index, 0, n - 1))
+      : 0
     heightsRef.current = Array.from({ length: n }, (_, i) => getSlotHeightRef.current(i))
     setFrame({ offset: offsetRef.current, heights: heightsRef.current.slice(), settled: true })
   }, [])
 
-  // 티어 목표 변경(호버 등) 시 웨이크 — 높이 수렴 루프만 동작, 오프셋 부동
+  // 티어 목표 변경(호버 등)·모드 전환 시 웨이크 — 높이 수렴 루프만 동작, 오프셋 부동
   useEffect(() => {
     wake()
-  }, [getSlotHeight, wake])
+  }, [getSlotHeight, isLoop, wake])
 
   // ── 입력 계층 + ResizeObserver (§2-D) ──
   useEffect(() => {
@@ -212,8 +239,10 @@ export function useRingWall({ count, getSlotHeight, gap }: RingWallOptions): Rin
 
     const pxPerIdx = MIN_SLOT_HEIGHT + gapRef.current   // 112 = 최소 슬롯 간격 px→idx 환산
 
-    // 휠 (마우스 전담) — 페이지 스크롤 차단을 위해 non-passive 필수
+    // 휠 (마우스 전담) — 페이지 스크롤 차단을 위해 non-passive 필수.
+    // 유한 모드에서는 preventDefault도 하지 않고 통과 (§3-B — 페이지가 overflow hidden)
     const onWheel = (e: WheelEvent) => {
+      if (!isLoopRef.current) return
       e.preventDefault()
       tweenRef.current = null   // 입력 우선 — 트위닝 즉시 취소
       velocityRef.current = clamp(
@@ -225,8 +254,10 @@ export function useRingWall({ count, getSlotHeight, gap }: RingWallOptions): Rin
     }
 
     // 드래그 (터치/펜 전용 — 마우스는 휠 전담, 클릭 선택과의 충돌 방지)
+    // 유한 모드는 드래그 무시 — 캡처하지 않으므로 탭 click 선택은 그대로 발화 (§3-B)
     const onPointerDown = (e: PointerEvent) => {
       if (e.pointerType === 'mouse') return
+      if (!isLoopRef.current) return
       suppressClickRef.current = false
       tweenRef.current = null
       velocityRef.current = 0
@@ -322,20 +353,30 @@ export function useRingWall({ count, getSlotHeight, gap }: RingWallOptions): Rin
     const R = Math.ceil(containerHeight / 2 / (MIN_SLOT_HEIGHT + gap)) + 2
     const base = Math.floor(offset)
     const frac = offset - base
-    const idxOf = (s: number) => mod(base + s, n)
+    // 슬롯 범위 — 루프: Rlo+Rhi+1 ≤ N으로 제한해 프로젝트당 최대 1회 렌더 (§2)
+    //           유한: 유효 인덱스 0..N-1에 대응하는 슬롯만 (§3-A)
+    const lo = isLoop ? Math.min(R, Math.floor((n - 1) / 2)) : Math.min(R, base)
+    const hi = isLoop ? Math.min(R, Math.ceil((n - 1) / 2)) : Math.min(R, n - 1 - base)
+    // idxOf: 루프는 mod 순환, 유한은 클램프(간격 계산용 — 범위 밖 슬롯은 미렌더)
+    const idxOf = (s: number) => (isLoop ? mod(base + s, n) : clamp(base + s, 0, n - 1))
     const hAt = (i: number) => heights[i] ?? MIN_SLOT_HEIGHT
     const spacing = (a: number, b: number) => (hAt(idxOf(a)) + hAt(idxOf(b))) / 2 + gap
     // frac=0이고 높이가 수렴하면 슬롯 0은 수학적으로 정중앙 — 높이 변화는
     // 중앙에서 바깥으로 대칭 전파되므로 별도 보정이 없다
     const y: Record<number, number> = { 0: containerHeight / 2 - frac * spacing(0, 1) }
-    for (let s = 1; s <= R; s++) y[s] = y[s - 1] + spacing(s - 1, s)
-    for (let s = -1; s >= -R; s--) y[s] = y[s + 1] - spacing(s, s + 1)
+    for (let s = 1; s <= hi; s++) y[s] = y[s - 1] + spacing(s - 1, s)
+    for (let s = -1; s >= -lo; s--) y[s] = y[s + 1] - spacing(s, s + 1)
     const out: RingSlot[] = []
-    for (let s = -R; s <= R; s++) {
-      out.push({ slot: s, index: idxOf(s), turn: Math.floor((base + s) / n), yCenter: y[s] })
+    for (let s = -lo; s <= hi; s++) {
+      out.push({
+        slot: s,
+        index: idxOf(s),
+        turn: isLoop ? Math.floor((base + s) / n) : 0,
+        yCenter: y[s],
+      })
     }
     return out
-  }, [offset, heights, containerHeight, count, gap])
+  }, [offset, heights, containerHeight, count, gap, isLoop])
 
-  return { containerRef, offset, heights, slots, moveTo, jumpTo, isSettled: settled }
+  return { containerRef, offset, heights, slots, isLoop, moveTo, jumpTo, isSettled: settled }
 }

@@ -132,9 +132,10 @@ export function LandingExperience({ initialSlug, initialShowFilters = false }: L
     if (introPhase !== 'done') return
     if (mobile) return
     if (activeProject || hoveredProject) return
+    if (filteredProjects.length < 2) return
     const timer = setInterval(advanceShuffle, 6000)
     return () => clearInterval(timer)
-  }, [introPhase, mobile, activeProject, hoveredProject, advanceShuffle])
+  }, [introPhase, mobile, activeProject, hoveredProject, filteredProjects, advanceShuffle])
 
   const handleBack = useCallback(() => {
     setActiveProject(null)

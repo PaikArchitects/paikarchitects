@@ -1,213 +1,109 @@
-# WALL_RING_SPEC — 데스크톱 프로젝트 월 가상 링(Virtual Ring) 전면 교체
+# WALL_RING_SPEC — 개정판 (이중 모드: 루프 / 유한)
 
-> **작성일:** 2026.07.06
-> **대상:** `src/components/ProjectWall.tsx` 내부 전면 재작성 + `src/hooks/useRingWall.ts` 신규 생성
-> **성격:** 동결된 데스크톱 인터랙션 레이어의 명시적 재개방 (사용자 지시). 네이티브 스크롤 모델을 폐기하고 상태 구동형 가상 링 모델로 교체한다.
+> **작성일:** 2026.07.07 (초판 2026.07.06의 후속 개정 — 같은 영역, 파일명 승계)
+> **전제:** 초판 스펙(가상 링 모델)은 이미 구현·배포 완료. 본 개정판은 **현재 구현된 코드를 기준으로 한 수정 명세**다.
+> **개정 사유:** 필터 결과가 소수(N이 작을 때)일 때 동일 프로젝트 클론이 다중 렌더링되고 전부 동시에 d=0으로 하이라이트되는 결함 (예: REMODELING 필터 → 문화제조창 5장). 링의 수학적 성립과 별개로 사용자에게는 고장으로 읽힌다. 소수 N에서는 순환을 포기하고 유한 스택으로 전환한다.
 
 ---
 
 ## 0. 절대 경계 (위반 금지)
 
-1. **수정 허용 파일은 정확히 2개:** `src/components/ProjectWall.tsx` (내부 전면 교체), `src/hooks/useRingWall.ts` (신규).
-2. **불가침:** `LandingExperience.tsx`, `ContentArea.tsx`, `MobileProjectWall.tsx`, `SiteHeader.tsx`, 전역 CSS, `projects.ts`, `projectSlides.ts`, `types/index.ts`. 단 한 줄도 수정하지 않는다.
-3. **외부 계약 불변:** `ProjectWallProps` 인터페이스(아래)는 이름·타입·의미 모두 그대로 유지한다. 부모는 이 교체를 감지할 수 없어야 한다.
+1. **수정 허용 파일은 정확히 3개:**
+   - `src/components/ProjectWall.tsx` — 이중 모드 분기, 용도 행 줄바꿈
+   - `src/hooks/useRingWall.ts` — 이중 모드 물리, 클론 차단
+   - `src/app/…/LandingExperience.tsx` — **§4의 셔플 가드 조건 1건만.** 그 외 어떤 줄도 수정 금지.
+2. **불가침:** `ContentArea.tsx`, `MobileProjectWall.tsx`, `SiteHeader.tsx`, 전역 CSS, `projects.ts`, `projectSlides.ts`, `types/index.ts`.
+3. **외부 계약 불변:** `ProjectWallProps` 인터페이스는 그대로.
+4. 초판 스펙의 확정 사항(단일 `offset`, 중앙 대칭 누적 배치, 단일 rAF 물리 루프, 트위닝, 터치 드래그+8px 탭 판별, 마운트 후 Fisher-Yates, `${id}#${turn}` key, 필터 2단 시퀀스)은 본 개정판에서 달리 명시하지 않는 한 전부 유지한다.
+
+---
+
+## 1. 모드 판정 — 단일 기준
 
 ```ts
-interface ProjectWallProps {
-  projects: Project[]
-  filterKey: string
-  highlightSlug: string
-  activeSlug: string | null
-  revealed: boolean
-  onHover: (project: Project | null) => void
-  onSelect: (project: Project) => void
-}
+const GAP = 16
+const MIN_SLOT = 96 + GAP                    // d>=2 티어 기준 최소 슬롯 간격
+const isLoop = count * MIN_SLOT >= containerHeight + 150   // 150 = 안전 버퍼
 ```
 
-4. **행동 의미론 보존:** 티어 중심 우선순위 `activeSlug ?? hoveredId ?? highlightSlug`, 호버는 오프셋(스크롤 위치)을 움직이지 않음, active 시 비활성 카드 dim(0.3), 셔플/active 변경 시에만 프로그래매틱 이동 — 전부 현행과 동일하게 유지.
-5. 기존 컨테이너의 className `"project-wall-scroll light-panel"`은 유지한다 (전역 CSS 참조 보존). 네이티브 스크롤바 관련 스타일은 자연히 비활성화되며, CSS 자체는 건드리지 않는다.
+- **보수적 판정 근거:** 사용자가 하이라이트에서 멀리 스크롤하면 화면의 모든 카드가 d≥2(96px)일 수 있다. 이 최악 조건에서도 뷰포트가 빈틈없이 채워질 때만 루프가 성립한다. 그 미만이면 유한 모드.
+- 판정은 `count`(필터 결과 수)와 `containerHeight`(ResizeObserver) 변경 시 재평가된다. 모드 전환은 필터 스왑·리사이즈 시점에만 발생하므로 전환 애니메이션은 불필요 — 필터 2단 시퀀스(퇴장→재입장)가 자연스럽게 가린다.
+- 참고 규모: 컨테이너 높이 ~920px 기준 N ≥ 10 → 루프, N ≤ 9 → 유한. 현재 전체 23개(ALL)는 루프, 대부분의 단일 필터는 유한 모드가 된다.
 
 ---
 
-## 1. 개념 모델
+## 2. 루프 모드 수정 — 클론 렌더링 구조적 차단
 
-월은 더 이상 스크롤 문서가 아니다. **N개 카드가 가상의 원 위에 배열된 링**이며, 유일한 위치 상태는 연속 실수 `offset` (단위: 인덱스) 하나다. `offset = 7.3`은 7번 카드와 8번 카드 사이 30% 지점이 컨테이너 세로 중앙에 있다는 뜻이다. 모든 카드의 위치·티어·불투명도는 `offset`과 props로부터의 **순수 함수 파생**이다.
+초판 §3-F("클론은 의도된 동작")를 **폐기**한다. 루프 모드에서도 각 프로젝트는 화면에 최대 1회만 존재해야 한다.
 
-- 최상단·최하단 개념 소멸. 어떤 카드든 d=0이 되는 순간 정확히 세로 중앙에 위치한다.
-- 렌더링은 가상화: 중앙 기준 윈도 반경 R 슬롯만 DOM에 존재.
-- 네이티브 스크롤(`overflowY: auto`, `scrollIntoView`) 완전 폐기. 컨테이너는 `overflow: hidden; position: relative`.
+- 렌더 슬롯 범위를 `s ∈ [-R, +R]`에서 **`s ∈ [-Rlo, +Rhi]`, 단 `Rlo + Rhi + 1 ≤ N`** 으로 제한한다.
+  - `Rhi = min(R, ceil((N - 1) / 2))`, `Rlo = min(R, floor((N - 1) / 2))`
+- §1의 판정 기준상 루프 모드에서는 순환 둘레가 항상 뷰포트+버퍼 이상이므로, 슬롯 수를 N으로 제한해도 화면은 빈틈없이 채워진다.
+- 그 외 루프 모드 동작(원형 거리 티어, 최단 경로 트위닝, 휠·드래그, 이음새 없음)은 현행 유지.
 
 ---
 
-## 2. `useRingWall.ts` — 물리 코어 훅 (신규)
+## 3. 유한 모드 (신규) — 중앙 정렬 스택
 
-렌더러와 분리된 훅. 시그니처(안):
+순환이 성립하지 않는 소수 N에서의 동작. **별도 코드 경로가 아니라, 동일한 슬롯 배치 수학에서 순환 항만 제거한 축퇴형(degenerate case)으로 구현한다** — 원형/선형 분기는 거리 함수와 슬롯 범위, 입력 게이트 세 지점에만 존재해야 한다.
+
+### 3-A. 기하
+
+- 슬롯 → 인덱스 매핑에서 `mod` 순환 제거: `index(s) = base + s`, 유효 범위 `0 ≤ index(s) ≤ N - 1`인 슬롯만 렌더. `turn`은 항상 0.
+- 거리 함수: 원형 거리 대신 **선형 거리** `d = |i − tierCenterIdx|` (tierCenterIdx < 0이면 전 카드 d=2 — 현행 규칙 유지).
+- 배치는 현행과 동일한 중앙 대칭 누적(yCenter 재귀). `offset`이 하이라이트 인덱스에 수렴하면 해당 카드가 세로 정중앙, 나머지는 위·아래로 자연 배열된다.
+  - N=1: 카드 1장이 정중앙 고정.
+  - N=2: 하이라이트가 중앙, 나머지 1장이 인덱스 순서에 따라 위 또는 아래에 d=1(120px)로 대기. 하이라이트 교대 시 `moveTo` 트위닝으로 스택 전체가 부드럽게 이동하며 역할이 교대된다.
+- `offset` 클램프: `[0, N − 1]`.
+
+### 3-B. 입력
+
+- **휠·드래그 입력 비활성** — 전 카드가 이미 화면 안에 있으므로 스크롤할 대상이 없다. wheel 리스너는 유한 모드에서 `preventDefault`도 하지 않고 통과시킨다(페이지 자체가 overflow hidden이므로 부작용 없음). 포인터 드래그는 무시하되 **탭(클릭) 선택은 정상 동작**해야 한다.
+- `moveTo`(셔플·active 추종)와 높이 수렴 애니메이션은 정상 가동.
+
+---
+
+## 4. LandingExperience — 셔플 가드 (허용된 유일한 1건)
+
+N=1일 때 6초마다 암전 후 같은 프로젝트를 다시 보여주는 무의미한 셔플 사이클을 차단한다. 셔플 타이머 `useEffect`(현재 `introPhase !== 'done'` / `mobile` / `activeProject || hoveredProject` 가드가 있는 효과)에 조건 하나를 추가한다:
 
 ```ts
-interface RingWallOptions {
-  count: number                    // N (표시 목록 길이)
-  containerHeight: number          // px, ResizeObserver로 갱신
-  getSlotHeight: (index: number) => number   // 인덱스 → 목표 티어 높이 (렌더러가 주입)
-  gap: number                      // 16
-}
-
-interface RingWallApi {
-  offset: number                             // 현재 오프셋 (매 프레임 갱신되는 state)
-  heights: number[]                          // 애니메이션 중인 실측 높이 배열 (length N)
-  slots: { slot: number; index: number; turn: number; yCenter: number }[]
-  moveTo: (index: number) => void            // 최단 원형 경로 트위닝
-  jumpTo: (index: number) => void            // 즉시 이동 (트위닝 없음, 필터 스왑용)
-  handlers: {                                // 컨테이너에 바인딩할 입력 핸들러
-    onWheel: (e: WheelEvent) => void
-    onPointerDown: (e: PointerEvent) => void
-    onPointerMove: (e: PointerEvent) => void
-    onPointerUp: (e: PointerEvent) => void
-  }
-  isSettled: boolean
-}
+if (filteredProjects.length < 2) return
 ```
 
-### 2-A. 원형 산술 (순수 함수)
-
-```ts
-const mod = (a: number, n: number) => ((a % n) + n) % n
-// 부호 있는 원형 델타: 결과 범위 (-n/2, n/2]
-const signedCircDelta = (from: number, to: number, n: number) => {
-  let d = mod(to - from, n)
-  if (d > n / 2) d -= n
-  return d
-}
-// 무부호 원형 거리 (티어 계산용)
-const circDist = (a: number, b: number, n: number) =>
-  Math.min(mod(a - b, n), mod(b - a, n))
-```
-
-### 2-B. 슬롯 배치 — 중앙 대칭 누적
-
-매 렌더에서 `offset`으로부터 파생:
-
-```
-base = floor(offset), frac = offset - base
-슬롯 s ∈ [-R, +R]에 대해:
-  index(s) = mod(base + s, N)
-  turn(s)  = floor((base + s) / N)     // React key용 회전수
-  spacing(a, b) = (heights[index(a)] + heights[index(b)]) / 2 + gap
-
-  yCenter(0) = C - frac * spacing(0, 1)          // C = containerHeight / 2
-  yCenter(s > 0) = yCenter(s - 1) + spacing(s - 1, s)
-  yCenter(s < 0) = yCenter(s + 1) - spacing(s, s + 1)
-```
-
-- `frac = 0`이고 높이가 수렴한 상태에서 슬롯 0 카드는 **수학적으로 정중앙**. 높이 변화는 중앙에서 바깥으로 대칭 전파되므로 별도 보정이 존재하지 않는다.
-- 윈도 반경 `R = ceil((containerHeight / 2) / (96 + gap)) + 2`. 리사이즈 시 재계산.
-- `heights`는 목표값(`getSlotHeight`)이 아니라 **애니메이션 중인 현재값**을 사용한다 (2-C).
-
-### 2-C. 단일 rAF 물리 루프
-
-하나의 rAF 루프가 세 가지를 통합 구동한다. `dt` 기반(초 단위)으로 계산해 60/120Hz 양쪽에서 동일 체감을 보장한다.
-
-1. **관성 오프셋:** `offset += velocity * dt`, `velocity *= exp(-dt / 0.18)`. `|velocity| < 0.02` (idx/s)면 0으로 스냅.
-2. **트위닝 (프로그래매틱 이동):** `moveTo(i)` 호출 시 `target = offset + signedCircDelta(mod(offset, N), i, N)` — 최단 원형 경로. 지속시간 `clamp(250 + 90 * |Δ|, 350, 900)`ms, easeInOutCubic. 트위닝 중 velocity는 0. **사용자 입력(휠·pointerdown)이 발생하면 트위닝 즉시 취소** — 입력 우선.
-3. **높이 수렴:** 각 인덱스 i에 대해 `heights[i] += (target(i) - heights[i]) * (1 - exp(-dt / 0.12))`. 시상수 0.12s ≈ 기존 400ms ease 체감과 등가. `|차이| < 0.5px`면 목표값 스냅.
-
-**슬립/웨이크:** 트위닝 없음 ∧ velocity 0 ∧ 전 높이 수렴 ∧ 드래그 아님 → rAF 취소(슬립). 입력·`moveTo`·티어 목표 변경 시 웨이크. Idle 상태에서 CPU 점유 0이어야 한다.
-
-**상태 반영:** 루프는 `offset`·`heights`를 React state로 커밋한다 (프레임당 setState 1회, 렌더 카드 ≤ 2R+1 ≈ 15개이므로 성능 문제 없음). 루프 내부 계산은 ref 미러로 수행해 stale closure를 방지한다.
-
-### 2-D. 입력 계층
-
-- **휠 (마우스):** `velocity += (e.deltaY / 112) * 2.5` (112 = 최소 슬롯 간격 96+16 기준 px→idx 환산 상수), `|velocity| ≤ 12` (idx/s) 클램프. `preventDefault()` 호출 — 페이지 스크롤 차단 (컨테이너에 non-passive 리스너로 직접 등록).
-- **드래그 (터치/펜 전용):** `e.pointerType === 'mouse'`는 무시 (마우스는 휠 전담 — 클릭 선택과의 충돌 방지). pointerdown에서 `setPointerCapture`, move에서 `offset -= dy_px / 112`, up에서 최근 3프레임 평균 속도로 velocity 부여 (플릭 관성). 컨테이너 `touch-action: none`.
-  - **탭 판별:** pointerdown→up 사이 총 이동 < 8px이면 드래그가 아니라 탭 — 카드의 `onClick`(선택)이 정상 발화하도록 이동 ≥ 8px일 때만 click을 억제한다 (`suppressClickRef` + capture 단계 click 차단).
-- 현행과 동일하게 **호버는 offset에 영향을 주지 않는다.** 호버는 티어 중심만 이동시키고, 높이 수렴 루프만 웨이크된다.
+- 이 한 줄(및 의존성 배열에 `filteredProjects`가 이미 포함되어 있지 않다면 그 추가)만 허용. `advanceShuffle`, 큐 로직, 다른 효과는 일절 수정 금지.
+- N=2 이상은 현행 셔플이 그대로 유효하다 (두 프로젝트 교대 하이라이트).
 
 ---
 
-## 3. `ProjectWall.tsx` — 렌더러 전면 교체
+## 5. 카드 용도 행 — 줄바꿈 선(先)허용
 
-### 3-A. 표시 순서 랜덤화 (신규 도입)
+차기 카테고리 개편에서 용도 라벨이 장문화된다("CULTURE AND EXHIBITION", "HOUSING AND URBANISM" 등). 동일 렌더링 코드를 두 번 손대지 않도록 본 개정판에서 미리 수용한다.
 
-- 내부 state `order: Project[]`. **초기값은 `projects` 그대로** (SSR/hydration 불일치 방지 — `Math.random`을 초기 렌더에서 절대 사용하지 않는다).
-- 마운트 후 `useEffect`에서 1회 Fisher-Yates 셔플로 교체. 인트로(`revealed=false`)가 이 교체를 시각적으로 가리므로 팝 현상 없음.
-- 필터로 `projects`가 바뀔 때마다(3-D 스왑 시점에) 새 목록을 다시 셔플한다. 세션 내 동일 필터에서는 순서 고정.
-- 부모의 셔플 큐(하이라이트 순번)와 월 표시 순서는 **서로 독립적인 별개의 무작위**다. 동기화하지 않는다.
-
-### 3-B. 파생 계산
-
-- `effectiveHighlight = activeSlug ?? highlightSlug` (프로그래매틱 이동 기준 — 현행 scrollIntoView 트리거와 동일).
-- `tierCenter = activeSlug ?? hoveredId ?? highlightSlug` (크기 위계 기준 — 현행 동일).
-- `tierCenterIdx = order.findIndex(p => p.id === tierCenter)`.
-- 각 슬롯의 티어: `d = tierCenterIdx < 0 ? 2 : circDist(index(s), tierCenterIdx, N)`, `tier = min(d, 2)`. **거리 함수가 선형 |i−j|에서 원형 거리로 바뀌는 것이 이번 교체의 개념적 핵심이다.**
-- `getSlotHeight(i)`는 이 티어 계산을 훅에 주입: `TIER_HEIGHTS[min(circDist(i, tierCenterIdx, N), 2)]` (tierCenterIdx < 0이면 96).
-- 불투명도·isHighlighted·isDimmed 규칙은 현행 WallCard 로직 그대로 (`active ? 1 : isDimmed ? 0.3 : 0.45`, 마우스 전용 hover 등).
-
-### 3-C. 프로그래매틱 이동
-
-```ts
-useEffect(() => {
-  const idx = order.findIndex(p => p.id === effectiveHighlight)
-  if (idx >= 0) ring.moveTo(idx)
-}, [effectiveHighlight, order])
-```
-
-- `scrollIntoView`·`cardRefs`·`programmaticRef` 계열은 전부 삭제된다. 트위닝이 자기 생명주기를 소유하므로 완료 플래그 보정이 존재하지 않는다.
-
-### 3-D. 필터 2단 시퀀스 승계
-
-현행 exit(350ms) → 스왑 → enter 골격을 유지하되 링 문법으로 치환:
-
-1. `projects` 변경 감지 → `phase = 'exit'`: 전 카드 페이드아웃 + translateY(-16px), 지연 `|slot| * 15ms` (중앙에서 바깥으로).
-2. 350ms 후: `order = shuffle(newProjects)` 스왑, 새 order에서 `effectiveHighlight` 인덱스로 **`jumpTo` (즉시, 트위닝 없음)** — 하이라이트가 중앙에 놓인 채로 재입장. 목록에 없으면 `jumpTo(0)`.
-3. `phase = 'enter'` → 더블 rAF 후 `'idle'`: 재입장 캐스케이드 opacity 0→1 + translateY(8px)→0, 지연 `|slot| * 40ms` (중앙 방사형). 인트로 최초 reveal도 동일 캐스케이드.
-
-### 3-E. 카드 렌더링 구조
-
-- 컨테이너: 기존 치수 유지 (`width: clamp(300px, 28vw, 28vw)`, `height: 100%`), `overflow: hidden`, `position: relative`, `touch-action: none`.
-- 카드 외피(위치 계층): `position: absolute; left: 0; right: 0; top: 0; transform: translateY(yCenter − heights[i]/2); height: heights[i]px`. **위치·높이에 CSS transition을 걸지 않는다** — 모든 운동은 물리 루프가 프레임 단위로 공급한다.
-- 카드 내피(현출 계층): 기존 WallCard의 내부 구조(우정렬 텍스트 + 2:1 썸네일, `cldThumb(coverImage, 480)`, coverColor fallback) 그대로 이식. opacity·reveal transition은 내피에만 건다 (위치 transform과 분리 — 상호 간섭 방지).
-- **React key: `` `${project.id}#${turn}` ``.** 카드가 같은 회전수에 머무는 동안 key 안정 → 이미지 재로드 없음. 회전 경계를 넘는 리마운트는 화면 밖에서만 발생한다.
-- 이미지 `loading="lazy"` 유지.
-
-### 3-F. 소수 N 엣지 케이스
-
-필터 결과 N이 윈도(2R+1)보다 작으면 동일 프로젝트가 여러 슬롯에 복수 렌더링된다 (turn이 다른 클론). 이는 링의 정직한 표현이며 의도된 동작이다 — 별도 분기·예외 처리를 만들지 않는다. `N = 1`도 동일 원리로 성립해야 한다 (`circDist`의 n=1 나눗셈 주의: `mod(x, 1) = 0` → d=0, 자연 성립).
+- 카드 텍스트 컬럼의 용도(type) 행: 한 줄 강제 없이 **최대 2줄 줄바꿈 허용**. `wordBreak: 'keep-all'`, `lineHeight: 1.35`, 우정렬 유지.
+- 텍스트 블록은 상단 정렬(현행 `justifyContent: flex-start`)이므로 줄바꿈은 아래로만 성장한다. 최소 티어(96px) 내에서 제목 2줄 + 용도 2줄이 수용되는지 확인하고, 넘칠 경우 용도 행에 `overflow: hidden` + 2줄 클램프를 적용한다.
+- 라벨 문자열 자체의 변경은 본 스펙 범위 밖이다 (차기 CATEGORY_SPEC).
 
 ---
 
-## 4. 명시적 삭제 대상 (ProjectWall.tsx 내부)
+## 6. 검증
 
-- `overflowY: auto` 및 스크롤 컨테이너 동작 전부
-- `scrollIntoView` 호출 및 `cardRefs`
-- `containerRef.current.scrollTop = 0` (필터 리셋 — `jumpTo`로 대체)
-- 선형 거리 `Math.abs(index - highlightIdx)` (원형 거리로 대체)
-- 카드 외피의 `height 400ms ease` CSS transition (물리 루프로 대체)
+`npx tsc --noEmit` 통과 필수. (`npm run dev` / `npm run build` 금지.)
 
-부분 패치가 아니라 **파일 전체를 새로 작성**한다. 기존 파일에서 승계하는 것은 외부 계약, WallCard 내부 시각 구조, 상수(FONT, TIER_HEIGHTS, gap 16, 패딩 개념)뿐이다.
+배포 후 수동 체크리스트:
 
----
-
-## 5. 검증
-
-구현 완료 후 `npx tsc --noEmit` 통과 필수. (`npm run dev` / `npm run build` 실행 금지.)
-
-수동 검증 체크리스트 (배포 후 사용자 수행):
-
-1. 휠 연속 스크롤로 목록을 2바퀴 이상 통과 — 이음새·점프·순서 재배열 감지 불가
-2. 새로고침 시마다 월 순서가 달라짐 (콘솔 hydration 경고 0건)
-3. 셔플 6초 주기 이동이 항상 최단 원형 경로 + 거리 비례 지속시간
-4. 정지 상태에서 d=0 카드가 항상 컨테이너 세로 정중앙 (최상단/최하단 예외 소멸)
-5. 티어 전환(150↔120↔96) 시 d=0 중앙 고정 유지 (위쪽 밀림 없음)
-6. 호버 시 크기 위계만 이동, 오프셋 부동 (현행 동일)
-7. 카드 클릭 → active 진입, dim 0.3, 트랙 정상 (ContentArea 무변경 확인)
-8. 필터 전환: 퇴장 → 랜덤 재배열 + 하이라이트 중앙 재입장 캐스케이드
-9. 소수 필터(항목 2~3개)에서 클론 순환 정상, 크래시 없음
-10. 태블릿/터치: 드래그 관성 스크롤 + 탭 선택 공존 (8px 임계)
-11. 트위닝 중 휠 개입 시 즉시 사용자 제어로 전환
-12. Idle 방치 시 CPU 점유 0 근접 (물리 루프 슬립 확인)
+1. ALL(23개): 루프 모드 — 휠 2바퀴 통과 시 이음새 없음, **어느 순간에도 동일 프로젝트 2장 이상 미표시**
+2. REMODELING 등 N=1 필터: 카드 1장 정중앙, 셔플·암전 미가동, 클릭 → active 정상
+3. N=2 필터: 하이라이트 중앙 + 나머지 1장 상/하 d=1 대기, 6초 교대 시 스택 트위닝
+4. N=3~9 필터: 전 카드 중앙 정렬 스택, 휠 입력 무반응, 하이라이트 순회 시 스택 이동
+5. 유한 모드에서 호버 → 크기 위계만 반응, 위치 부동
+6. 유한↔루프 전환(필터 변경)이 2단 시퀀스에 자연스럽게 흡수됨
+7. 루프 모드 기존 동작 회귀 없음: 랜덤 순서, 관성, 터치 드래그+탭, 최단 경로 트위닝, active dim
+8. 카드 용도 행 2줄 줄바꿈 시 카드 레이아웃 비파괴 (임시로 긴 라벨을 넣어 확인할 필요는 없음 — 코드 검토로 갈음)
+9. Git diff 파일 수 = 정확히 3 (ProjectWall / useRingWall / LandingExperience 1줄)
 
 ---
 
-## 6. 사후 처리
+## 7. 사후
 
-- 이 스펙 실행·검증 완료 시 데스크톱 인터랙션 레이어 재동결.
-- `useRingWall`은 향후 모바일 콘덴스드 월 이식의 공용 물리 코어가 된다 (모바일 이식은 별도 스펙 — 이번 작업에서 MobileProjectWall에 접근 금지).
+- 검증 통과 시 데스크톱 인터랙션 레이어 재동결. 이후 순서: CATEGORY_SPEC(타이폴로지 개편, Career_260707.xlsx 정본) → 재동결 시점 1차 CODE_AUDIT → 모바일 링 이식.

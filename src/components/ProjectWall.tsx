@@ -1,11 +1,12 @@
 'use client'
 
-// ── ProjectWall — 가상 링 렌더러 (WALL_RING_SPEC §3) ──
+// ── ProjectWall — 가상 링 렌더러 (WALL_RING_SPEC 개정판) ──
 //
 // 네이티브 스크롤 모델 폐기. 위치·티어·불투명도는 useRingWall의 offset과
-// props로부터의 순수 함수 파생이며, 거리 함수는 선형 |i−j|가 아니라 원형
-// 거리(circDist)다. 컨테이너는 overflow hidden — 어떤 카드든 d=0이 되는
-// 순간 정확히 세로 중앙에 위치한다.
+// props로부터의 순수 함수 파생이다. 이중 모드: N이 뷰포트를 채우면 순환
+// 루프(원형 거리), 그 미만이면 중앙 정렬 유한 스택(선형 거리) — 분기는
+// 거리 함수 한 지점뿐, 배치 수학은 동일하다 (§3). 컨테이너는 overflow
+// hidden — 어떤 카드든 d=0이 되는 순간 정확히 세로 중앙에 위치한다.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { Project } from '@/types'
@@ -14,7 +15,7 @@ import { circDist, useRingWall } from '@/hooks/useRingWall'
 
 const FONT = "'Pretendard Variable', Pretendard, -apple-system, BlinkMacSystemFont, sans-serif"
 
-// 티어 중심과의 원형 거리(d) 기반 3단 높이: d=0 선택 / d=1 인접 / d>=2 그 외
+// 티어 중심과의 거리(d) 기반 3단 높이: d=0 선택 / d=1 인접 / d>=2 그 외
 const TIER_HEIGHTS: Record<0 | 1 | 2, number> = { 0: 150, 1: 120, 2: 96 }
 const GAP = 16
 
@@ -112,6 +113,7 @@ function WallCard({ project, slot, yCenter, height, isHighlighted, isDimmed, rev
           <div style={{ fontFamily: FONT, fontSize: 13, fontWeight: 450, color: '#080706', lineHeight: 1.3, wordBreak: 'keep-all' as const }}>
             {project.title}
           </div>
+          {/* 용도 행 — 장문 라벨 대비 최대 2줄 허용, 초과분은 클램프 (§5) */}
           <div style={{
             fontFamily: FONT,
             fontSize: 11,
@@ -121,6 +123,12 @@ function WallCard({ project, slot, yCenter, height, isHighlighted, isDimmed, rev
             color: '#080706',
             opacity: 0.6,
             marginTop: 4,
+            lineHeight: 1.35,
+            wordBreak: 'keep-all' as const,
+            display: '-webkit-box',
+            WebkitBoxOrient: 'vertical' as const,
+            WebkitLineClamp: 2,
+            overflow: 'hidden',
           }}>
             {project.type}
           </div>
@@ -170,13 +178,17 @@ export function ProjectWall({ projects, filterKey, highlightSlug, activeSlug, re
   const N = order.length
   const tierCenterIdx = useMemo(() => order.findIndex(p => p.id === tierCenter), [order, tierCenter])
 
-  const getSlotHeight = useCallback((i: number) => (
-    tierCenterIdx < 0
-      ? TIER_HEIGHTS[2]
-      : TIER_HEIGHTS[Math.min(circDist(i, tierCenterIdx, N), 2) as 0 | 1 | 2]
-  ), [tierCenterIdx, N])
+  // 거리 함수 — 루프: 원형 / 유한: 선형 (§3-A). 모드는 훅 반환 후에야 확정되므로
+  // ref 미러로 읽는다. 모드 전환 시 훅이 스스로 웨이크해 높이를 재수렴시킨다.
+  const isLoopRef = useRef(true)
+  const getSlotHeight = useCallback((i: number) => {
+    if (tierCenterIdx < 0) return TIER_HEIGHTS[2]
+    const d = isLoopRef.current ? circDist(i, tierCenterIdx, N) : Math.abs(i - tierCenterIdx)
+    return TIER_HEIGHTS[Math.min(d, 2) as 0 | 1 | 2]
+  }, [tierCenterIdx, N])
 
   const ring = useRingWall({ count: N, getSlotHeight, gap: GAP })
+  isLoopRef.current = ring.isLoop
   const { moveTo, jumpTo } = ring
 
   // 마운트 후 1회 Fisher-Yates 셔플 — 인트로(revealed=false)가 교체를 가림
@@ -207,7 +219,7 @@ export function ProjectWall({ projects, filterKey, highlightSlug, activeSlug, re
     return () => cancelAnimationFrame(raf)
   }, [phase])
 
-  // 프로그래매틱 이동 — 필터 스왑 직후엔 jumpTo(즉시), 그 외엔 최단 원형 트위닝
+  // 프로그래매틱 이동 — 필터 스왑 직후엔 jumpTo(즉시), 그 외엔 모드별 트위닝
   useEffect(() => {
     const idx = order.findIndex(p => p.id === effectiveHighlight)
     if (pendingJumpRef.current) {
@@ -239,7 +251,7 @@ export function ProjectWall({ projects, filterKey, highlightSlug, activeSlug, re
         return (
           <WallCard
             // 같은 회전수에 머무는 동안 key 안정 → 이미지 재로드 없음.
-            // N < 윈도면 동일 프로젝트가 turn 다른 클론으로 복수 렌더링 (§3-F)
+            // 루프는 슬롯 수 ≤ N, 유한은 turn 고정 0 — 어느 모드든 클론 없음 (§2·§3)
             key={`${project.id}#${turn}`}
             project={project}
             slot={slot}
