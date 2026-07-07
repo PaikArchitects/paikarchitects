@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { sortedProjects } from '@/data/projects'
-import type { Project } from '@/types'
+import { TYPOLOGY_ORDER, type Project, type ProjectType } from '@/types'
 import { ProjectWall } from '@/components/ProjectWall'
 import { ContentArea } from '@/components/ContentArea'
 import { MobileProjectWall } from '@/components/MobileProjectWall'
@@ -12,7 +12,9 @@ const FONT = "'Pretendard Variable', Pretendard, -apple-system, BlinkMacSystemFo
 
 const HEADER_H = 80   // 데스크톱 헤더 존. 필터 행 포함 여유치
 
-const FILTER_TYPES = ['All', ...Array.from(new Set(sortedProjects.map(p => p.type)))]
+const FILTER_TYPES = ['All', ...TYPOLOGY_ORDER.filter(t =>
+  sortedProjects.some(p => p.type === t || p.subTypes?.includes(t))
+)]
 
 function shuffle<T>(arr: T[]): T[] {
   const a = [...arr]
@@ -43,7 +45,7 @@ export function LandingExperience({ initialSlug, initialShowFilters = false }: L
   const [activeFilter, setActiveFilter] = useState<string>('All')
 
   const filteredProjects = useMemo(
-    () => activeFilter === 'All' ? sortedProjects : sortedProjects.filter(p => p.type === activeFilter),
+    () => activeFilter === 'All' ? sortedProjects : sortedProjects.filter(p => p.type === activeFilter || p.subTypes?.includes(activeFilter as ProjectType)),
     [activeFilter]
   )
   const filteredRef = useRef(filteredProjects)

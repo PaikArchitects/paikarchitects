@@ -1,14 +1,26 @@
 export type ProjectType =
-  | 'Culture'
-  | 'Infrastructure'
-  | 'Work'
-  | 'Residential'
+  | 'Workplace'
   | 'Sports'
-  | 'Healthcare'
+  | 'Culture and Exhibition'
+  | 'Education'
+  | 'Commerce'
   | 'Hospitality'
-  | 'Film'
+  | 'Religion'
+  | 'Housing and Urbanism'
+  | 'Infrastructure'
+  | 'Healthcare'
   | 'Remodeling'
-  | 'Mixed-use'
+  | 'Interior'
+  | 'Landscape'
+  | 'Space'
+
+/** 필터 칩 정렬 정본 순서 — Career_260707.xlsx 'Typology' 시트 */
+export const TYPOLOGY_ORDER: ProjectType[] = [
+  'Workplace', 'Sports', 'Culture and Exhibition', 'Education',
+  'Commerce', 'Hospitality', 'Religion', 'Housing and Urbanism',
+  'Infrastructure', 'Healthcare', 'Remodeling', 'Interior',
+  'Landscape', 'Space',
+]
 
 export type ProjectStatus =
   | 'Completed'
@@ -19,11 +31,12 @@ export type ProjectStatus =
 
 export interface Project {
   id: string              // URL slug — 변경 불가 (SEO)
-  careerNo: number        // Career 전체 통번호 (Career_260519.xlsx 기준, 표시용)
+  careerNo: number        // Career_260707.xlsx '프로젝트 연번' 기준
   title: string
   titleKr: string
   year: number            // 설계 시작 연도
-  type: ProjectType
+  type: ProjectType       // = Typology_Main. 카드·메타에 노출되는 유일한 라벨
+  subTypes?: ProjectType[] // = Typology_Sub 1·2. 필터 매칭 전용 — 어디에도 표기하지 않는다
   status: ProjectStatus
   result: string          // 'Winner', '2nd Prize', etc.
   featured: boolean       // true = 2배 너비 카드
