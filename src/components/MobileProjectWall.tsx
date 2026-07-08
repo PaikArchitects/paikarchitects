@@ -440,7 +440,7 @@ interface MobileProjectWallProps {
   onActivate: (slug: string) => void
   onDeactivate: () => void
   revealed: boolean              // layoutVisible (introPhase === 'done')
-  showFilters: boolean           // WORK 진입 시 true — 필터 글리프 표시 여부 (M1)
+  showFilters: boolean           // [미사용] 필터 글리프가 revealed 동기 상시 표시로 전환되며 유일 소비처 소멸 — 외부 계약(LandingExperience) 불변을 위해 시그니처 유지
 }
 
 interface ViewRect {
@@ -474,7 +474,7 @@ interface MorphState {
 
 export function MobileProjectWall({
   projects, filterTypes, activeFilter, onFilter,
-  activeSlug, onActivate, onDeactivate, revealed, showFilters,
+  activeSlug, onActivate, onDeactivate, revealed,
 }: MobileProjectWallProps) {
   // ── 표시 순서 — 초기값은 projects 그대로(SSR/hydration 안전), 마운트 후 1회 셔플 (§4) ──
   const [order, setOrder] = useState<Project[]>(projects)
@@ -1072,10 +1072,11 @@ export function MobileProjectWall({
         </div>
       )}
 
-      {/* ── 필터 글리프 + 우측 슬라이드 패널 (§7) — showFilters일 때만 렌더 (M1) ── */}
-      {showFilters && (
+      {/* ── 필터 글리프 + 우측 슬라이드 패널 (§7) — 햄버거와 동일하게 인트로 완료(revealed)와 동기해 상시 표시 ── */}
+      {revealed && (
         <>
-          {/* 트리거 — 헤더 존 우측. 길이가 체감하는 수평선 3개 (햄버거와 구분) */}
+          {/* 트리거 — 헤더 존 우측. 길이가 체감하는 수평선 3개 (햄버거와 구분).
+               SVG 통일 기하: viewBox 0 0 18 14, 선 중심 y=1/7/13 — 햄버거와 전체 높이·두께·수직 위치 동일 */}
           <button
             aria-label="Filter"
             onClick={() => setFilterOpen(o => !o)}
@@ -1093,16 +1094,25 @@ export function MobileProjectWall({
               border: 'none',
               padding: 0,
               cursor: 'pointer',
+              color: '#080706',
               opacity: revealed ? 1 : 0,
               pointerEvents: revealed ? 'auto' : 'none',
               transition: 'opacity 400ms ease-out',
             }}
           >
-            <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5 }}>
-              <span style={{ width: 18, height: 1.5, background: '#080706', display: 'block' }} />
-              <span style={{ width: 13, height: 1.5, background: '#080706', display: 'block' }} />
-              <span style={{ width: 8, height: 1.5, background: '#080706', display: 'block' }} />
-            </span>
+            <svg
+              viewBox="0 0 18 14"
+              width={18}
+              height={14}
+              style={{ display: 'block' }}
+              stroke="currentColor"
+              strokeWidth={1.5}
+              strokeLinecap="butt"
+            >
+              <line x1="0" y1="1" x2="18" y2="1" />
+              <line x1="3" y1="7" x2="15" y2="7" />
+              <line x1="6" y1="13" x2="12" y2="13" />
+            </svg>
           </button>
 
           {/* 스크림 — 탭 시 닫힘 */}

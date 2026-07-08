@@ -98,20 +98,31 @@ export function SiteHeader() {
         ))}
       </nav>
 
-      {/* ── MOBILE HAMBURGER — <768px 전용 (globals.css가 표시 제어). 등장 수평선 2개 ── */}
+      {/* ── MOBILE HAMBURGER — <768px 전용 (globals.css가 표시 제어).
+           SVG 통일 기하: viewBox 0 0 18 14, 선 중심 y=1/7/13 (중심 간격 6px 정수 — 균질 렌더) ── */}
       <button
         className="mobile-menu-btn"
         aria-label="Menu"
         onClick={() => setMenuOpen(o => !o)}
         style={{
+          color: '#080706',
           opacity: layoutVisible ? 1 : 0,
           pointerEvents: layoutVisible ? 'auto' : 'none',
         }}
       >
-        <span style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-          <span style={{ width: 18, height: 1.5, background: '#080706', display: 'block' }} />
-          <span style={{ width: 18, height: 1.5, background: '#080706', display: 'block' }} />
-        </span>
+        <svg
+          viewBox="0 0 18 14"
+          width={18}
+          height={14}
+          style={{ display: 'block' }}
+          stroke="currentColor"
+          strokeWidth={1.5}
+          strokeLinecap="butt"
+        >
+          <line x1="0" y1="1" x2="18" y2="1" />
+          <line x1="0" y1="7" x2="18" y2="7" />
+          <line x1="0" y1="13" x2="18" y2="13" />
+        </svg>
       </button>
 
       {/* 스크림 — 탭 시 닫힘 */}

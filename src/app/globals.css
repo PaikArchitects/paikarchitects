@@ -89,7 +89,7 @@
 .wordmark-intro.moved {
   top: 20px;
   left: 24px;
-  transform: none;
+  transform: translate(0, 0);   /* 기존 none → 계산상 동일, 함수형만 통일 (인자별 보간 강제) */
 }
 
 .wordmark-intro.on-light {
@@ -191,7 +191,7 @@
   .wordmark-intro.moved {
     top: 16px;
     left: 50%;
-    transform: translateX(-50%);
+    transform: translate(-50%, 0);   /* 기존 translateX(-50%) → 함수형 통일 — 행렬 보간 방지, 퍼센트 전 구간 유지 */
     font-size: 22px;
   }
 
