@@ -34,7 +34,7 @@ export const circDist = (a: number, b: number, n: number) =>
 
 // ── 물리 상수 ──
 
-const MIN_SLOT_HEIGHT = 96   // 최소 티어 높이 — 윈도 반경·px→idx 환산 기준 (96+gap=112)
+const MIN_SLOT_HEIGHT = 96   // 기본 최소 티어 높이 — minSlotHeight 옵션 미지정 시 사용 (데스크톱)
 const LOOP_BUFFER = 150      // px — 루프 성립 판정 안전 버퍼 (§1)
 const VELOCITY_MAX = 12      // idx/s
 const VELOCITY_EPS = 0.02    // idx/s — 미만이면 0 스냅
@@ -57,6 +57,7 @@ export interface RingWallOptions {
   count: number                              // N (표시 목록 길이)
   getSlotHeight: (index: number) => number   // 인덱스 → 목표 티어 높이 (렌더러가 주입)
   gap: number                                // 16
+  minSlotHeight?: number                     // 기본값 96 — 데스크톱 호출부 무수정, 거동 완전 동일
 }
 
 export interface RingSlot {
@@ -93,7 +94,7 @@ interface DragState {
   samples: { t: number; y: number }[]
 }
 
-export function useRingWall({ count, getSlotHeight, gap }: RingWallOptions): RingWallApi {
+export function useRingWall({ count, getSlotHeight, gap, minSlotHeight = MIN_SLOT_HEIGHT }: RingWallOptions): RingWallApi {
   const containerRef = useRef<HTMLDivElement | null>(null)
 
   // 루프 내부 계산은 ref 미러로 수행 — stale closure 방지 (§2-C)
@@ -101,6 +102,8 @@ export function useRingWall({ count, getSlotHeight, gap }: RingWallOptions): Rin
   countRef.current = count
   const gapRef = useRef(gap)
   gapRef.current = gap
+  const minSlotHeightRef = useRef(minSlotHeight)
+  minSlotHeightRef.current = minSlotHeight
   const getSlotHeightRef = useRef(getSlotHeight)
   getSlotHeightRef.current = getSlotHeight
 
@@ -127,8 +130,8 @@ export function useRingWall({ count, getSlotHeight, gap }: RingWallOptions): Rin
   const [containerHeight, setContainerHeight] = useState(0)
 
   // ── 모드 판정 (§1) — count·containerHeight 변경 시에만 재평가 ──
-  // 최악 조건(전 카드 d>=2 = MIN_SLOT_HEIGHT)에서도 뷰포트+버퍼가 채워질 때만 루프
-  const isLoop = count * (MIN_SLOT_HEIGHT + gap) >= containerHeight + LOOP_BUFFER
+  // 최악 조건(전 카드 d>=2 = minSlotHeight)에서도 뷰포트+버퍼가 채워질 때만 루프
+  const isLoop = count * (minSlotHeight + gap) >= containerHeight + LOOP_BUFFER
   const isLoopRef = useRef(isLoop)
   isLoopRef.current = isLoop
 
@@ -237,7 +240,7 @@ export function useRingWall({ count, getSlotHeight, gap }: RingWallOptions): Rin
     const el = containerRef.current
     if (!el) return
 
-    const pxPerIdx = MIN_SLOT_HEIGHT + gapRef.current   // 112 = 최소 슬롯 간격 px→idx 환산
+    const pxPerIdx = minSlotHeightRef.current + gapRef.current   // 최소 슬롯 간격 px→idx 환산 (기본 96+16=112)
 
     // 휠 (마우스 전담) — 페이지 스크롤 차단을 위해 non-passive 필수.
     // 유한 모드에서는 preventDefault도 하지 않고 통과 (§3-B — 페이지가 overflow hidden)
@@ -350,7 +353,7 @@ export function useRingWall({ count, getSlotHeight, gap }: RingWallOptions): Rin
     const n = count
     if (n <= 0 || containerHeight <= 0) return []
     // 윈도 반경 — 리사이즈 시 재계산
-    const R = Math.ceil(containerHeight / 2 / (MIN_SLOT_HEIGHT + gap)) + 2
+    const R = Math.ceil(containerHeight / 2 / (minSlotHeight + gap)) + 2
     const base = Math.floor(offset)
     const frac = offset - base
     // 슬롯 범위 — 루프: Rlo+Rhi+1 ≤ N으로 제한해 프로젝트당 최대 1회 렌더 (§2)
@@ -359,7 +362,7 @@ export function useRingWall({ count, getSlotHeight, gap }: RingWallOptions): Rin
     const hi = isLoop ? Math.min(R, Math.ceil((n - 1) / 2)) : Math.min(R, n - 1 - base)
     // idxOf: 루프는 mod 순환, 유한은 클램프(간격 계산용 — 범위 밖 슬롯은 미렌더)
     const idxOf = (s: number) => (isLoop ? mod(base + s, n) : clamp(base + s, 0, n - 1))
-    const hAt = (i: number) => heights[i] ?? MIN_SLOT_HEIGHT
+    const hAt = (i: number) => heights[i] ?? minSlotHeight
     const spacing = (a: number, b: number) => (hAt(idxOf(a)) + hAt(idxOf(b))) / 2 + gap
     // frac=0이고 높이가 수렴하면 슬롯 0은 수학적으로 정중앙 — 높이 변화는
     // 중앙에서 바깥으로 대칭 전파되므로 별도 보정이 없다
@@ -376,7 +379,7 @@ export function useRingWall({ count, getSlotHeight, gap }: RingWallOptions): Rin
       })
     }
     return out
-  }, [offset, heights, containerHeight, count, gap, isLoop])
+  }, [offset, heights, containerHeight, count, gap, minSlotHeight, isLoop])
 
   return { containerRef, offset, heights, slots, isLoop, moveTo, jumpTo, isSettled: settled }
 }

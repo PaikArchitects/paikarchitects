@@ -7,6 +7,7 @@ import { ProjectWall } from '@/components/ProjectWall'
 import { ContentArea } from '@/components/ContentArea'
 import { MobileProjectWall } from '@/components/MobileProjectWall'
 import { useSiteChrome } from '@/components/SiteChromeContext'
+import { shuffle } from '@/lib/shuffle'
 
 const FONT = "'Pretendard Variable', Pretendard, -apple-system, BlinkMacSystemFont, sans-serif"
 
@@ -15,15 +16,6 @@ const HEADER_H = 80   // 데스크톱 헤더 존. 필터 행 포함 여유치
 const FILTER_TYPES = ['All', ...TYPOLOGY_ORDER.filter(t =>
   sortedProjects.some(p => p.type === t || p.subTypes?.includes(t))
 )]
-
-function shuffle<T>(arr: T[]): T[] {
-  const a = [...arr]
-  for (let i = a.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1))
-    ;[a[i], a[j]] = [a[j], a[i]]
-  }
-  return a
-}
 
 interface LandingExperienceProps {
   initialSlug?: string        // /work/[slug] 딥링크

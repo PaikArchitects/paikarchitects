@@ -11,6 +11,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { Project } from '@/types'
 import { cldThumb } from '@/lib/cloudinary'
+import { shuffle } from '@/lib/shuffle'
 import { circDist, useRingWall } from '@/hooks/useRingWall'
 
 const FONT = "'Pretendard Variable', Pretendard, -apple-system, BlinkMacSystemFont, sans-serif"
@@ -27,15 +28,6 @@ interface ProjectWallProps {
   revealed: boolean
   onHover: (project: Project | null) => void
   onSelect: (project: Project) => void
-}
-
-function shuffle<T>(list: T[]): T[] {
-  const out = list.slice()
-  for (let i = out.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1))
-    ;[out[i], out[j]] = [out[j], out[i]]
-  }
-  return out
 }
 
 interface WallCardProps {

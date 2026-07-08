@@ -2,7 +2,10 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
+import { useEffect, useState } from 'react'
 import { useSiteChrome } from './SiteChromeContext'
+
+const FONT = "'Pretendard Variable', Pretendard, -apple-system, BlinkMacSystemFont, sans-serif"
 
 const NAV_ITEMS = [
   { label: 'ABOUT',    href: '/about'   },
@@ -34,6 +37,12 @@ export function SiteHeader() {
 
   const layoutVisible = introPhase === 'done'
   const wordmarkActive = introPhase !== 'wordmark'
+
+  // ── 모바일 햄버거 메뉴 — 전역 크롬이므로 SiteHeader 소유 (§8). 라우트 변경 시 자동 닫힘 ──
+  const [menuOpen, setMenuOpen] = useState(false)
+  useEffect(() => {
+    setMenuOpen(false)
+  }, [pathname])
 
   return (
     <>
@@ -87,6 +96,56 @@ export function SiteHeader() {
             {label}
           </Link>
         ))}
+      </nav>
+
+      {/* ── MOBILE HAMBURGER — <768px 전용 (globals.css가 표시 제어). 등장 수평선 2개 ── */}
+      <button
+        className="mobile-menu-btn"
+        aria-label="Menu"
+        onClick={() => setMenuOpen(o => !o)}
+        style={{
+          opacity: layoutVisible ? 1 : 0,
+          pointerEvents: layoutVisible ? 'auto' : 'none',
+        }}
+      >
+        <span style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <span style={{ width: 18, height: 1.5, background: '#080706', display: 'block' }} />
+          <span style={{ width: 18, height: 1.5, background: '#080706', display: 'block' }} />
+        </span>
+      </button>
+
+      {/* 스크림 — 탭 시 닫힘 */}
+      <div
+        className={menuOpen ? 'mobile-menu-scrim open' : 'mobile-menu-scrim'}
+        onClick={() => setMenuOpen(false)}
+        aria-hidden="true"
+      />
+
+      {/* 좌측 메뉴 패널 — 필터 패널의 미러 (§8-2) */}
+      <nav className={menuOpen ? 'mobile-menu-panel open' : 'mobile-menu-panel'}>
+        {NAV_ITEMS.map(({ label, href }) => {
+          const current = pathname === href || (href === '/work' && pathname.startsWith('/work'))
+          return (
+            <Link
+              key={label}
+              href={href}
+              onClick={() => setMenuOpen(false)}
+              style={{
+                display: 'block',
+                padding: '14px 0',
+                fontFamily: FONT,
+                fontSize: 13,
+                fontWeight: current ? 500 : 300,
+                letterSpacing: '0.08em',
+                textTransform: 'uppercase',
+                textDecoration: 'none',
+                color: '#0a0908',
+              }}
+            >
+              {label}
+            </Link>
+          )
+        })}
       </nav>
     </>
   )
