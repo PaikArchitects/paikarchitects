@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { CreditsSlide, DiagramSetSlide, ImageSlide, Project, ProjectSlide } from '@/types'
 import { projectSlides } from '@/data/projectSlides'
 import { useFinePointer } from '@/hooks/useFinePointer'
@@ -8,16 +8,41 @@ import { useFinePointer } from '@/hooks/useFinePointer'
 const FONT = "'Pretendard Variable', Pretendard, -apple-system, BlinkMacSystemFont, sans-serif"
 
 const INFO_SLIDE_W = 200
+const CREDITS_SLIDE_W = 420
 const SLIDE_GAP_PX = 24
 const TRACK_INSET = 24       // 트랙 뷰포트 좌측 오프셋 — 뷰포트 좌측 모서리가 곧 클립 라인 (Back/타이틀 좌측 라인과 정렬)
 const EASE = 'cubic-bezier(0.7, 0, 0.3, 1)'
 const MORPH_MS = 700
-const SLIDE_H_RATIO = 0.72   // image·credits·info 슬라이드 높이 (뷰포트 대비)
-const DIAGRAM_H_PCT = '48%'  // diagramSet·단일 다이어그램 이미지 영역 높이
+const SLIDE_H_RATIO = 0.72     // image·credits·info 슬라이드 높이 (뷰포트 대비)
+const DIAGRAM_H_RATIO = 0.48   // diagramSet·단일 다이어그램 이미지 영역 높이 (뷰포트 대비)
 
 // ── 플릭(관성) — 기존 600ms transition을 그대로 타는 단발 보간 ──
 const FLICK_VELOCITY_MIN = 0.4   // px/ms — 이 속도 초과 시 플릭 판정
 const FLICK_COEF = 280           // 속도 → 추가 이동량 계수
+
+// ── 비율 선로드 — 폭의 원천 데이터 (모듈 레벨 캐시: 세션 내 재방문 즉시 준비) ──
+const ratioCache = new Map<string, number[]>()   // projectId → 슬라이드별 w/h 비율
+
+const FALLBACK_RATIO = 4 / 3
+const PRELOAD_TIMEOUT_MS = 8000   // 개별 이미지 한도 — 초과·에러 시 FALLBACK_RATIO
+
+function loadRatio(src: string): Promise<number> {
+  return new Promise(resolve => {
+    const img = new Image()
+    const timer = setTimeout(() => resolve(FALLBACK_RATIO), PRELOAD_TIMEOUT_MS)
+    img.onload = () => {
+      clearTimeout(timer)
+      resolve(img.naturalWidth > 0 && img.naturalHeight > 0
+        ? img.naturalWidth / img.naturalHeight
+        : FALLBACK_RATIO)
+    }
+    img.onerror = () => {
+      clearTimeout(timer)
+      resolve(FALLBACK_RATIO)
+    }
+    img.src = src
+  })
+}
 
 interface ContentAreaProps {
   project: Project
@@ -52,7 +77,7 @@ function splitCaption(caption: string): { label: string; description: string } {
   }
 }
 
-// ── 이미지 슬라이드: 높이 100% 채움, 폭은 이미지 비율이 결정. 캡션은 하단 외부 ──
+// ── 이미지 슬라이드: 외피가 계산 폭을 예약 — img는 박스를 100% 채움 (기존 slide-img 시각 결과 유지) ──
 function ImageSlideView({ slide }: { slide: ImageSlide }) {
   const { label, description } = slide.caption ? splitCaption(slide.caption) : { label: '', description: '' }
 
@@ -63,7 +88,12 @@ function ImageSlideView({ slide }: { slide: ImageSlide }) {
         src={slide.src}
         alt=""
         draggable={false}
-        className="slide-img"
+        style={{
+          width: '100%',
+          height: '100%',
+          objectFit: 'cover',
+          display: 'block',
+        }}
       />
       {slide.caption && (
         <div style={{
@@ -92,6 +122,7 @@ function ImageSlideView({ slide }: { slide: ImageSlide }) {
 
 // ── 다이어그램 세트: 중앙 근접(active) 시에만 내부 인터랙션 활성 ──
 // finePointer=false: 글리프/커서 치환/호버 로직 없음. 탭(클릭) 이동과 자동진행은 유지.
+// 폭은 외부(트랙 rects)에서 주어진다 — 내부 사이저 없음.
 function DiagramSetSlideView({ slide, active, finePointer, onHoverChange }: {
   slide: DiagramSetSlide
   active: boolean
@@ -170,16 +201,6 @@ function DiagramSetSlideView({ slide, active, finePointer, onHoverChange }: {
       onPointerUp={active ? (e) => e.stopPropagation() : undefined}
       onClick={handleClick}
     >
-      {/* 사이저 — 첫 다이어그램 비율로 슬라이드 폭 결정 */}
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        src={slide.items[0].src}
-        alt=""
-        draggable={false}
-        className="slide-img"
-        style={{ visibility: 'hidden' }}
-      />
-
       {slide.items.map((it, i) => (
         // eslint-disable-next-line @next/next/no-img-element
         <img
@@ -200,6 +221,7 @@ function DiagramSetSlideView({ slide, active, finePointer, onHoverChange }: {
       ))}
 
       {/* 내부 커서 추적 글리프 — 커서 지점에 중심 정렬 (fine pointer 전용) */}
+      {/* 투명 PNG 위에서는 difference가 도달할 픽셀이 없어 비가시 → 검정 고정 */}
       {finePointer && active && cursor && (
         <span style={{
           position: 'absolute',
@@ -211,8 +233,7 @@ function DiagramSetSlideView({ slide, active, finePointer, onHoverChange }: {
           fontSize: 28,
           fontWeight: 300,
           lineHeight: 1,
-          color: '#FFFFFF',
-          mixBlendMode: 'difference',
+          color: '#080706',
           zIndex: 3,
           userSelect: 'none',
         }}>
@@ -249,7 +270,7 @@ function CreditsSlideView({ slide }: { slide: CreditsSlide }) {
   return (
     <div style={{
       height: '100%',
-      width: 420,
+      width: CREDITS_SLIDE_W,
       background: '#FFFFFF',
       display: 'flex',
       alignItems: 'center',
@@ -305,13 +326,13 @@ function SlideContent({ slide, nearCenter, finePointer, onDiagramHover }: {
 }
 
 export function ContentArea({ project, mode, isBlacking, visible, onBack }: ContentAreaProps) {
-  const slides = getSlides(project)
+  const slides = useMemo(() => getSlides(project), [project])
   const total = Math.max(slides.length, 1)
   const finePointer = useFinePointer()
 
   const rootRef = useRef<HTMLDivElement>(null)
   const viewportRef = useRef<HTMLDivElement>(null)
-  const trackRef = useRef<HTMLDivElement>(null)
+  const trackRef = useRef<HTMLDivElement>(null)     // transform 적용 대상 (측정 용도 없음)
   const idleImgEl = useRef<HTMLImageElement | null>(null)
 
   // ── Idle→Active 모프 전환 ──
@@ -322,8 +343,8 @@ export function ContentArea({ project, mode, isBlacking, visible, onBack }: Cont
   // ── 연속 트랙 (픽셀 스크롤 모델) ──
   // scrollPos 0 = 트랙 좌측 끝 = 뷰포트 좌측 끝 ([정보 슬라이드][히어로]가 좌측부터 보임)
   const [scrollPos, setScrollPos] = useState(0)
-  const [rects, setRects] = useState<{ x: number; w: number }[]>([])
-  const [viewportW, setViewportW] = useState(0)
+  const [vpSize, setVpSize] = useState({ w: 0, h: 0 })   // viewportRef의 clientWidth/Height — 유일한 관찰 대상
+  const [ratios, setRatios] = useState<number[] | null>(null)   // 슬라이드별 w/h 비율. null = 선로드 미완
   const [dragging, setDragging] = useState(false)
   const [animated, setAnimated] = useState(false)      // 화살표/키보드/플릭 이동 시에만 transition
   const [cursor, setCursor] = useState<{ x: number; y: number } | null>(null)
@@ -335,9 +356,79 @@ export function ContentArea({ project, mode, isBlacking, visible, onBack }: Cont
     lastX: number; lastT: number; v: number   // 마지막 두 샘플 기반 속도 (px/ms)
   } | null>(null)
 
-  // scrollPos 미러 — measure 앵커 보상에서 stale closure 없이 참조
-  const scrollPosRef = useRef(0)
-  useEffect(() => { scrollPosRef.current = scrollPos }, [scrollPos])
+  const ready = ratios !== null
+  const viewportW = vpSize.w
+
+  // ── 비율 선로드 — 활성화(active + project.id)마다. 캐시 적중 시 즉시 ready ──
+  useEffect(() => {
+    if (mode !== 'active') {
+      setRatios(null)
+      return
+    }
+    const cached = ratioCache.get(project.id)
+    if (cached) {
+      setRatios(cached)
+      return
+    }
+    setRatios(null)
+    let cancelled = false
+    Promise.all(slides.map(slide => {
+      const src = slide.kind === 'image' ? slide.src
+        : slide.kind === 'diagramSet' ? slide.items[0].src   // 기존 사이저와 동일 기준
+        : null                                                // credits — 폭은 상수, 자리만 채움
+      return src ? loadRatio(src) : Promise.resolve(FALLBACK_RATIO)
+    })).then(rs => {
+      if (cancelled) return
+      ratioCache.set(project.id, rs)
+      setRatios(rs)
+    })
+    return () => { cancelled = true }
+  }, [mode, project.id, slides])
+
+  // ── 뷰포트 치수 관찰 — RO는 viewportRef 하나만. window resize 리스너 유지 ──
+  useLayoutEffect(() => {
+    if (mode !== 'active') return
+    const vp = viewportRef.current
+    if (!vp) return
+    const update = () => setVpSize(prev => {
+      const w = vp.clientWidth
+      const h = vp.clientHeight
+      return (prev.w === w && prev.h === h) ? prev : { w, h }
+    })
+    update()
+    const ro = new ResizeObserver(update)
+    ro.observe(vp)
+    window.addEventListener('resize', update)
+    return () => {
+      ro.disconnect()
+      window.removeEventListener('resize', update)
+    }
+  }, [mode])
+
+  // ── 폭 결정론화 — rects는 ratios·vpSize의 순수 함수 (DOM 측정 없음) ──
+  const slideH = vpSize.h * SLIDE_H_RATIO
+  const diagramH = vpSize.h * DIAGRAM_H_RATIO
+
+  const rects = useMemo(() => {
+    const widths: number[] = [INFO_SLIDE_W]   // 트랙 자식 0 = 정보 슬라이드
+    if (slides.length > 0) {
+      slides.forEach((slide, i) => {
+        const ratio = ratios?.[i] ?? FALLBACK_RATIO
+        if (slide.kind === 'credits') widths.push(CREDITS_SLIDE_W)
+        else if (isDiagram(slide)) widths.push(ratio * diagramH)
+        else widths.push(ratio * slideH)
+      })
+    } else {
+      widths.push(FALLBACK_RATIO * slideH)   // coverColor 폴백 블록
+    }
+    const out: { x: number; w: number }[] = []
+    let x = 0
+    for (const w of widths) {
+      out.push({ x, w })
+      x += w + SLIDE_GAP_PX
+    }
+    return out
+  }, [slides, ratios, slideH, diagramH])
 
   // 트랙 자식 인덱스 공간: 0 = 정보 슬라이드, 1.. = 콘텐츠 슬라이드
   const centers = rects.map(r => r.x + r.w / 2)
@@ -364,6 +455,19 @@ export function ContentArea({ project, mode, isBlacking, visible, onBack }: Cont
   const isNearCenter = (trackIdx: number) =>
     viewportW > 0 && trackIdx < centers.length &&
     Math.abs(centers[trackIdx] - viewportCenter) < viewportW * 0.2
+
+  // ── 리사이즈 재중앙 — 변경 직전 nearest를 새 rects 기준으로 무애니메이션 재정렬. 드래그 중 생략 ──
+  const nearestRef = useRef(0)
+  useEffect(() => { nearestRef.current = nearest })
+
+  useLayoutEffect(() => {
+    if (vpSize.w === 0 || dragState.current) return
+    const idx = Math.min(nearestRef.current, centers.length - 1)
+    if (idx < 0) return
+    setAnimated(false)
+    setScrollPos(clampScroll(centers[idx] - vpSize.w / 2))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [vpSize.w, vpSize.h])
 
   // 모드 전환 감지 — idle→active 시 모프 시퀀스
   useEffect(() => {
@@ -415,7 +519,7 @@ export function ContentArea({ project, mode, isBlacking, visible, onBack }: Cont
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode])
 
-  // 정보 슬라이드 텍스트 — 모프 완료 후 400ms 페이드인
+  // 정보 슬라이드 텍스트 — 모프 완료 후 400ms 페이드인 (텍스트라 비율과 무관 — 기존 타이밍 유지)
   useEffect(() => {
     if (mode !== 'active' || morphing) {
       setInfoIn(false)
@@ -425,66 +529,22 @@ export function ContentArea({ project, mode, isBlacking, visible, onBack }: Cont
     return () => cancelAnimationFrame(raf)
   }, [mode, morphing])
 
-  // 트랙 페이드 인 — 모프 종료·프로젝트 교체 시 false 리셋 후 400ms 페이드 (월 재배열 400ms와 동기)
+  // 트랙 페이드 인 — 모프 종료 + 비율 ready를 모두 충족한 뒤에만 400ms 페이드 (월 재배열 400ms와 동기)
   useEffect(() => {
-    if (mode !== 'active' || morphing) {
+    if (mode !== 'active' || morphing || !ready) {
       setTrackIn(false)
       return
     }
     setTrackIn(false)
     const raf = requestAnimationFrame(() => requestAnimationFrame(() => setTrackIn(true)))
     return () => cancelAnimationFrame(raf)
-  }, [mode, morphing, project.id])
+  }, [mode, morphing, ready, project.id])
 
   // active 중 프로젝트 교체 시 리셋
   useEffect(() => {
     setScrollPos(0)
     setAnimated(false)
   }, [project.id])
-
-  // 슬라이드 rect 측정 — 마운트/리사이즈/이미지 로드 시
-  // 앵커 보상: 재측정 직전 뷰포트 중앙 최근접 슬라이드를 앵커로, 중심 이동량만큼 scrollPos 무애니메이션 보정
-  const measure = useCallback(() => {
-    const track = trackRef.current
-    const vp = viewportRef.current
-    if (!track || !vp) return
-    const children = Array.from(track.children) as HTMLElement[]
-    const next = children.map(el => ({ x: el.offsetLeft, w: el.offsetWidth }))
-    const vw = vp.clientWidth
-
-    setRects(prev => {
-      // 앵커 보상 — 드래그 중이 아니고, 이전 측정이 존재할 때만
-      if (prev.length > 0 && next.length === prev.length && !dragState.current) {
-        const prevCenters = prev.map(r => r.x + r.w / 2)
-        const sp = scrollPosRef.current
-        const vc = sp + vw / 2
-        let anchor = 0
-        for (let i = 1; i < prevCenters.length; i++) {
-          if (Math.abs(prevCenters[i] - vc) < Math.abs(prevCenters[anchor] - vc)) anchor = i
-        }
-        const delta = (next[anchor].x + next[anchor].w / 2) - prevCenters[anchor]
-        if (delta !== 0) {
-          setAnimated(false)                          // 보정은 즉시 반영 (transition 없이)
-          setScrollPos(p => Math.max(0, p + delta))   // 상한 클램프는 새 rects 반영 렌더에서 자연 적용
-        }
-      }
-      return next
-    })
-    setViewportW(vw)
-  }, [])
-
-  useLayoutEffect(() => {
-    if (mode !== 'active' || morphing) return
-    measure()
-    const ro = new ResizeObserver(() => measure())
-    if (trackRef.current) ro.observe(trackRef.current)
-    if (viewportRef.current) ro.observe(viewportRef.current)
-    window.addEventListener('resize', measure)
-    return () => {
-      ro.disconnect()
-      window.removeEventListener('resize', measure)
-    }
-  }, [mode, morphing, project.id, measure])
 
   // 화살표/키보드 이동 — 중앙 최근접 슬라이드 기준 이전/다음 중앙으로
   const goToSlide = (idx: number) => {
@@ -662,7 +722,7 @@ export function ContentArea({ project, mode, isBlacking, visible, onBack }: Cont
             onMouseLeave={() => setCursor(null)}
           >
             {!morphing && (
-              /* 페이드 래퍼 — 트랙 페이드 인 (rect 측정·transform은 내부 트랙에 그대로) */
+              /* 페이드 래퍼 — 트랙 페이드 인 (transform은 내부 트랙에 그대로) */
               <div style={{
                 height: '100%',
                 opacity: trackIn ? 1 : 0,
@@ -684,7 +744,7 @@ export function ContentArea({ project, mode, isBlacking, visible, onBack }: Cont
                   <div style={{
                     width: INFO_SLIDE_W,
                     flexShrink: 0,
-                    height: `${SLIDE_H_RATIO * 100}%`,
+                    height: slideH,
                     display: 'flex',
                     flexDirection: 'column',
                     justifyContent: 'flex-start',
@@ -719,18 +779,19 @@ export function ContentArea({ project, mode, isBlacking, visible, onBack }: Cont
                     <div
                       key={idx}
                       style={{
-                        height: isDiagram(slide) ? DIAGRAM_H_PCT : `${SLIDE_H_RATIO * 100}%`,
+                        // 트랙 자식 인덱스 = idx + 1 (정보 슬라이드가 0) — rects의 계산 폭을 그대로 예약
+                        width: rects[idx + 1]?.w ?? 0,
+                        height: isDiagram(slide) ? diagramH : slideH,
                         flexShrink: 0,
                         position: 'relative',
                       }}
                     >
-                      {/* 트랙 자식 인덱스 = idx + 1 (정보 슬라이드가 0) */}
                       <SlideContent slide={slide} nearCenter={isNearCenter(idx + 1)} finePointer={finePointer} onDiagramHover={setDiagramHover} />
                     </div>
                   )) : (
                     <div style={{
-                      height: `${SLIDE_H_RATIO * 100}%`,
-                      aspectRatio: '4 / 3',
+                      width: FALLBACK_RATIO * slideH,
+                      height: slideH,
                       flexShrink: 0,
                       background: project.coverColor,
                     }} />
