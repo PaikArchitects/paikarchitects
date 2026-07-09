@@ -19,9 +19,6 @@ const DIAGRAM_H_PCT = '48%'  // diagramSet·단일 다이어그램 이미지 영
 const FLICK_VELOCITY_MIN = 0.4   // px/ms — 이 속도 초과 시 플릭 판정
 const FLICK_COEF = 280           // 속도 → 추가 이동량 계수
 
-// 어두운 사진 위 대비 확보용 흰 헤일로
-const GLYPH_SHADOW = '0 0 10px rgba(255,255,255,0.95), 0 0 3px rgba(255,255,255,0.95)'
-
 interface ContentAreaProps {
   project: Project
   mode: 'idle' | 'active'
@@ -214,8 +211,8 @@ function DiagramSetSlideView({ slide, active, finePointer, onHoverChange }: {
           fontSize: 28,
           fontWeight: 300,
           lineHeight: 1,
-          color: '#080706',
-          textShadow: GLYPH_SHADOW,
+          color: '#FFFFFF',
+          mixBlendMode: 'difference',
           zIndex: 3,
           userSelect: 'none',
         }}>
@@ -338,10 +335,21 @@ export function ContentArea({ project, mode, isBlacking, visible, onBack }: Cont
     lastX: number; lastT: number; v: number   // 마지막 두 샘플 기반 속도 (px/ms)
   } | null>(null)
 
+  // scrollPos 미러 — measure 앵커 보상에서 stale closure 없이 참조
+  const scrollPosRef = useRef(0)
+  useEffect(() => { scrollPosRef.current = scrollPos }, [scrollPos])
+
   // 트랙 자식 인덱스 공간: 0 = 정보 슬라이드, 1.. = 콘텐츠 슬라이드
   const centers = rects.map(r => r.x + r.w / 2)
+  const contentEnd = rects.length > 0
+    ? rects[rects.length - 1].x + rects[rects.length - 1].w
+    : 0
   const maxScroll = centers.length > 0
-    ? Math.max(0, centers[centers.length - 1] - viewportW / 2)
+    ? Math.max(
+        0,
+        centers[centers.length - 1] - viewportW / 2,   // 마지막 슬라이드 중앙 정렬 지점 (좁은 슬라이드용)
+        contentEnd + TRACK_INSET - viewportW,          // 마지막 슬라이드 우측 에지 + 우측 여백 24 (넓은 슬라이드용)
+      )
     : 0
 
   const viewportCenter = scrollPos + viewportW / 2
@@ -435,13 +443,34 @@ export function ContentArea({ project, mode, isBlacking, visible, onBack }: Cont
   }, [project.id])
 
   // 슬라이드 rect 측정 — 마운트/리사이즈/이미지 로드 시
+  // 앵커 보상: 재측정 직전 뷰포트 중앙 최근접 슬라이드를 앵커로, 중심 이동량만큼 scrollPos 무애니메이션 보정
   const measure = useCallback(() => {
     const track = trackRef.current
     const vp = viewportRef.current
     if (!track || !vp) return
     const children = Array.from(track.children) as HTMLElement[]
-    setRects(children.map(el => ({ x: el.offsetLeft, w: el.offsetWidth })))
-    setViewportW(vp.clientWidth)
+    const next = children.map(el => ({ x: el.offsetLeft, w: el.offsetWidth }))
+    const vw = vp.clientWidth
+
+    setRects(prev => {
+      // 앵커 보상 — 드래그 중이 아니고, 이전 측정이 존재할 때만
+      if (prev.length > 0 && next.length === prev.length && !dragState.current) {
+        const prevCenters = prev.map(r => r.x + r.w / 2)
+        const sp = scrollPosRef.current
+        const vc = sp + vw / 2
+        let anchor = 0
+        for (let i = 1; i < prevCenters.length; i++) {
+          if (Math.abs(prevCenters[i] - vc) < Math.abs(prevCenters[anchor] - vc)) anchor = i
+        }
+        const delta = (next[anchor].x + next[anchor].w / 2) - prevCenters[anchor]
+        if (delta !== 0) {
+          setAnimated(false)                          // 보정은 즉시 반영 (transition 없이)
+          setScrollPos(p => Math.max(0, p + delta))   // 상한 클램프는 새 rects 반영 렌더에서 자연 적용
+        }
+      }
+      return next
+    })
+    setViewportW(vw)
   }, [])
 
   useLayoutEffect(() => {
@@ -739,8 +768,8 @@ export function ContentArea({ project, mode, isBlacking, visible, onBack }: Cont
                 fontSize: 64,
                 fontWeight: 300,
                 lineHeight: 1,
-                color: '#080706',
-                textShadow: GLYPH_SHADOW,
+                color: '#FFFFFF',
+                mixBlendMode: 'difference',
                 zIndex: 5,
                 userSelect: 'none',
               }}>

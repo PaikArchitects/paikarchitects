@@ -187,11 +187,23 @@
     z-index: 90; /* 워드마크·글리프 아래, 콘텐츠 위 */
   }
 
+  /* 워드마크 수평 중앙 — transform 퍼센트 → auto margin(레이아웃) 이관.
+     Safari가 transform 전환 중 퍼센트 참조 박스를 라이브 재해석하지 않아
+     폭 수축 시 좌측 쏠림 → 레이아웃 단계 auto margin은 매 프레임 재해석되어 중앙 유지 */
+  .wordmark-intro {
+    left: 0;
+    right: 0;
+    width: fit-content;
+    margin-left: auto;
+    margin-right: auto;
+    transform: translate(0, -50%);   /* 수평 성분 제거 — 수평은 auto margin이 담당 */
+  }
+
   /* 워드마크 종착 — 화면 수평 중앙에서 수직 상승 궤적. 데스크톱 종착(left 24px)은 불변 */
   .wordmark-intro.moved {
     top: 16px;
-    left: 50%;
-    transform: translate(-50%, 0);   /* 기존 translateX(-50%) → 함수형 통일 — 행렬 보간 방지, 퍼센트 전 구간 유지 */
+    left: 0;                          /* 기존 left: 50% 대체 — 수평 이동 자체가 없음 */
+    transform: translate(0, 0);
     font-size: 22px;
   }
 
