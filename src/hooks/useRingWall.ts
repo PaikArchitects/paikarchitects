@@ -8,7 +8,8 @@
 //
 // 이중 모드 (§1): 최악 조건(전 카드 d>=2)에서도 순환 둘레가 뷰포트+버퍼를
 // 채우는 N에서만 루프. 그 미만이면 순환 항을 제거한 유한 스택(축퇴형) —
-// 원형/선형 분기는 offset 산술·슬롯 범위·입력 게이트에만 존재한다 (§3).
+// 유한 모드 배치는 스택 블록 클램프(수용 시 블록 중앙 정렬, 오버플로 시
+// 가장자리 클램프)이며, 휠·드래그는 스택 오버플로 시에만 허용한다 (§3).
 //
 // 입력 리스너(휠·포인터·click 캡처)와 ResizeObserver는 containerRef에 직접
 // 등록한다 — React 합성 wheel 이벤트는 루트에 passive로 부착되어
@@ -128,6 +129,8 @@ export function useRingWall({ count, getSlotHeight, gap, minSlotHeight = MIN_SLO
     settled: true,
   }))
   const [containerHeight, setContainerHeight] = useState(0)
+  // 입력 핸들러(비-리액트 클로저)의 유한 오버플로 판정용 ref 미러 (§2-A)
+  const containerHeightRef = useRef(0)
 
   // ── 모드 판정 (§1) — count·containerHeight 변경 시에만 재평가 ──
   // 최악 조건(전 카드 d>=2 = minSlotHeight)에서도 뷰포트+버퍼가 채워질 때만 루프
@@ -242,10 +245,22 @@ export function useRingWall({ count, getSlotHeight, gap, minSlotHeight = MIN_SLO
 
     const pxPerIdx = minSlotHeightRef.current + gapRef.current   // 최소 슬롯 간격 px→idx 환산 (기본 96+16=112)
 
+    // 유한 모드 오버플로 판정 (§2-B) — 스택 총높이(실측 높이 합 + (N-1)·gap)가
+    // 컨테이너를 넘칠 때만 true. 입력 게이트에서 스크롤 허용 여부를 결정한다.
+    const finiteOverflow = () => {
+      const n = countRef.current
+      if (n <= 0) return false
+      const heights = heightsRef.current
+      let sum = 0
+      for (let i = 0; i < n; i++) sum += heights[i] ?? minSlotHeightRef.current
+      return sum + (n - 1) * gapRef.current > containerHeightRef.current
+    }
+
     // 휠 (마우스 전담) — 페이지 스크롤 차단을 위해 non-passive 필수.
-    // 유한 모드에서는 preventDefault도 하지 않고 통과 (§3-B — 페이지가 overflow hidden)
+    // 유한 모드는 스택이 뷰포트를 넘칠 때만 스크롤 허용 — 수용 시에는
+    // preventDefault도 하지 않고 통과 (§3-B 개정 — 페이지가 overflow hidden)
     const onWheel = (e: WheelEvent) => {
-      if (!isLoopRef.current) return
+      if (!isLoopRef.current && !finiteOverflow()) return
       e.preventDefault()
       tweenRef.current = null   // 입력 우선 — 트위닝 즉시 취소
       velocityRef.current = clamp(
@@ -257,10 +272,11 @@ export function useRingWall({ count, getSlotHeight, gap, minSlotHeight = MIN_SLO
     }
 
     // 드래그 (터치/펜 전용 — 마우스는 휠 전담, 클릭 선택과의 충돌 방지)
-    // 유한 모드는 드래그 무시 — 캡처하지 않으므로 탭 click 선택은 그대로 발화 (§3-B)
+    // 유한 모드는 오버플로 시에만 드래그 허용 — 수용 시 캡처하지 않으므로
+    // 탭 click 선택은 그대로 발화 (§3-B 개정)
     const onPointerDown = (e: PointerEvent) => {
       if (e.pointerType === 'mouse') return
-      if (!isLoopRef.current) return
+      if (!isLoopRef.current && !finiteOverflow()) return
       suppressClickRef.current = false
       tweenRef.current = null
       velocityRef.current = 0
@@ -321,8 +337,12 @@ export function useRingWall({ count, getSlotHeight, gap, minSlotHeight = MIN_SLO
       e.stopPropagation()
     }
 
-    const ro = new ResizeObserver(() => setContainerHeight(el.clientHeight))
+    const ro = new ResizeObserver(() => {
+      containerHeightRef.current = el.clientHeight
+      setContainerHeight(el.clientHeight)
+    })
     ro.observe(el)
+    containerHeightRef.current = el.clientHeight
     setContainerHeight(el.clientHeight)
 
     el.addEventListener('wheel', onWheel, { passive: false })
@@ -357,9 +377,10 @@ export function useRingWall({ count, getSlotHeight, gap, minSlotHeight = MIN_SLO
     const base = Math.floor(offset)
     const frac = offset - base
     // 슬롯 범위 — 루프: Rlo+Rhi+1 ≤ N으로 제한해 프로젝트당 최대 1회 렌더 (§2)
-    //           유한: 유효 인덱스 0..N-1에 대응하는 슬롯만 (§3-A)
-    const lo = isLoop ? Math.min(R, Math.floor((n - 1) / 2)) : Math.min(R, base)
-    const hi = isLoop ? Math.min(R, Math.ceil((n - 1) / 2)) : Math.min(R, n - 1 - base)
+    //           유한: 유효 인덱스 0..N-1 전체를 슬롯으로 — N이 작아 가상화
+    //           불필요, 블록 클램프에서 전 카드가 가시 범위에 든다 (§3-A 개정)
+    const lo = isLoop ? Math.min(R, Math.floor((n - 1) / 2)) : base
+    const hi = isLoop ? Math.min(R, Math.ceil((n - 1) / 2)) : n - 1 - base
     // idxOf: 루프는 mod 순환, 유한은 클램프(간격 계산용 — 범위 밖 슬롯은 미렌더)
     const idxOf = (s: number) => (isLoop ? mod(base + s, n) : clamp(base + s, 0, n - 1))
     const hAt = (i: number) => heights[i] ?? minSlotHeight
@@ -369,13 +390,26 @@ export function useRingWall({ count, getSlotHeight, gap, minSlotHeight = MIN_SLO
     const y: Record<number, number> = { 0: containerHeight / 2 - frac * spacing(0, 1) }
     for (let s = 1; s <= hi; s++) y[s] = y[s - 1] + spacing(s - 1, s)
     for (let s = -1; s >= -lo; s--) y[s] = y[s + 1] - spacing(s, s + 1)
+    // ── 유한 모드 블록 클램프 (§3-C 신설) ──
+    // 스택 상·하단 실좌표에서 보정 Δ를 파생한다. 수용(H ≤ containerH) 시
+    // Δ가 offset 기여분을 정확히 상쇄해 블록 중앙 정렬이 되고(배치의 offset
+    // 독립성), 오버플로 시 가장자리가 뷰포트 안쪽으로 들어오지 않게 클램프한다.
+    let delta = 0
+    if (!isLoop) {
+      const yTop = y[-lo] - hAt(idxOf(-lo)) / 2
+      const yBot = y[hi] + hAt(idxOf(hi)) / 2
+      const stackH = yBot - yTop
+      delta = stackH <= containerHeight
+        ? (containerHeight - stackH) / 2 - yTop          // 블록 중앙 정렬
+        : clamp(0, containerHeight - yBot, -yTop)         // 가장자리 클램프
+    }
     const out: RingSlot[] = []
     for (let s = -lo; s <= hi; s++) {
       out.push({
         slot: s,
         index: idxOf(s),
         turn: isLoop ? Math.floor((base + s) / n) : 0,
-        yCenter: y[s],
+        yCenter: y[s] + delta,   // 루프 모드는 delta === 0
       })
     }
     return out
