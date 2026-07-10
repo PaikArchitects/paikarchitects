@@ -10,7 +10,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { Project } from '@/types'
-import { cldThumb } from '@/lib/cloudinary'
+import { sanityThumb } from '@/lib/imageUrl'
 import { shuffle } from '@/lib/shuffle'
 import { circDist, useRingWall } from '@/hooks/useRingWall'
 
@@ -137,7 +137,7 @@ function WallCard({ project, slot, yCenter, height, isHighlighted, isDimmed, rev
           {project.coverImage ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
-              src={cldThumb(project.coverImage, 480)}
+              src={sanityThumb(project.coverImage, 480)}
               alt={project.title}
               loading="lazy"
               style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}

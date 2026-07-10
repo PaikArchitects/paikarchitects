@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
-import { sortedProjects } from '@/data/projects'
 import { TYPOLOGY_ORDER, type Project, type ProjectType } from '@/types'
 import { ProjectWall } from '@/components/ProjectWall'
 import { ContentArea } from '@/components/ContentArea'
@@ -13,36 +12,37 @@ const FONT = "'Pretendard Variable', Pretendard, -apple-system, BlinkMacSystemFo
 
 const HEADER_H = 80   // 데스크톱 헤더 존. 필터 행 포함 여유치
 
-const FILTER_TYPES = ['All', ...TYPOLOGY_ORDER.filter(t =>
-  sortedProjects.some(p => p.type === t || p.subTypes?.includes(t))
-)]
-
 interface LandingExperienceProps {
+  projects: Project[]         // Sanity에서 displayOrder 정렬 상태로 도착 — 재정렬 불요
   initialSlug?: string        // /work/[slug] 딥링크
   initialShowFilters?: boolean
 }
 
-export function LandingExperience({ initialSlug, initialShowFilters = false }: LandingExperienceProps) {
+export function LandingExperience({ projects, initialSlug, initialShowFilters = false }: LandingExperienceProps) {
   const [mobile, setMobile] = useState(false)
   const mobileRef = useRef(false)   // popstate 등 마운트 시 1회 등록 핸들러의 stale closure 방지
   const { introPhase, setWordmarkOnLight, setNavOnLight } = useSiteChrome()
 
-  // 딥링크: 마운트 시 해당 프로젝트를 active로 설정 (sortedProjects에 없으면 무시)
+  const FILTER_TYPES = useMemo(() => ['All', ...TYPOLOGY_ORDER.filter(t =>
+    projects.some(p => p.type === t || p.subTypes?.includes(t))
+  )], [projects])
+
+  // 딥링크: 마운트 시 해당 프로젝트를 active로 설정 (projects에 없으면 무시)
   const [activeProject, setActiveProject] = useState<Project | null>(() =>
-    initialSlug ? sortedProjects.find(p => p.id === initialSlug) ?? null : null
+    initialSlug ? projects.find(p => p.id === initialSlug) ?? null : null
   )
   const [showFilters, setShowFilters] = useState(
-    initialShowFilters || (initialSlug ? sortedProjects.some(p => p.id === initialSlug) : false)
+    initialShowFilters || (initialSlug ? projects.some(p => p.id === initialSlug) : false)
   )
   const [activeFilter, setActiveFilter] = useState<string>('All')
 
   const filteredProjects = useMemo(
-    () => activeFilter === 'All' ? sortedProjects : sortedProjects.filter(p => p.type === activeFilter || p.subTypes?.includes(activeFilter as ProjectType)),
-    [activeFilter]
+    () => activeFilter === 'All' ? projects : projects.filter(p => p.type === activeFilter || p.subTypes?.includes(activeFilter as ProjectType)),
+    [activeFilter, projects]
   )
   const filteredRef = useRef(filteredProjects)
 
-  const [shuffleQueue, setShuffleQueue] = useState<Project[]>(() => shuffle(sortedProjects))
+  const [shuffleQueue, setShuffleQueue] = useState<Project[]>(() => shuffle(projects))
   const [shuffleIdx, setShuffleIdx] = useState(0)
   const [isBlacking, setIsBlacking] = useState(false)
   const shuffleQueueRef = useRef(shuffleQueue)
@@ -154,7 +154,7 @@ export function LandingExperience({ initialSlug, initialShowFilters = false }: L
       const path = window.location.pathname
       if (path.startsWith('/work/')) {
         const slug = path.slice('/work/'.length)
-        const p = sortedProjects.find(p => p.id === slug) ?? null
+        const p = projects.find(p => p.id === slug) ?? null
         setActiveProject(p)
         if (p) setShowFilters(true)
       } else if (path === '/work') {
@@ -183,7 +183,7 @@ export function LandingExperience({ initialSlug, initialShowFilters = false }: L
 
   // 모바일 월: 카드 탭 → 인라인 확장 + URL push
   const handleActivate = useCallback((slug: string) => {
-    const p = sortedProjects.find(p => p.id === slug)
+    const p = projects.find(p => p.id === slug)
     if (!p) return
     setActiveProject(p)
     setShowFilters(true)
@@ -200,7 +200,7 @@ export function LandingExperience({ initialSlug, initialShowFilters = false }: L
     }
   }
 
-  const shuffleProject = shuffleQueue[shuffleIdx] ?? filteredProjects[0] ?? sortedProjects[0]
+  const shuffleProject = shuffleQueue[shuffleIdx] ?? filteredProjects[0] ?? projects[0]
   const displayProject = activeProject ?? hoveredProject ?? shuffleProject
 
   const layoutVisible = introPhase === 'done'

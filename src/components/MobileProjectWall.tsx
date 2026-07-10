@@ -10,8 +10,7 @@
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { CreditsSlide, DiagramSetSlide, ImageSlide, Project, ProjectSlide } from '@/types'
-import { projectSlides } from '@/data/projectSlides'
-import { cldCard } from '@/lib/cloudinary'
+import { sanityCard } from '@/lib/imageUrl'
 import { shuffle } from '@/lib/shuffle'
 import { circDist, mod, useRingWall } from '@/hooks/useRingWall'
 
@@ -46,9 +45,9 @@ const SHUFFLE_RESUME_MS = 8000
 // ── 슬라이드 패널 (§7) ──
 const PANEL_MS = 380
 
-// 히어로(커버 3:2)가 트랙 첫 슬라이드 — projectSlides 첫 항목이 커버와 동일 이미지면 중복 제거
+// 히어로(커버 3:2)가 트랙 첫 슬라이드 — slides 첫 항목이 커버와 동일 이미지면 중복 제거
 function getRestSlides(project: Project): ProjectSlide[] {
-  const slides = projectSlides[project.id] ?? []
+  const slides = project.slides ?? []
   if (slides.length > 0 && slides[0].kind === 'image' && slides[0].src === project.coverImage) {
     return slides.slice(1)
   }
@@ -395,7 +394,7 @@ function ExpandedBlock({ project, onBack, heroRef, heroHidden, titleMorphing, ti
             {project.coverImage ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img
-                src={cldCard(project.coverImage, 800)}
+                src={sanityCard(project.coverImage, 800, project.coverHotspot)}
                 alt={project.title}
                 draggable={false}
                 style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
@@ -736,7 +735,7 @@ export function MobileProjectWall({
           const heroW = vw - 32
           startMorph({
             slug: activeSlug,
-            src: activeProject.coverImage ? cldCard(activeProject.coverImage, 480) : null,
+            src: activeProject.coverImage ? sanityCard(activeProject.coverImage, 480, activeProject.coverHotspot) : null,
             color: activeProject.coverColor,
             from: pending.from,
             to: { top: hr.top, left: 16, width: heroW, height: heroW * 2 / 3 },
@@ -769,7 +768,7 @@ export function MobileProjectWall({
       const thumbLeft = (vw - TIERS[0].w) / 2
       startMorph({
         slug: prev,
-        src: project.coverImage ? cldCard(project.coverImage, 480) : null,
+        src: project.coverImage ? sanityCard(project.coverImage, 480, project.coverHotspot) : null,
         color: project.coverColor,
         from: pending.from,
         to: { top: cardTop + TOP_TEXT_H, left: thumbLeft, width: TIERS[0].w, height: TIERS[0].h },
@@ -938,7 +937,7 @@ export function MobileProjectWall({
                     {p.coverImage ? (
                       // eslint-disable-next-line @next/next/no-img-element
                       <img
-                        src={cldCard(p.coverImage, 480)}
+                        src={sanityCard(p.coverImage, 480, p.coverHotspot)}
                         alt={p.title}
                         loading="lazy"
                         draggable={false}

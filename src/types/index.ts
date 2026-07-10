@@ -44,6 +44,10 @@ export interface Project {
   coverImage?: string     // Cloudinary or /public 경로 — 비워두면 coverColor 사용
   coverColor: string      // placeholder 색상
   location?: string
+  slides?: ProjectSlide[]  // Sanity에서 문서와 함께 로드
+  client?: string          // 발주처 (4단계에서 표시)
+  size?: string            // 규모 (4단계에서 표시)
+  coverHotspot?: { x: number; y: number }   // 커버 크롭 초점 (Studio hotspot)
 }
 
 // ── 프로젝트 상세 슬라이드 ──
@@ -55,6 +59,8 @@ export interface ImageSlide {
   caption?: string
   /** true면 다이어그램으로 취급 — 트랙에서 DIAGRAM_H_PCT(48%) 높이 적용 */
   diagram?: boolean
+  /** 이미지 w/h — Sanity metadata 공급 */
+  ratio?: number
 }
 
 export interface DiagramItem {
@@ -63,6 +69,8 @@ export interface DiagramItem {
   label: string
   /** 한 문장 설명 */
   description: string
+  /** 이미지 w/h — Sanity metadata 공급 */
+  ratio?: number
 }
 
 export interface DiagramSetSlide {

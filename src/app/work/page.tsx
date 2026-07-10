@@ -1,5 +1,9 @@
+import { getProjects } from '@/lib/sanity/queries'
 import { LandingExperience } from '@/components/LandingExperience'
 
-export default function WorkPage() {
-  return <LandingExperience initialShowFilters />
+export const dynamic = 'force-static'
+
+export default async function WorkPage() {
+  const projects = await getProjects()
+  return <LandingExperience projects={projects} initialShowFilters />
 }
