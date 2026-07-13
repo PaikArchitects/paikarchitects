@@ -51,12 +51,6 @@ const tierSlotHeights = (cw: number) => {
   ] as const
 }
 
-// ── FLIP 역모프(§6-3) 전용 잔존 상수 — 열람→링 복귀 목표 rect 산출에만 소비.
-//    렌더 경로는 위 파생 함수를 쓴다. 모프 로직은 명세 ③ 범위이므로 이번 개정 대상 아님 ──
-const TIERS = { 0: { w: 288, h: 192 }, 1: { w: 201, h: 134 }, 2: { w: 114, h: 76 } } as const
-const TOP_TEXT_H = 24
-const SLOT_H = { 0: TIERS[0].h + TOP_TEXT_H, 1: TIERS[1].h, 2: TIERS[2].h } as const
-
 // ── 트랙 수직 상수 — 히어로 H = (100vw − 32px) × 2/3. 어떤 슬라이드 조합에서도 총 높이 불변 ──
 const HERO_W = 'calc(100vw - 32px)'
 const TRACK_IMG_H = 'calc((100vw - 32px) * 2 / 3)'       // 이미지·정보·크레딧 슬라이드 = H
@@ -801,20 +795,26 @@ export function MobileProjectWall({
         return
       }
       // 역모프 목표 — 산식으로 결정적: 링 중앙 d=0 썸네일 rect (§6-3)
+      // 티어 기하는 현재 컨테이너 폭에서 파생 — 렌더 경로와 동일한 함수를 쓴다
       const vw = window.innerWidth
       const containerH = window.innerHeight - HEADER_H
-      const cardTop = HEADER_H + containerH / 2 - SLOT_H[0] / 2
-      const thumbLeft = (vw - TIERS[0].w) / 2
+      const [w0] = tierWidths(cwRef.current || vw)   // 폭 미관찰 시 뷰포트 폭으로 폴백
+      const h0 = w0 / TIER_ASPECT                     // 이미지 높이 (3:2)
+      const slot0 = h0 + BELOW_TEXT_H                 // 슬롯 전체 높이 = 이미지 + 하단 텍스트 행
+      const cardTop = HEADER_H + containerH / 2 - slot0 / 2   // 슬롯 상단 (= 이미지 상단)
+      const thumbLeft = (vw - w0) / 2
       startMorph({
         slug: prev,
         src: project.coverImage ? sanityCard(project.coverImage, 480, project.coverHotspot) : null,
         color: project.coverColor,
         from: pending.from,
-        to: { top: cardTop + TOP_TEXT_H, left: thumbLeft, width: TIERS[0].w, height: TIERS[0].h },
+        // 이미지가 슬롯 최상단 — TOP_TEXT_H 가산 없음 (텍스트는 하단으로 이동함)
+        to: { top: cardTop, left: thumbLeft, width: w0, height: h0 },
         title: pending.titleFrom ? {
           text: project.title,
           from: { ...pending.titleFrom, fontSize: 16, fontWeight: 600 },
-          to: { top: cardTop + (TOP_TEXT_H - 13 * 1.35) / 2, left: thumbLeft, fontSize: 13, fontWeight: 400 },
+          // 타이틀 종착 — 이미지 하단 텍스트 행의 첫 줄. paddingTop 6은 §3-3 렌더와 일치
+          to: { top: cardTop + h0 + 6, left: thumbLeft, fontSize: 13, fontWeight: 400 },
         } : null,
       })
       if (closeTimerRef.current) clearTimeout(closeTimerRef.current)
