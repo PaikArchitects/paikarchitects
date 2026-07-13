@@ -165,8 +165,8 @@
   display: none;
 }
 
-/* ── MOBILE (<768px) — 컴팩트 헤더: 불투명 56px 바 + 워드마크 중앙 22px + 햄버거/필터 글리프 (§8-1) ── */
-@media (max-width: 767px) {
+/* ── MOBILE (<1024px) — 컴팩트 헤더: 불투명 56px 바 + 워드마크 중앙 22px + 햄버거/필터 글리프 (§8-1) ── */
+@media (max-width: 1023px) {
   .mobile-header-bar {
     display: block;
     position: fixed;
@@ -211,7 +211,7 @@
   display: none;
 }
 
-@media (max-width: 767px) {
+@media (max-width: 1023px) {
   .mobile-menu-btn {
     display: flex;
     position: fixed;
@@ -266,8 +266,8 @@
   }
 }
 
-/* ── TABLET (768~1439px) — 내비 중앙 정렬 해제 → 우측 이동으로 좌상단 워드마크와 분리 ── */
-@media (min-width: 768px) and (max-width: 1439px) {
+/* ── TABLET (1024~1439px) — 내비 중앙 정렬 해제 → 우측 이동으로 좌상단 워드마크와 분리 ── */
+@media (min-width: 1024px) and (max-width: 1439px) {
   .site-nav {
     left: auto;
     right: 24px;

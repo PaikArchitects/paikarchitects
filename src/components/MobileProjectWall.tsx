@@ -425,6 +425,7 @@ export function MobileProjectWall({
 }: MobileProjectWallProps) {
   // ── 표시 순서 — 초기값은 projects 그대로(SSR/hydration 안전), 마운트 후 1회 셔플 (§4) ──
   const [order, setOrder] = useState<Project[]>(projects)
+  const [shuffled, setShuffled] = useState(false)   // 마운트 셔플 완료 플래그 — 경합 해소용 (HANDOFF_RACE_FIX_SPEC §2)
   const [phase, setPhase] = useState<'idle' | 'exit' | 'enter'>('idle')
   const orderRef = useRef(order)
   useEffect(() => { orderRef.current = order }, [order])
@@ -498,6 +499,7 @@ export function MobileProjectWall({
   // 마운트 후 1회 Fisher-Yates — 인트로가 교체를 가린다
   useEffect(() => {
     setOrder(prev => shuffle(prev))
+    setShuffled(true)   // setOrder와 같은 배치에서 커밋 → shuffled===true 렌더에서 order는 셔플 후 값 (§2)
   }, [])
 
   // order 교체 시 큐 재생성 + (필터 스왑이면) 큐 첫 항목으로 즉시 점프 (§5)
@@ -518,17 +520,18 @@ export function MobileProjectWall({
   // 초기 정착 — revealed 직후 1회. 승계 하이라이트가 있으면 그것을, 없으면 랜덤 큐 첫 항목을 중앙으로 (§4)
   const settledInitRef = useRef(false)
   useEffect(() => {
-    if (!revealed || settledInitRef.current) return
+    if (!revealed || !shuffled || settledInitRef.current) return   // shuffled 가드 — 셔플 커밋 후에만 정착 (§2)
     settledInitRef.current = true
     if (activeSlug) return   // 딥링크 — 활성 카드가 이미 중앙 (§6-4)
 
     // 승계 우선 — 데스크톱에서 보고 있던 프로젝트를 이어받는다 (HIGHLIGHT_HANDOFF_SPEC)
+    // orderRef 대신 order 렌더 값 사용 — 셔플 후 배열과 정합 (HANDOFF_RACE_FIX_SPEC §2)
     const handoff = initialHighlight
-      ? orderRef.current.findIndex(p => p.id === initialHighlight)
+      ? order.findIndex(p => p.id === initialHighlight)
       : -1
     const idx = handoff >= 0
       ? handoff
-      : Math.max(0, orderRef.current.findIndex(p => p.id === queueRef.current[0]))
+      : Math.max(0, order.findIndex(p => p.id === queueRef.current[0]))
 
     centerIdxRef.current = idx
     setCenterTick(t => t + 1)
@@ -537,7 +540,7 @@ export function MobileProjectWall({
     queueIdxRef.current = handoff >= 0 ? 0 : 1
     lastShuffleRef.current = Date.now()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [revealed, jumpTo])
+  }, [revealed, shuffled, order, jumpTo])
 
   const advanceShuffle = useCallback(() => {
     if (queueIdxRef.current >= queueRef.current.length) {

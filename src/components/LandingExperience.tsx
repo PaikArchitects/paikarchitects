@@ -65,11 +65,13 @@ export function LandingExperience({ projects, initialSlug, initialShowFilters = 
     filteredRef.current = filteredProjects
   }, [filteredProjects])
 
-  // mobile detection — 모바일 <768, 그 외(태블릿 768~1439 포함) 데스크탑 분기
+  // mobile detection — 모바일/태블릿세로 <1024, 그 외 데스크탑 분기.
+  // 1024 경계 근거: iPad Air(820)·iPad Pro 11"(834) 세로를 포섭하고,
+  // iPad Pro 12.9" 세로(1024)는 SPA 분할이 성립하므로 데스크톱에 남긴다 (HANDOFF_RACE_FIX_SPEC §3)
   useEffect(() => {
     const fn = () => {
       const w = window.innerWidth
-      const m = w < 768
+      const m = w < 1024
       mobileRef.current = m
       setMobile(m)
     }
