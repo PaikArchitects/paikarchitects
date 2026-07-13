@@ -49,6 +49,10 @@ export function LandingExperience({ projects, initialSlug, initialShowFilters = 
 
   const [hoveredProject, setHoveredProject] = useState<Project | null>(null)
 
+  // 구간 전환 하이라이트 승계 — 언마운트되는 렌더러의 마지막 하이라이트를 기억했다가
+  // 새로 마운트되는 렌더러의 초기값으로 주입한다 (§1). 렌더 유발 불요이므로 ref
+  const lastHighlightRef = useRef<string | null>(null)
+
   // 데스크톱 필터 바 가로 오버플로 어포던스 (768~1439 좁은 폭에서 칩이 한 줄을 넘을 때)
   const filterScrollRef = useRef<HTMLDivElement>(null)
   const [filterFade, setFilterFade] = useState({ left: false, right: false })
@@ -202,6 +206,36 @@ export function LandingExperience({ projects, initialSlug, initialShowFilters = 
 
   const shuffleProject = shuffleQueue[shuffleIdx] ?? filteredProjects[0] ?? projects[0]
   const displayProject = activeProject ?? hoveredProject ?? shuffleProject
+
+  // 데스크톱 하이라이트 기록 — 모바일 진입 시 승계될 값
+  useEffect(() => {
+    if (mobile) return
+    const h = activeProject?.id ?? hoveredProject?.id ?? shuffleProject?.id ?? null
+    if (h) lastHighlightRef.current = h
+  }, [mobile, activeProject, hoveredProject, shuffleProject])
+
+  // 모바일 하이라이트 수신 — 데스크톱 진입 시 승계될 값
+  const handleHighlight = useCallback((slug: string) => {
+    lastHighlightRef.current = slug
+  }, [])
+
+  // 구간 전환 — 모바일 → 데스크톱 진입 시 승계 하이라이트를 셔플 큐 선두로 정렬
+  const prevMobileRef = useRef<boolean | null>(null)
+  useEffect(() => {
+    const prev = prevMobileRef.current
+    prevMobileRef.current = mobile
+    if (prev === null || prev === mobile) return   // 초기 마운트 / 변화 없음
+    if (mobile) return                              // 데스크톱 → 모바일: 모바일 settledInitRef가 처리
+
+    // 모바일 → 데스크톱: 승계 하이라이트를 큐 선두에 놓는다
+    const h = lastHighlightRef.current
+    if (!h) return
+    const target = filteredRef.current.find(p => p.id === h)
+    if (!target) return                             // 필터에서 제외됨 — 승계 포기
+    const rest = shuffle(filteredRef.current.filter(p => p.id !== h))
+    setShuffleQueue([target, ...rest])
+    setShuffleIdx(0)
+  }, [mobile])
 
   const layoutVisible = introPhase === 'done'
 
@@ -373,6 +407,8 @@ export function LandingExperience({ projects, initialSlug, initialShowFilters = 
           onDeactivate={handleBack}
           revealed={layoutVisible}
           showFilters={showFilters}
+          initialHighlight={lastHighlightRef.current}
+          onHighlight={handleHighlight}
         />
       )}
 

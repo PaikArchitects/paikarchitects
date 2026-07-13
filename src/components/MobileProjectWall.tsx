@@ -385,6 +385,8 @@ interface MobileProjectWallProps {
   onDeactivate: () => void
   revealed: boolean              // layoutVisible (introPhase === 'done')
   showFilters: boolean           // [미사용] 필터 글리프가 revealed 동기 상시 표시로 전환되며 유일 소비처 소멸 — 외부 계약(LandingExperience) 불변을 위해 시그니처 유지
+  initialHighlight?: string | null   // 구간 전환 승계 — 초기 정착 시 이 카드를 중앙에 놓는다
+  onHighlight?: (slug: string) => void   // 중앙 카드 변경 통보 — 부모가 승계용으로 기억
 }
 
 interface ViewRect {
@@ -419,6 +421,7 @@ interface MorphState {
 export function MobileProjectWall({
   projects, filterTypes, activeFilter, onFilter,
   activeSlug, onActivate, onDeactivate, revealed,
+  initialHighlight, onHighlight,
 }: MobileProjectWallProps) {
   // ── 표시 순서 — 초기값은 projects 그대로(SSR/hydration 안전), 마운트 후 1회 셔플 (§4) ──
   const [order, setOrder] = useState<Project[]>(projects)
@@ -478,6 +481,13 @@ export function MobileProjectWall({
     setCenterTick(t => t + 1)
   }
 
+  // 중앙 카드 변경 통보 — 부모가 구간 전환 승계용으로 기억한다 (HIGHLIGHT_HANDOFF_SPEC)
+  useEffect(() => {
+    if (!onHighlight) return
+    const p = orderRef.current[centerIdxRef.current]
+    if (p) onHighlight(p.id)
+  }, [centerTick, onHighlight])
+
   // ── 셔플 큐 (§4) — advanceShuffle은 moveTo 한 줄. scrollIntoView·종료 추정 타이머 없음 ──
   const queueRef = useRef<string[]>([])
   const queueIdxRef = useRef(0)
@@ -505,17 +515,26 @@ export function MobileProjectWall({
     }
   }, [order, jumpTo])
 
-  // 초기 정착 — revealed 직후 랜덤 큐 첫 항목을 정중앙으로 1회 jumpTo (§4)
+  // 초기 정착 — revealed 직후 1회. 승계 하이라이트가 있으면 그것을, 없으면 랜덤 큐 첫 항목을 중앙으로 (§4)
   const settledInitRef = useRef(false)
   useEffect(() => {
     if (!revealed || settledInitRef.current) return
     settledInitRef.current = true
     if (activeSlug) return   // 딥링크 — 활성 카드가 이미 중앙 (§6-4)
-    const idx = Math.max(0, orderRef.current.findIndex(p => p.id === queueRef.current[0]))
+
+    // 승계 우선 — 데스크톱에서 보고 있던 프로젝트를 이어받는다 (HIGHLIGHT_HANDOFF_SPEC)
+    const handoff = initialHighlight
+      ? orderRef.current.findIndex(p => p.id === initialHighlight)
+      : -1
+    const idx = handoff >= 0
+      ? handoff
+      : Math.max(0, orderRef.current.findIndex(p => p.id === queueRef.current[0]))
+
     centerIdxRef.current = idx
     setCenterTick(t => t + 1)
     jumpTo(idx)
-    queueIdxRef.current = 1
+    // 승계 시에도 큐는 정상 진행 — 다음 셔플이 큐 첫 항목부터 시작하지 않도록 인덱스 보정
+    queueIdxRef.current = handoff >= 0 ? 0 : 1
     lastShuffleRef.current = Date.now()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [revealed, jumpTo])
