@@ -74,6 +74,7 @@ export interface RingWallApi {
   heights: number[]                          // 애니메이션 중인 실측 높이 배열 (length N)
   slots: RingSlot[]
   isLoop: boolean                            // §1 모드 판정 — false면 유한 스택
+  containerWidth: number                     // ← 신설. 렌더러의 폭 파생용 (물리 무관)
   moveTo: (index: number) => void            // 루프: 최단 원형 경로 / 유한: 선형 트위닝
   jumpTo: (index: number) => void            // 즉시 이동 (필터 스왑용)
   isSettled: boolean
@@ -129,6 +130,7 @@ export function useRingWall({ count, getSlotHeight, gap, minSlotHeight = MIN_SLO
     settled: true,
   }))
   const [containerHeight, setContainerHeight] = useState(0)
+  const [containerWidth, setContainerWidth] = useState(0)
   // 입력 핸들러(비-리액트 클로저)의 유한 오버플로 판정용 ref 미러 (§2-A)
   const containerHeightRef = useRef(0)
 
@@ -340,10 +342,12 @@ export function useRingWall({ count, getSlotHeight, gap, minSlotHeight = MIN_SLO
     const ro = new ResizeObserver(() => {
       containerHeightRef.current = el.clientHeight
       setContainerHeight(el.clientHeight)
+      setContainerWidth(el.clientWidth)
     })
     ro.observe(el)
     containerHeightRef.current = el.clientHeight
     setContainerHeight(el.clientHeight)
+    setContainerWidth(el.clientWidth)
 
     el.addEventListener('wheel', onWheel, { passive: false })
     el.addEventListener('pointerdown', onPointerDown)
@@ -415,5 +419,5 @@ export function useRingWall({ count, getSlotHeight, gap, minSlotHeight = MIN_SLO
     return out
   }, [offset, heights, containerHeight, count, gap, minSlotHeight, isLoop])
 
-  return { containerRef, offset, heights, slots, isLoop, moveTo, jumpTo, isSettled: settled }
+  return { containerRef, offset, heights, slots, isLoop, containerWidth, moveTo, jumpTo, isSettled: settled }
 }

@@ -8,7 +8,7 @@
 // 필터는 우측 슬라이드 패널(§7), 내비게이션은 SiteHeader의 햄버거 메뉴(§8)가 전담.
 // 상태 소유는 LandingExperience (URL 동기화 일원화).
 
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { CreditsSlide, DiagramSetSlide, ImageSlide, Project, ProjectSlide } from '@/types'
 import { sanityCard } from '@/lib/imageUrl'
 import { shuffle } from '@/lib/shuffle'
@@ -21,15 +21,40 @@ const EASE = 'cubic-bezier(0.7, 0, 0.3, 1)'
 const MORPH_MS = 500         // FLIP 모프 + 레이어 교대 페이드
 const BACK_ROW_H = 36        // 확장 블록 BACK 행 높이
 
-// ── 링 티어 기하 (§3-1, v4.1 동결값 승계) — 전 티어 3:2 (288/192 = 201/134 = 114/76) ──
-const TIERS = { 0: { w: 288, h: 192 }, 1: { w: 201, h: 134 }, 2: { w: 114, h: 76 } } as const
-const TOP_TEXT_H = 24        // d=0 상단 텍스트 행
-const GAP = 14               // ITEM_GAP 승계
-const MIN_SLOT = 76          // useRingWall minSlotHeight로 전달
+// ── 링 티어 기하 — 폭의 연속 함수로 파생. 브레이크포인트 없음 (MOBILE_TIER_SCALE_SPEC §2) ──
+// 티어0 = 히어로 폭 × 92%, 단 절대 상한 400px (태블릿 세로 과대화 방지)
+const HERO_INSET = 32          // 트랙 히어로의 좌우 인셋 — HERO_W = 100vw - 32px와 일치
+const TIER0_RATIO = 0.92       // 히어로 대비 티어0 폭
+const TIER0_MAX = 400          // 절대 상한 (px)
+const TIER0_MIN = 240          // 절대 하한 — 초소형 뷰포트 안전판 (폭 관찰 이전 프레임의 0나눗셈 방지)
+// 티어1·2는 티어0에 대한 고정 비율 (현행 201/288, 114/288 승계)
+const TIER1_RATIO = 0.698
+const TIER2_RATIO = 0.396
+const TIER_ASPECT = 3 / 2      // 전 티어 3:2 유지
+const BELOW_TEXT_H = 40        // 이미지 하단 텍스트 행 (프로젝트명 + 용도 상하 배열)
+const GAP = 14                 // ITEM_GAP 승계
 const OPACITY = { 0: 1, 1: 0.45, 2: 0.3 } as const
-const PAIR_TEXT_W = 130      // 측면 텍스트 블록 폭 — 우정렬로 썸네일에 flush
-const PAIR_GAP = 8
-// 슬롯 높이 — d=0은 상단 텍스트 행 포함 (192+24=216)
+
+// 티어 폭 파생 — 컨테이너 폭(px)이 유일한 입력. 순수 함수
+const tierWidths = (cw: number) => {
+  const hero = Math.max(cw - HERO_INSET, 0)
+  const w0 = Math.min(Math.max(hero * TIER0_RATIO, TIER0_MIN), TIER0_MAX)
+  return [w0, w0 * TIER1_RATIO, w0 * TIER2_RATIO] as const
+}
+// 슬롯 높이 = 이미지 높이(폭/1.5) + 텍스트 행. 전 티어 텍스트 하단 배치이므로 일괄 가산
+const tierSlotHeights = (cw: number) => {
+  const [w0, w1, w2] = tierWidths(cw)
+  return [
+    w0 / TIER_ASPECT + BELOW_TEXT_H,
+    w1 / TIER_ASPECT + BELOW_TEXT_H,
+    w2 / TIER_ASPECT + BELOW_TEXT_H,
+  ] as const
+}
+
+// ── FLIP 역모프(§6-3) 전용 잔존 상수 — 열람→링 복귀 목표 rect 산출에만 소비.
+//    렌더 경로는 위 파생 함수를 쓴다. 모프 로직은 명세 ③ 범위이므로 이번 개정 대상 아님 ──
+const TIERS = { 0: { w: 288, h: 192 }, 1: { w: 201, h: 134 }, 2: { w: 114, h: 76 } } as const
+const TOP_TEXT_H = 24
 const SLOT_H = { 0: TIERS[0].h + TOP_TEXT_H, 1: TIERS[1].h, 2: TIERS[2].h } as const
 
 // ── 트랙 수직 상수 — 히어로 H = (100vw − 32px) × 2/3. 어떤 슬라이드 조합에서도 총 높이 불변 ──
@@ -499,16 +524,30 @@ export function MobileProjectWall({
   const centerIdxRef = useRef(0)
   const [centerTick, setCenterTick] = useState(0)   // getSlotHeight 재생성 → 훅 웨이크 트리거
 
+  // 컨테이너 폭 — 훅이 관찰. 첫 프레임은 0이며, ResizeObserver가 즉시 실측값을 커밋한다
+  const [cw, setCw] = useState(0)
+  const cwRef = useRef(0)
+  cwRef.current = cw
+
+  // 티어 슬롯 높이 — cw 파생. cw=0이면 하한(TIER0_MIN)이 적용되어 유효한 값이 나온다
+  const slotHs = useMemo(() => tierSlotHeights(cw), [cw])
+  const minSlot = slotHs[2]
+
   const getSlotHeight = useCallback((i: number) => {
     const c = centerIdxRef.current
     const d = isLoopRef.current ? circDist(i, c, N) : Math.abs(i - c)
-    return SLOT_H[Math.min(d, 2) as 0 | 1 | 2]
+    return slotHs[Math.min(d, 2)]
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [N, centerTick])
+  }, [N, centerTick, slotHs])
 
-  const ring = useRingWall({ count: N, getSlotHeight, gap: GAP, minSlotHeight: MIN_SLOT })
+  const ring = useRingWall({ count: N, getSlotHeight, gap: GAP, minSlotHeight: minSlot })
   isLoopRef.current = ring.isLoop
   const { moveTo, jumpTo } = ring
+
+  // 훅이 관찰한 폭을 상태로 승격 — 다음 렌더에서 티어가 재파생된다
+  useEffect(() => {
+    if (ring.containerWidth !== cwRef.current) setCw(ring.containerWidth)
+  }, [ring.containerWidth])
 
   // 렌더 단계 파생 — round(offset)이 바뀌면 티어 목표 재생성 (렌더 중 상태 갱신 패턴)
   const liveCenter = N > 0
@@ -823,11 +862,9 @@ export function MobileProjectWall({
         {ring.slots.map(({ slot, index, turn, yCenter }) => {
           const p = order[index]
           if (!p) return null
-          const h = ring.heights[index] ?? MIN_SLOT
-          // 연속 파생 (§3-3) — 76↔134 구간: 전량 썸네일 / 134↔216 구간: 텍스트 행 0→24 선형
-          const thumbH = h <= 134 ? h : 134 + (h - 134) * 58 / 82
-          const textRowH = h - thumbH
-          const thumbW = thumbH * 1.5
+          const h = ring.heights[index] ?? slotHs[2]      // 물리 루프가 보간 중인 슬롯 높이
+          const thumbH = Math.max(h - BELOW_TEXT_H, 0)    // 이미지 높이 — 슬롯에서 텍스트 행 차감
+          const thumbW = thumbH * TIER_ASPECT             // 폭은 3:2에서 파생 (측정 없음)
           const d = ring.isLoop ? circDist(index, liveCenter, N) : Math.abs(index - liveCenter)
           const tierOpacity = OPACITY[Math.min(d, 2) as 0 | 1 | 2]
           const exiting = phase === 'exit'
@@ -874,61 +911,10 @@ export function MobileProjectWall({
                   opacity: tierOpacity,
                   transition: 'opacity 300ms ease',
                 }}>
-                  {/* 상단 텍스트 행 (d=0 전용) — 기하는 연속(textRowH), 현출만 이산 크로스페이드 */}
-                  <div style={{
-                    height: textRowH,
-                    width: thumbW,
-                    overflow: 'hidden',
-                    display: 'flex',
-                    alignItems: 'flex-end',
-                  }}>
-                    <div style={{
-                      width: '100%',
-                      height: TOP_TEXT_H,
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: PAIR_GAP,
-                      opacity: d === 0 ? 1 : 0,
-                      transition: 'opacity 150ms ease',
-                    }}>
-                      {/* 프로젝트명 — 1줄 ellipsis. 탭 시 페이드 없이 오버레이가 직접 보간 */}
-                      <div
-                        ref={el => { topTitleEls.current[p.id] = el }}
-                        style={{
-                          minWidth: 0,
-                          fontSize: 13,
-                          fontWeight: 400,
-                          lineHeight: 1.35,
-                          color: '#080706',
-                          whiteSpace: 'nowrap',
-                          overflow: 'hidden',
-                          textOverflow: 'ellipsis',
-                          visibility: titleMorphing ? 'hidden' : 'visible',
-                        }}
-                      >
-                        {p.title}
-                      </div>
-                      {/* 카테고리 — 우측 병기 */}
-                      <div style={{
-                        flexShrink: 0,
-                        marginLeft: 'auto',
-                        fontSize: 9,
-                        fontWeight: 300,
-                        textTransform: 'uppercase',
-                        letterSpacing: '0.08em',
-                        color: '#080706',
-                        opacity: 0.45,
-                      }}>
-                        {p.type}
-                      </div>
-                    </div>
-                  </div>
-
                   {/* 썸네일 — 전 구간 3:2, 커버 부재 시 단색 폴백 */}
                   <div
                     ref={el => { thumbEls.current[p.id] = el }}
                     style={{
-                      position: 'relative',
                       width: thumbW,
                       height: thumbH,
                       opacity: morphSlug === p.id ? 0 : 1,
@@ -946,42 +932,47 @@ export function MobileProjectWall({
                     ) : (
                       <div style={{ width: '100%', height: '100%', background: p.coverColor }} />
                     )}
+                  </div>
 
-                    {/* 측면 텍스트 (d>=1) — 썸네일 좌측 바깥. d=0 진입 시 상단 행과 크로스페이드 */}
-                    <div style={{
-                      position: 'absolute',
-                      right: `calc(100% + ${PAIR_GAP}px)`,
-                      top: '50%',
-                      transform: 'translateY(-50%)',
-                      width: PAIR_TEXT_W,
-                      textAlign: 'right',
-                      opacity: d === 0 ? 0 : 1,
-                      transition: 'opacity 150ms ease',
-                    }}>
-                      <div style={{
+                  {/* 텍스트 행 — 전 티어 공통. 썸네일 하단, 폭 일치, 좌측 정렬 */}
+                  <div style={{
+                    width: thumbW,
+                    height: BELOW_TEXT_H,
+                    paddingTop: 6,
+                    boxSizing: 'border-box',
+                    overflow: 'hidden',
+                    textAlign: 'left',
+                  }}>
+                    {/* 프로젝트명 — 1줄 ellipsis (텍스트 행 높이 고정 보장) */}
+                    <div
+                      ref={el => { topTitleEls.current[p.id] = el }}
+                      style={{
                         fontSize: 13,
                         fontWeight: 400,
                         lineHeight: 1.3,
                         color: '#080706',
-                        wordBreak: 'keep-all',
-                        display: '-webkit-box',
-                        WebkitLineClamp: 2,
-                        WebkitBoxOrient: 'vertical' as const,
+                        whiteSpace: 'nowrap',
                         overflow: 'hidden',
-                      }}>
-                        {p.title}
-                      </div>
-                      <div style={{
-                        marginTop: 2,
-                        fontSize: 9,
-                        fontWeight: 300,
-                        textTransform: 'uppercase',
-                        letterSpacing: '0.08em',
-                        color: '#080706',
-                        opacity: 0.45,
-                      }}>
-                        {p.type}
-                      </div>
+                        textOverflow: 'ellipsis',
+                        visibility: titleMorphing ? 'hidden' : 'visible',
+                      }}
+                    >
+                      {p.title}
+                    </div>
+                    {/* 용도 — 1줄 ellipsis */}
+                    <div style={{
+                      marginTop: 2,
+                      fontSize: 9,
+                      fontWeight: 300,
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.08em',
+                      color: '#080706',
+                      opacity: 0.45,
+                      whiteSpace: 'nowrap',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                    }}>
+                      {p.type}
                     </div>
                   </div>
                 </div>
