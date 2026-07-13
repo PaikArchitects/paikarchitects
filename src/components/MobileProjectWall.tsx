@@ -51,11 +51,12 @@ const tierSlotHeights = (cw: number) => {
   ] as const
 }
 
-// ── 트랙 수직 상수 — 히어로 H = (100vw − 32px) × 2/3. 어떤 슬라이드 조합에서도 총 높이 불변 ──
-const HERO_W = 'calc(100vw - 32px)'
-const TRACK_IMG_H = 'calc((100vw - 32px) * 2 / 3)'       // 이미지·정보·크레딧 슬라이드 = H
-const TRACK_DIAGRAM_H = 'calc((100vw - 32px) * 4 / 9)'   // 다이어그램 = H × 2/3
-const CAPTION_H = 28         // 캡션 영역 — 항상 고정 예약, 트랙 높이에 미포함
+// ── 세로 스택 상수 — 모든 슬라이드 동일 폭, 높이는 콘텐츠 비율이 결정 ──
+const HERO_W = 'calc(100vw - 32px)'      // 기존 유지 (FLIP 모프 종착점 산출이 의존)
+const HERO_RATIO = 3 / 2                 // 커버는 3:2 고정 (sanityCard 크롭과 일치)
+const SLIDE_GAP = 24                     // 슬라이드 간 수직 간격
+const DIAGRAM_RATIO_FALLBACK = 3 / 2     // ratio 메타 부재 시 폴백
+const STACK_BOTTOM_PAD = 48              // 스택 하단 여백 — 마지막 슬라이드 이후 스크롤 여유
 
 // ── 셔플 (§4, v4.1 상수 승계) ──
 const SHUFFLE_INTERVAL_MS = 6000
@@ -82,15 +83,15 @@ function splitCaption(caption: string): { label: string; description: string } {
   }
 }
 
-// ── 캡션 — 고정 28px 영역 내에서만 렌더. 최대 2줄, 넘치면 ellipsis ──
+// ── 캡션 — 자연 높이. 2줄 초과 시 ellipsis ──
 function MobileCaption({ label, description }: { label: string; description: string }) {
   return (
-    <div style={{ height: CAPTION_H, paddingTop: 4, width: 0, minWidth: '100%', overflow: 'hidden' }}>
+    <div style={{ paddingTop: 6, width: '100%' }}>
       <div style={{
         fontFamily: FONT,
         fontSize: 10,
         fontWeight: 300,
-        lineHeight: 1.2,
+        lineHeight: 1.35,
         color: '#0a0908',
         opacity: 0.55,
         wordBreak: 'keep-all',
@@ -106,35 +107,36 @@ function MobileCaption({ label, description }: { label: string; description: str
   )
 }
 
-// ── 이미지 슬라이드 — 높이 H (diagram 표기 시 H×2/3 수직 중앙), 폭은 비율이 결정 ──
+// ── 이미지 슬라이드 — 폭 100%, 높이는 ratio(w/h)가 결정. aspectRatio로 사전 예약 ──
 function MobileImageSlide({ slide }: { slide: ImageSlide }) {
   const { label, description } = slide.caption
     ? splitCaption(slide.caption)
     : { label: '', description: '' }
-  const diagram = slide.diagram === true
 
   return (
-    <div style={{ flexShrink: 0, scrollSnapAlign: 'center' }}>
-      <div style={{ height: TRACK_IMG_H, display: 'flex', alignItems: 'center' }}>
+    <div style={{ width: '100%' }}>
+      {/* aspectRatio가 로드 전 높이를 예약 → 레이아웃 시프트 없음 */}
+      <div style={{ width: '100%', aspectRatio: String(slide.ratio ?? DIAGRAM_RATIO_FALLBACK) }}>
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src={slide.src}
           alt=""
+          loading="lazy"
           draggable={false}
-          style={{ height: diagram ? TRACK_DIAGRAM_H : '100%', width: 'auto', display: 'block' }}
+          style={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block' }}
         />
       </div>
-      {slide.caption
-        ? <MobileCaption label={label} description={description} />
-        : <div style={{ height: CAPTION_H }} />}
+      {slide.caption && <MobileCaption label={label} description={description} />}
     </div>
   )
 }
 
-// ── 다이어그램 세트 — 탭 = 다음 서브슬라이드 + 타이머 리셋, 자동 진행 3000ms 공존 ──
+// ── 다이어그램 세트 — 캐러셀 유지 (동일 프레임 내 전환으로 형태 변화를 읽힌다).
+//    탭 = 다음 서브슬라이드 + 타이머 리셋, 자동 진행 3000ms 공존 ──
 function MobileDiagramSetSlide({ slide }: { slide: DiagramSetSlide }) {
   const [subIdx, setSubIdx] = useState(0)
-  const downXRef = useRef<number | null>(null)
+  const downYRef = useRef<number | null>(null)
+  const pinchRef = useRef(false)          // 멀티터치(핀치) 진행 중 — 탭 전환 억제
   const total = slide.items.length
 
   // setTimeout을 subIdx에 키잉 — 탭/자동 어느 쪽이든 진행 시 타이머가 자연 리셋된다
@@ -146,119 +148,116 @@ function MobileDiagramSetSlide({ slide }: { slide: DiagramSetSlide }) {
   }, [subIdx, total, slide.autoAdvanceMs])
 
   const item = slide.items[subIdx]
+  // 프레임 비율 — 첫 항목 기준 고정. 서브슬라이드 전환 시 높이가 변하면 스크롤이 튄다
+  const frameRatio = slide.items[0].ratio ?? DIAGRAM_RATIO_FALLBACK
 
   return (
     <div
-      style={{ flexShrink: 0, scrollSnapAlign: 'center' }}
-      onPointerDown={e => { downXRef.current = e.clientX }}
+      style={{ width: '100%' }}
+      onPointerDown={e => {
+        // 멀티터치(핀치) 개시 — 탭 후보 무효화. 확대하려다 다이어그램이 넘어가는 것을 막는다
+        if (!e.isPrimary) { downYRef.current = null; pinchRef.current = true; return }
+        pinchRef.current = false
+        downYRef.current = e.clientY
+      }}
       onClick={e => {
-        // 탭 판정 — 수평 이동 5px 미만 (스와이프와 구분)
-        const dx = downXRef.current == null ? 0 : Math.abs(e.clientX - downXRef.current)
-        if (dx < 5) setSubIdx(i => (i + 1) % total)
+        // 탭 판정 — 수직 이동 5px 미만 (스크롤과 구분). 핀치 중이면 억제
+        if (pinchRef.current) { pinchRef.current = false; return }
+        const dy = downYRef.current == null ? 0 : Math.abs(e.clientY - downYRef.current)
+        if (dy < 5) setSubIdx(i => (i + 1) % total)
       }}
     >
-      <div style={{ height: TRACK_IMG_H, display: 'flex', alignItems: 'center' }}>
-        <div style={{ height: TRACK_DIAGRAM_H, position: 'relative' }}>
-          {/* 사이저 — 첫 다이어그램 비율로 슬라이드 폭 결정 */}
-          {/* eslint-disable-next-line @next/next/no-img-element */}
+      {/* 고정 프레임 — 전 서브슬라이드가 동일 위치·크기에 겹쳐 렌더 */}
+      <div style={{ width: '100%', aspectRatio: String(frameRatio), position: 'relative' }}>
+        {slide.items.map((it, i) => (
+          // eslint-disable-next-line @next/next/no-img-element
           <img
-            src={slide.items[0].src}
+            key={i}
+            src={it.src}
             alt=""
+            loading="lazy"
             draggable={false}
-            style={{ height: '100%', width: 'auto', display: 'block', visibility: 'hidden' }}
+            style={{
+              position: 'absolute',
+              inset: 0,
+              width: '100%',
+              height: '100%',
+              objectFit: 'contain',
+              opacity: i === subIdx ? 1 : 0,
+              transition: 'opacity 300ms ease',
+            }}
           />
-          {slide.items.map((it, i) => (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              key={i}
-              src={it.src}
-              alt=""
-              draggable={false}
-              style={{
-                position: 'absolute',
-                inset: 0,
-                width: '100%',
-                height: '100%',
-                objectFit: 'contain',
-                opacity: i === subIdx ? 1 : 0,
-                transition: 'opacity 300ms ease',
-              }}
-            />
-          ))}
-        </div>
+        ))}
       </div>
-      {/* 캡션 — 현재 서브슬라이드의 것 */}
-      <MobileCaption label={item.label} description={item.description} />
+      {/* 캡션 — 서브슬라이드 전환 시 높이 흔들림 방지: 2줄 고정 예약 */}
+      <div style={{ minHeight: 10 * 1.35 * 2 + 6 }}>
+        <MobileCaption label={item.label} description={item.description} />
+      </div>
     </div>
   )
 }
 
-// ── 크레딧 — 폭 70vw, 11px, 수직 중앙 ──
+// ── 크레딧 — 폭 100%, 높이는 행 수가 결정 ──
 function MobileCreditsSlide({ slide }: { slide: CreditsSlide }) {
   return (
-    <div style={{ flexShrink: 0, width: '70vw', scrollSnapAlign: 'center' }}>
-      <div style={{ height: TRACK_IMG_H, display: 'flex', alignItems: 'center' }}>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12, width: '100%' }}>
-          {slide.rows.map((row, i) => (
-            <div key={i} style={{ display: 'flex', gap: 16, alignItems: 'baseline' }}>
-              <div style={{
-                width: 96,
-                flexShrink: 0,
-                textAlign: 'right',
-                fontFamily: FONT,
-                fontSize: 9,
-                textTransform: 'uppercase',
-                letterSpacing: '0.08em',
-                color: '#0a0908',
-                opacity: 0.5,
-              }}>
-                {row.label}
-              </div>
-              <div style={{ fontFamily: FONT, fontSize: 11, fontWeight: 400, color: '#0a0908' }}>
-                {row.value}
-              </div>
+    <div style={{ width: '100%', padding: '8px 0' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+        {slide.rows.map((row, i) => (
+          <div key={i} style={{ display: 'flex', gap: 16, alignItems: 'baseline' }}>
+            <div style={{
+              width: 96,
+              flexShrink: 0,
+              textAlign: 'right',
+              fontFamily: FONT,
+              fontSize: 9,
+              textTransform: 'uppercase',
+              letterSpacing: '0.08em',
+              color: '#0a0908',
+              opacity: 0.5,
+            }}>
+              {row.label}
             </div>
-          ))}
-        </div>
+            <div style={{ fontFamily: FONT, fontSize: 11, fontWeight: 400, color: '#0a0908' }}>
+              {row.value}
+            </div>
+          </div>
+        ))}
       </div>
-      <div style={{ height: CAPTION_H }} />
     </div>
   )
 }
 
-// ── 정보 슬라이드 — BIG 문법: 메인 이미지 오른쪽 첫 번째. 폭 60vw, 수직 중앙 ──
+// ── 정보 — 히어로 바로 아래 고정. 폭 100%, 높이 자연 결정 ──
 function MobileInfoSlide({ project }: { project: Project }) {
   return (
-    <div style={{ flexShrink: 0, width: '60vw', scrollSnapAlign: 'center' }}>
+    <div style={{
+      width: '100%',
+      padding: '4px 0',
+      display: 'flex',
+      flexDirection: 'column',
+      gap: 14,
+      fontFamily: FONT,
+      color: '#080706',
+    }}>
       <div style={{
-        height: TRACK_IMG_H,
-        display: 'flex',
-        flexDirection: 'column',
-        justifyContent: 'center',
-        gap: 16,
-        fontFamily: FONT,
-        color: '#080706',
+        fontSize: 10,
+        fontWeight: 300,
+        letterSpacing: '0.08em',
+        textTransform: 'uppercase',
+        opacity: 0.45,
       }}>
-        <div style={{
-          fontSize: 10,
-          fontWeight: 300,
-          letterSpacing: '0.08em',
-          textTransform: 'uppercase',
-          opacity: 0.45,
-        }}>
-          {project.location ?? ''}
-        </div>
-
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          {[['TYPOLOGY', project.type], ['STATUS', project.status], ['YEAR', String(project.year)]].map(([l, v]) => (
-            <div key={l}>
-              <div style={{ fontSize: 9, fontWeight: 300, letterSpacing: '0.1em', opacity: 0.45 }}>{l}</div>
-              <div style={{ fontSize: 10, fontWeight: 400, letterSpacing: '0.04em', textTransform: 'uppercase', marginTop: 2 }}>{v}</div>
-            </div>
-          ))}
-        </div>
+        {project.location ?? ''}
       </div>
-      <div style={{ height: CAPTION_H }} />
+
+      {/* 메타 — 세로 폭 여유를 활용해 가로 3열 배치 */}
+      <div style={{ display: 'flex', gap: 24 }}>
+        {[['TYPOLOGY', project.type], ['STATUS', project.status], ['YEAR', String(project.year)]].map(([l, v]) => (
+          <div key={l}>
+            <div style={{ fontSize: 9, fontWeight: 300, letterSpacing: '0.1em', opacity: 0.45 }}>{l}</div>
+            <div style={{ fontSize: 10, fontWeight: 400, letterSpacing: '0.04em', textTransform: 'uppercase', marginTop: 2 }}>{v}</div>
+          </div>
+        ))}
+      </div>
     </div>
   )
 }
@@ -274,7 +273,7 @@ function MobileSlide({ slide }: { slide: ProjectSlide }) {
   }
 }
 
-// ── 확장 블록 — BACK 행 / 타이틀 행 / 트랙 [①히어로 ②정보 ③이후 슬라이드] / 카운터 행 ──
+// ── 확장 블록 — BACK 행 / 타이틀 행 / 세로 스택 [①히어로 ②정보 ③이후 슬라이드] ──
 function ExpandedBlock({ project, onBack, heroRef, heroHidden, titleMorphing, titleRef }: {
   project: Project
   onBack: () => void
@@ -284,51 +283,6 @@ function ExpandedBlock({ project, onBack, heroRef, heroHidden, titleMorphing, ti
   titleRef: (el: HTMLDivElement | null) => void
 }) {
   const restSlides = getRestSlides(project)
-  const total = restSlides.length + 1   // 히어로 포함, 정보 슬라이드 제외
-  const trackRef = useRef<HTMLDivElement>(null)
-  const [counterIdx, setCounterIdx] = useState(1)
-
-  // ── 트랙 마우스 드래그-투-스크롤 (P1) — 마우스 전용. 터치/펜은 네이티브 스크롤 위임 (이중 스크롤 방지) ──
-  const trackDrag = useRef<{ startX: number; startScroll: number; moved: boolean } | null>(null)
-  const onTrackPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (e.pointerType !== 'mouse') return          // 터치/펜 = 네이티브 스크롤 위임
-    const el = trackRef.current
-    if (!el) return
-    trackDrag.current = { startX: e.clientX, startScroll: el.scrollLeft, moved: false }
-    el.setPointerCapture(e.pointerId)
-  }
-  const onTrackPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
-    const d = trackDrag.current
-    const el = trackRef.current
-    if (!d || !el) return
-    const dx = e.clientX - d.startX
-    if (Math.abs(dx) >= 5) d.moved = true
-    el.scrollLeft = d.startScroll - dx           // 스냅은 네이티브가 pointerup 후 처리
-  }
-  const onTrackPointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
-    const el = trackRef.current
-    if (el && el.hasPointerCapture(e.pointerId)) el.releasePointerCapture(e.pointerId)
-    trackDrag.current = null
-  }
-
-  // 스냅 안착 기준 카운터 — 트랙 중앙 최근접 자식 (0=히어로→01, 1=정보→01 유지, j≥2→j)
-  const handleScroll = () => {
-    const el = trackRef.current
-    if (!el) return
-    const center = el.scrollLeft + el.clientWidth / 2
-    const children = Array.from(el.children) as HTMLElement[]
-    if (children.length === 0) return
-    let nearest = 0
-    let nearestDist = Infinity
-    children.forEach((c, i) => {
-      const dist = Math.abs(c.offsetLeft + c.offsetWidth / 2 - center)
-      if (dist < nearestDist) {
-        nearestDist = dist
-        nearest = i
-      }
-    })
-    setCounterIdx(nearest <= 1 ? 1 : Math.min(nearest, total))
-  }
 
   return (
     <div>
@@ -380,70 +334,42 @@ function ExpandedBlock({ project, onBack, heroRef, heroHidden, titleMorphing, ti
         {project.title}
       </div>
 
-      {/* 수평 트랙 — 스냅 + pan-x 고정. marginLeft 16 = 클립 라인, 초기 scrollLeft 0 = 히어로 정렬 */}
+      {/* 세로 스택 — 모든 슬라이드 동일 폭. 스크롤이 곧 진행도 */}
       <div
-        ref={trackRef}
-        className="mpw-track"
-        onScroll={handleScroll}
-        onPointerDown={onTrackPointerDown}
-        onPointerMove={onTrackPointerMove}
-        onPointerUp={onTrackPointerUp}
         style={{
-          position: 'relative',
           marginLeft: 16,
-          paddingRight: 16,
-          overflowX: 'auto',
-          overflowY: 'hidden',
-          WebkitOverflowScrolling: 'touch',
-          touchAction: 'pan-x',
-          overscrollBehaviorX: 'contain',
-          scrollSnapType: 'x mandatory',
-          scrollPaddingInline: '16px',
+          marginRight: 16,
           display: 'flex',
-          alignItems: 'flex-start',
-          gap: 12,
+          flexDirection: 'column',
+          gap: SLIDE_GAP,
+          paddingBottom: STACK_BOTTOM_PAD,
         }}
       >
-        {/* ① 히어로 — 성장 모프의 종착. 풀폭 3:2 */}
-        <div style={{ flexShrink: 0, scrollSnapAlign: 'center' }}>
-          <div
-            ref={heroRef}
-            style={{ width: HERO_W, height: TRACK_IMG_H, opacity: heroHidden ? 0 : 1 }}
-          >
-            {project.coverImage ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={sanityCard(project.coverImage, 800, project.coverHotspot)}
-                alt={project.title}
-                draggable={false}
-                style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
-              />
-            ) : (
-              <div style={{ width: '100%', height: '100%', background: project.coverColor }} />
-            )}
-          </div>
-          <div style={{ height: CAPTION_H }} />
+        {/* ① 히어로 — 성장 모프의 종착. 3:2 고정 */}
+        <div
+          ref={heroRef}
+          style={{ width: '100%', aspectRatio: String(HERO_RATIO), opacity: heroHidden ? 0 : 1 }}
+        >
+          {project.coverImage ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={sanityCard(project.coverImage, 800, project.coverHotspot)}
+              alt={project.title}
+              draggable={false}
+              style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+            />
+          ) : (
+            <div style={{ width: '100%', height: '100%', background: project.coverColor }} />
+          )}
         </div>
 
-        {/* ② 정보 슬라이드 */}
+        {/* ② 정보 — 히어로 직후 고정 */}
         <MobileInfoSlide project={project} />
 
         {/* ③ 이후 슬라이드들 */}
         {restSlides.map((slide, idx) => (
           <MobileSlide key={idx} slide={slide} />
         ))}
-      </div>
-
-      {/* 카운터 행 — 우정렬 */}
-      <div style={{
-        padding: '0 16px',
-        textAlign: 'right',
-        fontFamily: FONT,
-        fontSize: 10,
-        color: '#080706',
-        opacity: 0.45,
-      }}>
-        {String(counterIdx).padStart(2, '0')} / {String(total).padStart(2, '0')}
       </div>
     </div>
   )
@@ -665,6 +591,12 @@ export function MobileProjectWall({
 
   const viewerHeroRef = useRef<HTMLDivElement | null>(null)
   const viewerTitleRef = useRef<HTMLDivElement | null>(null)
+  const viewerScrollRef = useRef<HTMLDivElement>(null)
+
+  // 활성 전환 시 스크롤 초기화 — 다른 프로젝트를 열면 최상단에서 시작한다 (§5)
+  useEffect(() => {
+    if (activeSlug && viewerScrollRef.current) viewerScrollRef.current.scrollTop = 0
+  }, [activeSlug])
   const thumbEls = useRef<Record<string, HTMLDivElement | null>>({})
   const topTitleEls = useRef<Record<string, HTMLDivElement | null>>({})
 
@@ -982,9 +914,9 @@ export function MobileProjectWall({
         })}
       </div>
 
-      {/* ── 열람 레이어 (§6-1) — 가용 영역 수직 중앙: BACK/타이틀/트랙/카운터 ── */}
+      {/* ── 열람 레이어 (§6-1) — 세로 스크롤 문서: BACK/타이틀/세로 스택 ── */}
       {viewerProject && (
-        <div style={{
+        <div ref={viewerScrollRef} style={{
           position: 'fixed',
           top: HEADER_H,
           left: 0,
@@ -993,9 +925,11 @@ export function MobileProjectWall({
           background: '#FFFFFF',
           zIndex: 40,
           fontFamily: FONT,
-          display: 'flex',
-          flexDirection: 'column',
-          justifyContent: 'center',
+          overflowY: 'auto',                    // 세로 스크롤 소유
+          overflowX: 'hidden',
+          WebkitOverflowScrolling: 'touch',
+          overscrollBehaviorY: 'contain',       // 스크롤 체이닝 차단 (부모 링으로 전파 방지)
+          touchAction: 'pan-y pinch-zoom',      // 세로 팬 + 핀치 줌 허용, 가로 팬만 차단 (§7)
           opacity: activeSlug && viewerIn ? 1 : 0,
           pointerEvents: activeSlug ? 'auto' : 'none',
           transition: transitionsOn ? `opacity ${MORPH_MS}ms ${EASE}` : 'none',
