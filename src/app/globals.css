@@ -1,21 +1,12 @@
 @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.min.css');
 
-/* ── PROJECT WALL CARD — 인라인 → 클래스 이관 (데스크탑 기본값 유지, 태블릿만 덮어씀) ── */
+/* ── PROJECT WALL CARD — D1(≥1440) 전용. D2 이하는 인라인 세로 배치 (ProjectWall.tsx) ── */
 .wall-card-text {
   width: 180px;
 }
 
 .wall-card-img {
   max-width: calc(100% - 188px);
-}
-
-@media (max-width: 1439px) {
-  .wall-card-text {
-    width: 150px;
-  }
-  .wall-card-img {
-    max-width: calc(100% - 158px);
-  }
 }
 
 /* ── CONTENT AREA SLIDE IMAGE — 데스크탑: height 기준 cover / 태블릿: 가로폭 클램프 contain ── */
