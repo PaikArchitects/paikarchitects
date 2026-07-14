@@ -3,10 +3,11 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { CreditsSlide, DiagramSetSlide, ImageSlide, Project, ProjectSlide, QuoteSlide, TextSlide } from '@/types'
 import { useFinePointer } from '@/hooks/useFinePointer'
+import { sizeLabel, splitRole } from '@/lib/projectMeta'
 
 const FONT = "'Pretendard Variable', Pretendard, -apple-system, BlinkMacSystemFont, sans-serif"
 
-const INFO_SLIDE_W = 200
+const INFO_SLIDE_W = 480     // 메타 4열 수평 배열 최소 폭 (Housing and Urbanism 기준)
 const CREDITS_SLIDE_W = 420
 const TEXT_SLIDE_W = 560     // 서술문 — 한글 본문 가독 폭
 const QUOTE_SLIDE_W = 460    // 인용문 — 본문보다 좁게 하여 위계 부여
@@ -14,6 +15,8 @@ const SLIDE_GAP_PX = 24
 const TRACK_INSET = 24       // 트랙 뷰포트 좌측 오프셋 — 뷰포트 좌측 모서리가 곧 클립 라인 (Back/타이틀 좌측 라인과 정렬)
 const EASE = 'cubic-bezier(0.7, 0, 0.3, 1)'
 const MORPH_MS = 700
+const MORPH_HOLD_MS = 400    // 모프 완료 후 모프 레이어 유지 — 트랙 페이드인(400ms)을 덮는다
+const MORPH_FADE_MS = 250    // 모프 레이어 페이드아웃
 const SLIDE_H_RATIO = 0.72     // image·credits·info 슬라이드 높이 (뷰포트 대비)
 const DIAGRAM_H_RATIO = 0.48   // diagramSet·단일 다이어그램 이미지 영역 높이 (뷰포트 대비)
 
@@ -382,6 +385,35 @@ function CreditsSlideView({ slide }: { slide: CreditsSlide }) {
   )
 }
 
+// ── 메타 필드 — 라벨 + 값. 값이 없으면 em dash 자리표시 (공란 유지 요건) ──
+function MetaField({ label, value }: { label: string; value?: string }) {
+  return (
+    <div>
+      <div style={{
+        fontSize: 9,
+        fontWeight: 300,
+        letterSpacing: '0.1em',
+        opacity: 0.45,
+        whiteSpace: 'nowrap',
+      }}>
+        {label}
+      </div>
+      <div style={{
+        fontSize: 11,
+        fontWeight: 400,
+        letterSpacing: '0.04em',
+        textTransform: 'uppercase',
+        marginTop: 3,
+        lineHeight: 1.4,
+        wordBreak: 'keep-all',
+        opacity: value ? 1 : 0.25,
+      }}>
+        {value || '—'}
+      </div>
+    </div>
+  )
+}
+
 function SlideContent({ slide, nearCenter, finePointer, onDiagramHover }: {
   slide: ProjectSlide
   nearCenter: boolean
@@ -415,6 +447,7 @@ export function ContentArea({ project, mode, isBlacking, visible, onBack }: Cont
   // ── Idle→Active 모프 전환 ──
   const [morphing, setMorphing] = useState(false)
   const [morphRect, setMorphRect] = useState<MorphRect | null>(null)
+  const [morphVisible, setMorphVisible] = useState(false)   // 모프 레이어 표시 — morphing과 분리 (크로스페이드)
   const prevModeRef = useRef(mode)
 
   // ── 연속 트랙 (픽셀 스크롤 모델) ──
@@ -540,17 +573,18 @@ export function ContentArea({ project, mode, isBlacking, visible, onBack }: Cont
       const img = idleImgEl.current
       const aspect = img && img.naturalWidth > 0 && img.naturalHeight > 0
         ? img.naturalWidth / img.naturalHeight
-        : 4 / 3
+        : FALLBACK_RATIO
       const th = rh * SLIDE_H_RATIO
       const tw = th * aspect
 
       setMorphing(true)
+      setMorphVisible(true)
       setMorphRect({ top: 0, left: 0, width: rw, height: rh })
 
       let cancelled = false
       requestAnimationFrame(() => requestAnimationFrame(() => {
         if (cancelled) return
-        // 히어로는 트랙 index 1 — 루트 기준 좌측 = 클립 인셋 + 정보 슬라이드 + gap (24+200+24=248)
+        // 히어로는 트랙 index 1 — 루트 기준 좌측 = 클립 인셋 + 정보 슬라이드 + gap
         setMorphRect({
           top: (rh - th) / 2,
           left: TRACK_INSET + INFO_SLIDE_W + SLIDE_GAP_PX,
@@ -558,16 +592,26 @@ export function ContentArea({ project, mode, isBlacking, visible, onBack }: Cont
           height: th,
         })
       }))
-      const t = setTimeout(() => {
-        setMorphing(false)
-        setMorphRect(null)
-      }, MORPH_MS)
-      return () => { cancelled = true; clearTimeout(t) }
+
+      // 1) 모프 종료 → 트랙 페이드인 시작. 모프 레이어는 아직 유지
+      const tMorph = setTimeout(() => setMorphing(false), MORPH_MS)
+      // 2) 트랙 페이드인 완료 → 모프 레이어 페이드아웃 개시
+      const tHold = setTimeout(() => setMorphVisible(false), MORPH_MS + MORPH_HOLD_MS)
+      // 3) 페이드아웃 완료 → rect 해제 (언마운트)
+      const tFade = setTimeout(() => setMorphRect(null), MORPH_MS + MORPH_HOLD_MS + MORPH_FADE_MS)
+
+      return () => {
+        cancelled = true
+        clearTimeout(tMorph)
+        clearTimeout(tHold)
+        clearTimeout(tFade)
+      }
     }
 
     if (mode === 'idle') {
       // Back은 역방향 모프 없이 즉시 전환
       setMorphing(false)
+      setMorphVisible(false)
       setMorphRect(null)
       setScrollPos(0)
       setAnimated(false)
@@ -779,13 +823,12 @@ export function ContentArea({ project, mode, isBlacking, visible, onBack }: Cont
             onPointerUp={onPointerUp}
             onMouseLeave={() => setCursor(null)}
           >
-            {!morphing && (
-              /* 페이드 래퍼 — 트랙 페이드 인 (transform은 내부 트랙에 그대로) */
-              <div style={{
-                height: '100%',
-                opacity: trackIn ? 1 : 0,
-                transition: 'opacity 400ms ease',
-              }}>
+            {/* 페이드 래퍼 — 트랙 페이드 인 (transform은 내부 트랙에 그대로). 항상 마운트, trackIn이 가시성 제어 */}
+            <div style={{
+              height: '100%',
+              opacity: trackIn ? 1 : 0,
+              transition: 'opacity 400ms ease',
+            }}>
                 <div
                   ref={trackRef}
                   style={{
@@ -798,7 +841,7 @@ export function ContentArea({ project, mode, isBlacking, visible, onBack }: Cont
                     willChange: 'transform',
                   }}
                 >
-                  {/* 트랙 첫 자식 — 정보 슬라이드 (projectSlides 데이터와 무관, project 필드 파생) */}
+                  {/* 트랙 첫 자식 — 정보 슬라이드. 타이틀 + LOCATION + 3블록 메타 */}
                   <div style={{
                     width: INFO_SLIDE_W,
                     flexShrink: 0,
@@ -806,30 +849,96 @@ export function ContentArea({ project, mode, isBlacking, visible, onBack }: Cont
                     display: 'flex',
                     flexDirection: 'column',
                     justifyContent: 'flex-start',
-                    gap: 24,
+                    gap: 28,
                     fontFamily: FONT,
                     color: '#080706',
                     opacity: infoIn ? 1 : 0,
                     transition: 'opacity 400ms ease',
+                    boxSizing: 'border-box',
+                    overflowY: 'auto',
                   }}>
-                    <div style={{
-                      fontSize: 11,
-                      fontWeight: 300,
-                      letterSpacing: '0.08em',
-                      textTransform: 'uppercase',
-                      opacity: 0.6,
-                    }}>
-                      {project.location ?? ''}
+                    {/* 타이틀 + LOCATION — 한 세트 */}
+                    <div>
+                      <div style={{
+                        fontSize: 20,
+                        fontWeight: 500,
+                        lineHeight: 1.3,
+                        letterSpacing: '-0.01em',
+                        wordBreak: 'keep-all',
+                      }}>
+                        {project.title}
+                      </div>
+                      {project.location && (
+                        <div style={{
+                          marginTop: 8,
+                          fontSize: 11,
+                          fontWeight: 300,
+                          letterSpacing: '0.08em',
+                          textTransform: 'uppercase',
+                          opacity: 0.6,
+                        }}>
+                          {project.location}
+                        </div>
+                      )}
                     </div>
 
-                    {/* 메타 스택 — BIG 형식: 라벨 + 값 */}
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-                      {[['TYPOLOGY', project.type], ['STATUS', project.status], ['YEAR', String(project.year)]].map(([l, v]) => (
-                        <div key={l}>
-                          <div style={{ fontSize: 9, fontWeight: 300, letterSpacing: '0.1em', opacity: 0.45 }}>{l}</div>
-                          <div style={{ fontSize: 11, fontWeight: 400, letterSpacing: '0.04em', textTransform: 'uppercase', marginTop: 2 }}>{v}</div>
-                        </div>
-                      ))}
+                    {/* 1블록 — CLIENT */}
+                    <MetaField label="CLIENT" value={project.client} />
+
+                    {/* 2블록 — TYPOLOGY / SIZE / STATUS / YEAR 수평 4열 */}
+                    <div style={{ display: 'flex', gap: 20, alignItems: 'flex-start' }}>
+                      <div style={{ flex: '1 1 0', minWidth: 0 }}>
+                        <MetaField label="TYPOLOGY" value={project.type} />
+                      </div>
+                      <div style={{ flex: '1 1 0', minWidth: 0 }}>
+                        <MetaField
+                          label={project.size ? sizeLabel(project.size) : 'SIZE'}
+                          value={project.size}
+                        />
+                      </div>
+                      <div style={{ flex: '0 1 auto', minWidth: 0 }}>
+                        <MetaField label="STATUS" value={project.status} />
+                      </div>
+                      <div style={{ flex: '0 0 auto' }}>
+                        <MetaField label="YEAR" value={String(project.year)} />
+                      </div>
+                    </div>
+
+                    {/* 3블록 — ROLE. 직위 + 업무 2단 */}
+                    <div>
+                      <div style={{ fontSize: 9, fontWeight: 300, letterSpacing: '0.1em', opacity: 0.45 }}>
+                        ROLE
+                      </div>
+                      {project.role ? (() => {
+                        const { position, tasks } = splitRole(project.role)
+                        return (
+                          <>
+                            <div style={{
+                              fontSize: 11,
+                              fontWeight: 400,
+                              letterSpacing: '0.04em',
+                              textTransform: 'uppercase',
+                              marginTop: 3,
+                            }}>
+                              {position}
+                            </div>
+                            {tasks && (
+                              <div style={{
+                                fontSize: 9,
+                                fontWeight: 300,
+                                lineHeight: 1.6,
+                                opacity: 0.5,
+                                marginTop: 4,
+                                wordBreak: 'keep-all',
+                              }}>
+                                {tasks}
+                              </div>
+                            )}
+                          </>
+                        )
+                      })() : (
+                        <div style={{ fontSize: 11, fontWeight: 400, marginTop: 3, opacity: 0.25 }}>—</div>
+                      )}
                     </div>
                   </div>
 
@@ -872,8 +981,7 @@ export function ContentArea({ project, mode, isBlacking, visible, onBack }: Cont
                 }}>
                   {String(displayIdx).padStart(2, '0')} / {String(total).padStart(2, '0')}
                 </div>
-              </div>
-            )}
+            </div>
 
             {/* 외부 커서 추적 글리프 — 커서 지점에 중심 정렬 */}
             {showGlyph && cursor && (
@@ -924,23 +1032,12 @@ export function ContentArea({ project, mode, isBlacking, visible, onBack }: Cont
             >
               ← Back
             </button>
-
-            {/* 프로젝트 타이틀 — 항상 한 줄 */}
-            <div style={{
-              marginTop: 12,
-              fontSize: 14,
-              fontWeight: 500,
-              lineHeight: 1.35,
-              whiteSpace: 'nowrap',
-            }}>
-              {project.title}
-            </div>
           </div>
         </>
       )}
 
       {/* ── 모프 레이어: 풀블리드 커버 → 트랙 index 1(히어로) rect ── */}
-      {morphing && morphRect && (
+      {morphRect && (
         project.coverImage ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
@@ -954,7 +1051,8 @@ export function ContentArea({ project, mode, isBlacking, visible, onBack }: Cont
               width: morphRect.width,
               height: morphRect.height,
               objectFit: 'cover',
-              transition: `all ${MORPH_MS}ms ${EASE}`,
+              opacity: morphVisible ? 1 : 0,
+              transition: `all ${MORPH_MS}ms ${EASE}, opacity ${MORPH_FADE_MS}ms ease-out`,
               pointerEvents: 'none',
               zIndex: 6,
             }}
@@ -967,7 +1065,8 @@ export function ContentArea({ project, mode, isBlacking, visible, onBack }: Cont
             width: morphRect.width,
             height: morphRect.height,
             background: project.coverColor,
-            transition: `all ${MORPH_MS}ms ${EASE}`,
+            opacity: morphVisible ? 1 : 0,
+            transition: `all ${MORPH_MS}ms ${EASE}, opacity ${MORPH_FADE_MS}ms ease-out`,
             pointerEvents: 'none',
             zIndex: 6,
           }} />

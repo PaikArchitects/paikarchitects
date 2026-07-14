@@ -4,11 +4,11 @@ import { TYPOLOGY_ORDER } from '../../src/types'
 const TYPE_OPTIONS = TYPOLOGY_ORDER.map((t) => ({ title: t, value: t }))
 
 const STATUS_OPTIONS = [
+  'Idea',
+  'In progress',
+  'Under construction',
   'Completed',
-  'In Progress',
-  'Competition',
   'Published',
-  'Under Construction',
 ].map((s) => ({ title: s, value: s }))
 
 export default defineType({
@@ -133,7 +133,13 @@ export default defineType({
       name: 'size',
       title: '규모 (SIZE)',
       type: 'string',
-      description: '연면적 등 자유 서식. 예: 137,000㎡',
+      description: '단위를 포함해 입력한다. 면적: "22,333.78 ㎡" / 영상: "5 min." / 판형: "A2". 라벨(AREA·LENGTH·SIZE)은 값에서 자동 파생되므로 별도 지정하지 않는다.',
+    }),
+    defineField({
+      name: 'role',
+      title: '역할',
+      type: 'string',
+      description: 'Career 엑셀 Role 열 원문. 형식: 직위 (담당업무1, 담당업무2, ...) — 예: Senior Architect (Concept design, 3d modeling, Visual documentation)',
     }),
     defineField({
       name: 'slides',

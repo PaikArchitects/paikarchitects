@@ -8,7 +8,7 @@ const PROJECTS_QUERY = `*[_type == "project"] | order(displayOrder asc) {
   subTypes, status, result, featured, displayOrder,
   "coverImage": coverImage.asset->url,
   "coverHotspot": coverImage.hotspot{ x, y },
-  coverColor, location, client, size,
+  coverColor, location, client, size, role,
   "slides": slides[]{
     _type == "imageSlide" => {
       "kind": "image",
@@ -61,6 +61,7 @@ interface RawProject {
   location: string | null
   client: string | null
   size: string | null
+  role: string | null
   slides: ProjectSlide[] | null
 }
 
@@ -84,6 +85,7 @@ export async function getProjects(): Promise<Project[]> {
     location: r.location ?? undefined,
     client: r.client ?? undefined,
     size: r.size ?? undefined,
+    role: r.role ?? undefined,
     slides: r.slides && r.slides.length > 0 ? r.slides.map(normalizeSlide) : undefined,
   }))
 }

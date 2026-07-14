@@ -22,12 +22,13 @@ export const TYPOLOGY_ORDER: ProjectType[] = [
   'Landscape', 'Space',
 ]
 
+/** Career_260707.xlsx 'Status' 열 표기 정본. 연도는 year 필드가 별도 보유 */
 export type ProjectStatus =
+  | 'Idea'                 // 낙선·미실현 (Excel 최다 값)
+  | 'In progress'
+  | 'Under construction'
   | 'Completed'
-  | 'In Progress'
-  | 'Competition'
   | 'Published'
-  | 'Under Construction'
 
 export interface Project {
   id: string              // URL slug — 변경 불가 (SEO)
@@ -46,7 +47,8 @@ export interface Project {
   location?: string
   slides?: ProjectSlide[]  // Sanity에서 문서와 함께 로드
   client?: string          // 발주처 (4단계에서 표시)
-  size?: string            // 규모 (4단계에서 표시)
+  size?: string            // 규모 — 단위 포함 자유 표기. "22,333.78 ㎡" / "5 min." / "A2"
+  role?: string           // Career 엑셀 Role 원문. "직위 (업무1, 업무2)" 형식
   coverHotspot?: { x: number; y: number }   // 커버 크롭 초점 (Studio hotspot)
 }
 

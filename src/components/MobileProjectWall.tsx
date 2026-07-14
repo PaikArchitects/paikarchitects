@@ -13,6 +13,7 @@ import type { CreditsSlide, DiagramSetSlide, ImageSlide, Project, ProjectSlide, 
 import { sanityCard } from '@/lib/imageUrl'
 import { shuffle } from '@/lib/shuffle'
 import { circDist, mod, useRingWall } from '@/hooks/useRingWall'
+import { sizeLabel, splitRole } from '@/lib/projectMeta'
 
 const FONT = "'Pretendard Variable', Pretendard, -apple-system, BlinkMacSystemFont, sans-serif"
 
@@ -317,34 +318,104 @@ function MobileCreditsSlide({ slide }: { slide: CreditsSlide }) {
 
 // ── 정보 — 히어로 바로 아래 고정. 폭 100%, 높이 자연 결정 ──
 function MobileInfoSlide({ project }: { project: Project }) {
+  const roleParts = project.role ? splitRole(project.role) : null
   return (
     <div style={{
       width: '100%',
       padding: '4px 0',
       display: 'flex',
       flexDirection: 'column',
-      gap: 14,
+      gap: 16,
       fontFamily: FONT,
       color: '#080706',
     }}>
-      <div style={{
-        fontSize: 10,
-        fontWeight: 300,
-        letterSpacing: '0.08em',
-        textTransform: 'uppercase',
-        opacity: 0.45,
-      }}>
-        {project.location ?? ''}
+      {project.location && (
+        <div style={{
+          fontSize: 10,
+          fontWeight: 300,
+          letterSpacing: '0.08em',
+          textTransform: 'uppercase',
+          opacity: 0.6,
+        }}>
+          {project.location}
+        </div>
+      )}
+
+      <MobileMetaField label="CLIENT" value={project.client} />
+
+      {/* 모바일은 2×2 그리드 — 4열 수평은 폭이 부족하다 */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+        <MobileMetaField label="TYPOLOGY" value={project.type} />
+        <MobileMetaField
+          label={project.size ? sizeLabel(project.size) : 'SIZE'}
+          value={project.size}
+        />
+        <MobileMetaField label="STATUS" value={project.status} />
+        <MobileMetaField label="YEAR" value={String(project.year)} />
       </div>
 
-      {/* 메타 — 세로 폭 여유를 활용해 가로 3열 배치 */}
-      <div style={{ display: 'flex', gap: 24 }}>
-        {[['TYPOLOGY', project.type], ['STATUS', project.status], ['YEAR', String(project.year)]].map(([l, v]) => (
-          <div key={l}>
-            <div style={{ fontSize: 9, fontWeight: 300, letterSpacing: '0.1em', opacity: 0.45 }}>{l}</div>
-            <div style={{ fontSize: 10, fontWeight: 400, letterSpacing: '0.04em', textTransform: 'uppercase', marginTop: 2 }}>{v}</div>
-          </div>
-        ))}
+      <div>
+        <div style={{ fontSize: 8, fontWeight: 300, letterSpacing: '0.1em', opacity: 0.45 }}>
+          ROLE
+        </div>
+        {roleParts ? (
+          <>
+            <div style={{
+              fontSize: 10,
+              fontWeight: 400,
+              letterSpacing: '0.04em',
+              textTransform: 'uppercase',
+              marginTop: 3,
+            }}>
+              {roleParts.position}
+            </div>
+            {roleParts.tasks && (
+              <div style={{
+                fontSize: 9,
+                fontWeight: 300,
+                lineHeight: 1.6,
+                opacity: 0.5,
+                marginTop: 3,
+                wordBreak: 'keep-all',
+              }}>
+                {roleParts.tasks}
+              </div>
+            )}
+          </>
+        ) : (
+          <div style={{ fontSize: 10, marginTop: 3, opacity: 0.25 }}>—</div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ── 모바일 메타 필드 ──
+function MobileMetaField({ label, value }: { label: string; value?: string }) {
+  return (
+    <div>
+      <div style={{
+        fontFamily: FONT,
+        fontSize: 8,
+        fontWeight: 300,
+        letterSpacing: '0.1em',
+        opacity: 0.45,
+        whiteSpace: 'nowrap',
+      }}>
+        {label}
+      </div>
+      <div style={{
+        fontFamily: FONT,
+        fontSize: 10,
+        fontWeight: 400,
+        letterSpacing: '0.04em',
+        textTransform: 'uppercase',
+        marginTop: 2,
+        lineHeight: 1.4,
+        wordBreak: 'keep-all',
+        opacity: value ? 1 : 0.25,
+      }}>
+        {value || '—'}
       </div>
     </div>
   )
