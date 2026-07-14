@@ -1,7 +1,6 @@
 import { sanityClient } from './client'
 import type { Project, ProjectSlide, ProjectStatus, ProjectType } from '@/types'
 
-// QuoteSlide는 이번 단계에서 원천 차단 (렌더러가 4단계 소관)
 const PROJECTS_QUERY = `*[_type == "project"] | order(displayOrder asc) {
   "id": slug.current,
   careerNo, title, titleKr, year,
@@ -10,7 +9,7 @@ const PROJECTS_QUERY = `*[_type == "project"] | order(displayOrder asc) {
   "coverImage": coverImage.asset->url,
   "coverHotspot": coverImage.hotspot{ x, y },
   coverColor, location, client, size,
-  "slides": slides[_type != "quoteSlide"]{
+  "slides": slides[]{
     _type == "imageSlide" => {
       "kind": "image",
       "src": image.asset->url,
@@ -29,6 +28,14 @@ const PROJECTS_QUERY = `*[_type == "project"] | order(displayOrder asc) {
     _type == "creditsSlide" => {
       "kind": "credits",
       "rows": rows[]{ label, value }
+    },
+    _type == "textSlide" => {
+      "kind": "text",
+      body
+    },
+    _type == "quoteSlide" => {
+      "kind": "quote",
+      text, attribution
     }
   }
 }`
@@ -99,6 +106,14 @@ function normalizeSlide(slide: ProjectSlide): ProjectSlide {
       }
     case 'credits':
       return slide
+    case 'text':
+      return slide
+    case 'quote':
+      return {
+        kind: 'quote',
+        text: slide.text,
+        attribution: slide.attribution ?? undefined,
+      }
   }
 }
 

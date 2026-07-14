@@ -137,7 +137,48 @@ export const creditsSlide = defineType({
   },
 })
 
-/** 인용구 — 신설. 이번 단계에서는 스키마에만 존재 (프론트 렌더러는 4단계) */
+/** 서술문 — 좌정렬 본문. 프로젝트 설명 텍스트 */
+export const textSlide = defineType({
+  name: 'textSlide',
+  title: '본문 텍스트',
+  type: 'object',
+  fields: [
+    defineField({
+      name: 'body',
+      title: '본문',
+      type: 'array',
+      of: [
+        defineArrayMember({
+          type: 'block',
+          styles: [{ title: '본문', value: 'normal' }],
+          lists: [],
+          marks: {
+            decorators: [
+              { title: '강조', value: 'strong' },
+              { title: '기울임', value: 'em' },
+            ],
+            annotations: [],
+          },
+        }),
+      ],
+      description: '문단 단위로 입력. 줄바꿈이 아니라 문단(Enter)으로 나눈다',
+      validation: (Rule) => Rule.required().min(1),
+    }),
+  ],
+  preview: {
+    select: { body: 'body' },
+    prepare({ body }) {
+      const first = Array.isArray(body) ? body[0] : undefined
+      const text = first?.children?.map((c: { text?: string }) => c.text ?? '').join('') ?? ''
+      return {
+        title: text ? text.slice(0, 50) : '(본문 없음)',
+        subtitle: '본문 텍스트',
+      }
+    },
+  },
+})
+
+/** 인용구 — 중앙정렬, 따옴표, 출처 병기 */
 export const quoteSlide = defineType({
   name: 'quoteSlide',
   title: '인용구',

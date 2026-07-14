@@ -1,4 +1,4 @@
 import project from './project'
-import { imageSlide, diagramSetSlide, creditsSlide, quoteSlide } from './slides'
+import { imageSlide, diagramSetSlide, creditsSlide, textSlide, quoteSlide } from './slides'
 
-export const schemaTypes = [project, imageSlide, diagramSetSlide, creditsSlide, quoteSlide]
+export const schemaTypes = [project, imageSlide, diagramSetSlide, creditsSlide, textSlide, quoteSlide]

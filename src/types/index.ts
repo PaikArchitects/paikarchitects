@@ -85,4 +85,25 @@ export interface CreditsSlide {
   rows: { label: string; value: string }[]
 }
 
-export type ProjectSlide = ImageSlide | DiagramSetSlide | CreditsSlide
+/** Sanity Portable Text 블록 (textSlide 본문) */
+export interface PortableTextBlock {
+  _type: 'block'
+  _key?: string
+  style?: string
+  children: { _type: 'span'; _key?: string; text: string; marks?: string[] }[]
+  markDefs?: unknown[]
+}
+
+export interface TextSlide {
+  kind: 'text'
+  body: PortableTextBlock[]
+}
+
+export interface QuoteSlide {
+  kind: 'quote'
+  text: string
+  /** 예: "BJARKE INGELS - FOUNDER & CREATIVE DIRECTOR, BIG" */
+  attribution?: string
+}
+
+export type ProjectSlide = ImageSlide | DiagramSetSlide | CreditsSlide | TextSlide | QuoteSlide

@@ -1,13 +1,15 @@
 'use client'
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import type { CreditsSlide, DiagramSetSlide, ImageSlide, Project, ProjectSlide } from '@/types'
+import type { CreditsSlide, DiagramSetSlide, ImageSlide, Project, ProjectSlide, QuoteSlide, TextSlide } from '@/types'
 import { useFinePointer } from '@/hooks/useFinePointer'
 
 const FONT = "'Pretendard Variable', Pretendard, -apple-system, BlinkMacSystemFont, sans-serif"
 
 const INFO_SLIDE_W = 200
 const CREDITS_SLIDE_W = 420
+const TEXT_SLIDE_W = 560     // 서술문 — 한글 본문 가독 폭
+const QUOTE_SLIDE_W = 460    // 인용문 — 본문보다 좁게 하여 위계 부여
 const SLIDE_GAP_PX = 24
 const TRACK_INSET = 24       // 트랙 뷰포트 좌측 오프셋 — 뷰포트 좌측 모서리가 곧 클립 라인 (Back/타이틀 좌측 라인과 정렬)
 const EASE = 'cubic-bezier(0.7, 0, 0.3, 1)'
@@ -242,6 +244,100 @@ function DiagramSetSlideView({ slide, active, finePointer, onHoverChange }: {
   )
 }
 
+// ── 본문 텍스트: 좌정렬, 슬라이드 높이 내 수직 중앙. 폭은 상수 ──
+function TextSlideView({ slide }: { slide: TextSlide }) {
+  return (
+    <div style={{
+      height: '100%',
+      width: TEXT_SLIDE_W,
+      display: 'flex',
+      alignItems: 'center',
+      boxSizing: 'border-box',
+    }}>
+      <div style={{
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 18,
+        maxHeight: '100%',
+        overflowY: 'auto',
+      }}>
+        {slide.body.map((block, i) => (
+          <p key={block._key ?? i} style={{
+            margin: 0,
+            fontFamily: FONT,
+            fontSize: 14,
+            fontWeight: 300,
+            lineHeight: 1.75,
+            letterSpacing: '-0.01em',
+            color: '#0a0908',
+            wordBreak: 'keep-all',
+            whiteSpace: 'normal',
+          }}>
+            {block.children.map((span, j) => {
+              const bold = span.marks?.includes('strong')
+              const italic = span.marks?.includes('em')
+              if (!bold && !italic) return span.text
+              return (
+                <span key={span._key ?? j} style={{
+                  fontWeight: bold ? 500 : undefined,
+                  fontStyle: italic ? 'italic' : undefined,
+                }}>
+                  {span.text}
+                </span>
+              )
+            })}
+          </p>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+// ── 인용구: 중앙정렬, 따옴표 포함, 하단 출처. 폭은 상수 ──
+function QuoteSlideView({ slide }: { slide: QuoteSlide }) {
+  return (
+    <div style={{
+      height: '100%',
+      width: QUOTE_SLIDE_W,
+      display: 'flex',
+      flexDirection: 'column',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 20,
+      boxSizing: 'border-box',
+    }}>
+      <div style={{
+        fontFamily: FONT,
+        fontSize: 15,
+        fontWeight: 300,
+        lineHeight: 1.7,
+        letterSpacing: '-0.01em',
+        color: '#0a0908',
+        textAlign: 'center',
+        wordBreak: 'keep-all',
+        maxHeight: '100%',
+        overflowY: 'auto',
+      }}>
+        {`“${slide.text}”`}
+      </div>
+      {slide.attribution && (
+        <div style={{
+          fontFamily: FONT,
+          fontSize: 10,
+          fontWeight: 400,
+          letterSpacing: '0.08em',
+          textTransform: 'uppercase',
+          color: '#0a0908',
+          opacity: 0.55,
+          textAlign: 'center',
+        }}>
+          {slide.attribution}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ── 크레딧: 슬라이드 높이의 흰 블록, 고정 420px ──
 function CreditsSlideView({ slide }: { slide: CreditsSlide }) {
   return (
@@ -299,6 +395,10 @@ function SlideContent({ slide, nearCenter, finePointer, onDiagramHover }: {
       return <DiagramSetSlideView slide={slide} active={nearCenter} finePointer={finePointer} onHoverChange={onDiagramHover} />
     case 'credits':
       return <CreditsSlideView slide={slide} />
+    case 'text':
+      return <TextSlideView slide={slide} />
+    case 'quote':
+      return <QuoteSlideView slide={slide} />
   }
 }
 
@@ -338,7 +438,7 @@ export function ContentArea({ project, mode, isBlacking, visible, onBack }: Cont
   const ratios = useMemo(() => slides.map(slide => {
     if (slide.kind === 'image') return slide.ratio ?? FALLBACK_RATIO
     if (slide.kind === 'diagramSet') return slide.items[0]?.ratio ?? FALLBACK_RATIO   // 기존 사이저와 동일 기준
-    return FALLBACK_RATIO                                                             // credits — 폭은 상수, 자리만 채움
+    return FALLBACK_RATIO   // credits·text·quote — 폭은 상수, 자리만 채움
   }), [slides])
 
   // ── 뷰포트 치수 관찰 — RO는 viewportRef 하나만. window resize 리스너 유지 ──
@@ -371,6 +471,8 @@ export function ContentArea({ project, mode, isBlacking, visible, onBack }: Cont
       slides.forEach((slide, i) => {
         const ratio = ratios?.[i] ?? FALLBACK_RATIO
         if (slide.kind === 'credits') widths.push(CREDITS_SLIDE_W)
+        else if (slide.kind === 'text') widths.push(TEXT_SLIDE_W)
+        else if (slide.kind === 'quote') widths.push(QUOTE_SLIDE_W)
         else if (isDiagram(slide)) widths.push(ratio * diagramH)
         else widths.push(ratio * slideH)
       })

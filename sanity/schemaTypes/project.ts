@@ -143,6 +143,7 @@ export default defineType({
         defineArrayMember({ type: 'imageSlide' }),
         defineArrayMember({ type: 'diagramSetSlide' }),
         defineArrayMember({ type: 'creditsSlide' }),
+        defineArrayMember({ type: 'textSlide' }),
         defineArrayMember({ type: 'quoteSlide' }),
       ],
     }),

@@ -9,7 +9,7 @@
 // 상태 소유는 LandingExperience (URL 동기화 일원화).
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import type { CreditsSlide, DiagramSetSlide, ImageSlide, Project, ProjectSlide } from '@/types'
+import type { CreditsSlide, DiagramSetSlide, ImageSlide, Project, ProjectSlide, QuoteSlide, TextSlide } from '@/types'
 import { sanityCard } from '@/lib/imageUrl'
 import { shuffle } from '@/lib/shuffle'
 import { circDist, mod, useRingWall } from '@/hooks/useRingWall'
@@ -94,6 +94,7 @@ function MobileCaption({ label, description }: { label: string; description: str
         lineHeight: 1.35,
         color: '#0a0908',
         opacity: 0.55,
+        textAlign: 'center',        // ← 추가. 데스크톱 캡션과 정합
         wordBreak: 'keep-all',
         display: '-webkit-box',
         WebkitLineClamp: 2,
@@ -189,10 +190,97 @@ function MobileDiagramSetSlide({ slide }: { slide: DiagramSetSlide }) {
           />
         ))}
       </div>
-      {/* 캡션 — 서브슬라이드 전환 시 높이 흔들림 방지: 2줄 고정 예약 */}
+      {/* 캡션 + 카운터 — 서브슬라이드 전환 시 높이 흔들림 방지: 2줄 고정 예약 */}
       <div style={{ minHeight: 10 * 1.35 * 2 + 6 }}>
         <MobileCaption label={item.label} description={item.description} />
       </div>
+      <div style={{
+        fontFamily: FONT,
+        fontSize: 9,
+        fontWeight: 300,
+        color: '#0a0908',
+        opacity: 0.45,
+        textAlign: 'center',
+        marginTop: 4,
+      }}>
+        {String(subIdx + 1).padStart(2, '0')} / {String(total).padStart(2, '0')}
+      </div>
+    </div>
+  )
+}
+
+// ── 본문 텍스트 — 폭 100%, 높이 자연 결정. 좌정렬 ──
+function MobileTextSlide({ slide }: { slide: TextSlide }) {
+  return (
+    <div style={{ width: '100%', padding: '4px 0', display: 'flex', flexDirection: 'column', gap: 14 }}>
+      {slide.body.map((block, i) => (
+        <p key={block._key ?? i} style={{
+          margin: 0,
+          fontFamily: FONT,
+          fontSize: 12,
+          fontWeight: 300,
+          lineHeight: 1.75,
+          letterSpacing: '-0.01em',
+          color: '#0a0908',
+          wordBreak: 'keep-all',
+        }}>
+          {block.children.map((span, j) => {
+            const bold = span.marks?.includes('strong')
+            const italic = span.marks?.includes('em')
+            if (!bold && !italic) return span.text
+            return (
+              <span key={span._key ?? j} style={{
+                fontWeight: bold ? 500 : undefined,
+                fontStyle: italic ? 'italic' : undefined,
+              }}>
+                {span.text}
+              </span>
+            )
+          })}
+        </p>
+      ))}
+    </div>
+  )
+}
+
+// ── 인용구 — 중앙정렬, 좌우 인셋으로 본문과 위계 구분 ──
+function MobileQuoteSlide({ slide }: { slide: QuoteSlide }) {
+  return (
+    <div style={{
+      width: '100%',
+      padding: '8px 16px',
+      boxSizing: 'border-box',
+      display: 'flex',
+      flexDirection: 'column',
+      alignItems: 'center',
+      gap: 12,
+    }}>
+      <div style={{
+        fontFamily: FONT,
+        fontSize: 13,
+        fontWeight: 300,
+        lineHeight: 1.7,
+        letterSpacing: '-0.01em',
+        color: '#0a0908',
+        textAlign: 'center',
+        wordBreak: 'keep-all',
+      }}>
+        {`“${slide.text}”`}
+      </div>
+      {slide.attribution && (
+        <div style={{
+          fontFamily: FONT,
+          fontSize: 9,
+          fontWeight: 400,
+          letterSpacing: '0.08em',
+          textTransform: 'uppercase',
+          color: '#0a0908',
+          opacity: 0.55,
+          textAlign: 'center',
+        }}>
+          {slide.attribution}
+        </div>
+      )}
     </div>
   )
 }
@@ -270,6 +358,10 @@ function MobileSlide({ slide }: { slide: ProjectSlide }) {
       return <MobileDiagramSetSlide slide={slide} />
     case 'credits':
       return <MobileCreditsSlide slide={slide} />
+    case 'text':
+      return <MobileTextSlide slide={slide} />
+    case 'quote':
+      return <MobileQuoteSlide slide={slide} />
   }
 }
 
