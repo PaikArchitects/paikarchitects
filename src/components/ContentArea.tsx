@@ -7,7 +7,7 @@ import { sizeLabel, splitRole } from '@/lib/projectMeta'
 
 const FONT = "'Pretendard Variable', Pretendard, -apple-system, BlinkMacSystemFont, sans-serif"
 
-const INFO_SLIDE_W = 480     // 메타 4열 수평 배열 최소 폭 (Housing and Urbanism 기준)
+const INFO_SLIDE_W = 200     // 세로 스택 — 수평 4열 폐기 (260714-B)
 const CREDITS_SLIDE_W = 420
 const TEXT_SLIDE_W = 560     // 서술문 — 한글 본문 가독 폭
 const QUOTE_SLIDE_W = 460    // 인용문 — 본문보다 좁게 하여 위계 부여
@@ -849,7 +849,7 @@ export function ContentArea({ project, mode, isBlacking, visible, onBack }: Cont
                     display: 'flex',
                     flexDirection: 'column',
                     justifyContent: 'flex-start',
-                    gap: 28,
+                    gap: 24,
                     fontFamily: FONT,
                     color: '#080706',
                     opacity: infoIn ? 1 : 0,
@@ -857,12 +857,12 @@ export function ContentArea({ project, mode, isBlacking, visible, onBack }: Cont
                     boxSizing: 'border-box',
                     overflowY: 'auto',
                   }}>
-                    {/* 타이틀 + LOCATION — 한 세트 */}
-                    <div>
+                    {/* 타이틀 + LOCATION — 한 세트. 아래 메타군과 시각적으로 분리 */}
+                    <div style={{ marginBottom: 20 }}>
                       <div style={{
-                        fontSize: 20,
+                        fontSize: 16,
                         fontWeight: 500,
-                        lineHeight: 1.3,
+                        lineHeight: 1.35,
                         letterSpacing: '-0.01em',
                         wordBreak: 'keep-all',
                       }}>
@@ -885,23 +885,15 @@ export function ContentArea({ project, mode, isBlacking, visible, onBack }: Cont
                     {/* 1블록 — CLIENT */}
                     <MetaField label="CLIENT" value={project.client} />
 
-                    {/* 2블록 — TYPOLOGY / SIZE / STATUS / YEAR 수평 4열 */}
-                    <div style={{ display: 'flex', gap: 20, alignItems: 'flex-start' }}>
-                      <div style={{ flex: '1 1 0', minWidth: 0 }}>
-                        <MetaField label="TYPOLOGY" value={project.type} />
-                      </div>
-                      <div style={{ flex: '1 1 0', minWidth: 0 }}>
-                        <MetaField
-                          label={project.size ? sizeLabel(project.size) : 'SIZE'}
-                          value={project.size}
-                        />
-                      </div>
-                      <div style={{ flex: '0 1 auto', minWidth: 0 }}>
-                        <MetaField label="STATUS" value={project.status} />
-                      </div>
-                      <div style={{ flex: '0 0 auto' }}>
-                        <MetaField label="YEAR" value={String(project.year)} />
-                      </div>
+                    {/* 2블록 — TYPOLOGY / SIZE / STATUS / YEAR 세로 스택 */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                      <MetaField label="TYPOLOGY" value={project.type} />
+                      <MetaField
+                        label={project.size ? sizeLabel(project.size) : 'SIZE'}
+                        value={project.size}
+                      />
+                      <MetaField label="STATUS" value={project.status} />
+                      <MetaField label="YEAR" value={String(project.year)} />
                     </div>
 
                     {/* 3블록 — ROLE. 직위 + 업무 2단 */}

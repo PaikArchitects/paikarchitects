@@ -323,6 +323,7 @@ function MobileInfoSlide({ project }: { project: Project }) {
     <div style={{
       width: '100%',
       padding: '4px 0',
+      marginTop: -SLIDE_GAP + 6,     // 타이틀과 LOCATION을 한 세트로 붙인다
       display: 'flex',
       flexDirection: 'column',
       gap: 16,
@@ -436,7 +437,7 @@ function MobileSlide({ slide }: { slide: ProjectSlide }) {
   }
 }
 
-// ── 확장 블록 — BACK 행 / 타이틀 행 / 세로 스택 [①히어로 ②정보 ③이후 슬라이드] ──
+// ── 확장 블록 — BACK 행 / 세로 스택 [①히어로 타이틀 ②정보 ③이후 슬라이드] ──
 function ExpandedBlock({ project, onBack, heroRef, heroHidden, titleMorphing, titleRef }: {
   project: Project
   onBack: () => void
@@ -475,28 +476,6 @@ function ExpandedBlock({ project, onBack, heroRef, heroHidden, titleMorphing, ti
         ← BACK
       </button>
 
-      {/* 타이틀 행 — 2줄 허용. 보간 중에는 오버레이가 대신 렌더 (transition 없이 즉시 교대) */}
-      <div
-        ref={titleRef}
-        style={{
-          padding: '0 16px',
-          marginBottom: 12,
-          fontFamily: FONT,
-          fontSize: 16,
-          fontWeight: 600,
-          lineHeight: 1.35,
-          color: '#080706',
-          wordBreak: 'keep-all',
-          display: '-webkit-box',
-          WebkitLineClamp: 2,
-          WebkitBoxOrient: 'vertical' as const,
-          overflow: 'hidden',
-          opacity: titleMorphing ? 0 : 1,
-        }}
-      >
-        {project.title}
-      </div>
-
       {/* 세로 스택 — 모든 슬라이드 동일 폭. 스크롤이 곧 진행도 */}
       <div
         style={{
@@ -524,6 +503,27 @@ function ExpandedBlock({ project, onBack, heroRef, heroHidden, titleMorphing, ti
           ) : (
             <div style={{ width: '100%', height: '100%', background: project.coverColor }} />
           )}
+        </div>
+
+        {/* 타이틀 행 — 히어로 직후. 보간 중에는 오버레이가 대신 렌더 */}
+        <div
+          ref={titleRef}
+          style={{
+            fontFamily: FONT,
+            fontSize: 18,
+            fontWeight: 600,
+            lineHeight: 1.35,
+            color: '#080706',
+            wordBreak: 'keep-all',
+            display: '-webkit-box',
+            WebkitLineClamp: 2,
+            WebkitBoxOrient: 'vertical' as const,
+            overflow: 'hidden',
+            opacity: titleMorphing ? 0 : 1,
+            marginTop: -SLIDE_GAP + 12,   // 히어로와의 간격을 좁힌다 (히어로와 한 세트로 읽힌다)
+          }}
+        >
+          {project.title}
         </div>
 
         {/* ② 정보 — 히어로 직후 고정 */}
@@ -892,7 +892,7 @@ export function MobileProjectWall({
             title: pending.titleFrom && title ? {
               text: activeProject.title,
               from: { ...pending.titleFrom, fontSize: 13, fontWeight: 400 },
-              to: { top: title.getBoundingClientRect().top, left: 16, fontSize: 16, fontWeight: 600 },
+              to: { top: title.getBoundingClientRect().top, left: 16, fontSize: 18, fontWeight: 600 },
             } : null,
           })
         }
@@ -929,7 +929,7 @@ export function MobileProjectWall({
         to: { top: cardTop, left: thumbLeft, width: w0, height: h0 },
         title: pending.titleFrom ? {
           text: project.title,
-          from: { ...pending.titleFrom, fontSize: 16, fontWeight: 600 },
+          from: { ...pending.titleFrom, fontSize: 18, fontWeight: 600 },
           // 타이틀 종착 — 이미지 하단 텍스트 행의 첫 줄. paddingTop 6은 §3-3 렌더와 일치
           to: { top: cardTop + h0 + 6, left: thumbLeft, fontSize: 13, fontWeight: 400 },
         } : null,
