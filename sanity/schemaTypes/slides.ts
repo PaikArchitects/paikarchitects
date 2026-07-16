@@ -16,7 +16,7 @@ export const imageSlide = defineType({
     defineField({
       name: 'caption',
       title: '캡션',
-      type: 'string',
+      type: 'localeString',
       description: '형식: LABEL — description (예: SECTION — Public spine through the building)',
     }),
     defineField({
@@ -30,7 +30,7 @@ export const imageSlide = defineType({
   preview: {
     select: { media: 'image', caption: 'caption' },
     prepare({ media, caption }) {
-      return { media, title: caption ?? '(캡션 없음)' }
+      return { media, title: (caption as { en?: string } | undefined)?.en ?? '(캡션 없음)' }
     },
   },
 })
@@ -60,19 +60,19 @@ export const diagramSetSlide = defineType({
             defineField({
               name: 'label',
               title: '라벨',
-              type: 'string',
-              description: '대문자, 예: MASS 01',
+              type: 'localeString',
+              description: '예: Site Conditions',
               validation: (Rule) => Rule.required(),
             }),
             defineField({
               name: 'description',
-              title: '한 줄 설명',
-              type: 'string',
+              title: '설명',
+              type: 'localeText',
               validation: (Rule) => Rule.required(),
             }),
           ],
           preview: {
-            select: { media: 'image', title: 'label', subtitle: 'description' },
+            select: { media: 'image', title: 'label.en', subtitle: 'description.en' },
           },
         }),
       ],
@@ -86,7 +86,7 @@ export const diagramSetSlide = defineType({
     }),
   ],
   preview: {
-    select: { firstLabel: 'items.0.label' },
+    select: { firstLabel: 'items.0.label.en' },
     prepare({ firstLabel }) {
       return { title: '다이어그램 묶음', subtitle: firstLabel }
     },
@@ -146,27 +146,13 @@ export const textSlide = defineType({
     defineField({
       name: 'body',
       title: '본문',
-      type: 'array',
-      of: [
-        defineArrayMember({
-          type: 'block',
-          styles: [{ title: '본문', value: 'normal' }],
-          lists: [],
-          marks: {
-            decorators: [
-              { title: '강조', value: 'strong' },
-              { title: '기울임', value: 'em' },
-            ],
-            annotations: [],
-          },
-        }),
-      ],
+      type: 'localePortableText',
       description: '문단 단위로 입력. 줄바꿈이 아니라 문단(Enter)으로 나눈다',
-      validation: (Rule) => Rule.required().min(1),
+      validation: (Rule) => Rule.required(),
     }),
   ],
   preview: {
-    select: { body: 'body' },
+    select: { body: 'body.en' },
     prepare({ body }) {
       const first = Array.isArray(body) ? body[0] : undefined
       const text = first?.children?.map((c: { text?: string }) => c.text ?? '').join('') ?? ''
@@ -187,8 +173,7 @@ export const quoteSlide = defineType({
     defineField({
       name: 'text',
       title: '인용문',
-      type: 'text',
-      rows: 3,
+      type: 'localeString',
       validation: (Rule) => Rule.required(),
     }),
     defineField({
@@ -201,8 +186,9 @@ export const quoteSlide = defineType({
   preview: {
     select: { text: 'text', attribution: 'attribution' },
     prepare({ text, attribution }) {
+      const en = (text as { en?: string } | undefined)?.en
       return {
-        title: typeof text === 'string' ? text.slice(0, 40) : '(인용문 없음)',
+        title: en ? en.slice(0, 40) : '(인용문 없음)',
         subtitle: attribution,
       }
     },

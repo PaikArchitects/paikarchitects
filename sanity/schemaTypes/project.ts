@@ -18,22 +18,24 @@ export default defineType({
   fields: [
     defineField({
       name: 'title',
-      title: '프로젝트명 (EN)',
-      type: 'string',
+      title: '프로젝트명',
+      type: 'localeString',
       validation: (Rule) => Rule.required(),
     }),
     defineField({
-      name: 'titleKr',
-      title: '프로젝트명 (KR)',
-      type: 'string',
-      validation: (Rule) => Rule.required(),
+      name: 'subtitle',
+      title: '한 줄 설명',
+      type: 'localeString',
     }),
     defineField({
       name: 'slug',
       title: 'URL 슬러그',
       type: 'slug',
       description: '기존 게재 프로젝트의 슬러그는 SEO상 변경 금지',
-      options: { source: 'title', maxLength: 96 },
+      options: {
+        source: (doc) => (doc as { title?: { en?: string } }).title?.en ?? '',
+        maxLength: 96,
+      },
       validation: (Rule) => Rule.required(),
     }),
     defineField({
@@ -86,8 +88,7 @@ export default defineType({
       name: 'result',
       title: '결과',
       type: 'string',
-      description: '예: Winner, 2nd Prize, Honorable Mention',
-      validation: (Rule) => Rule.required(),
+      description: '예: Winner, 2nd Prize, Honorable Mention. 없으면 비움',
     }),
     defineField({
       name: 'featured',
@@ -155,7 +156,7 @@ export default defineType({
     }),
   ],
   preview: {
-    select: { title: 'title', subtitle: 'titleKr', media: 'coverImage' },
+    select: { title: 'title.en', subtitle: 'title.ko', media: 'coverImage' },
   },
   orderings: [
     {

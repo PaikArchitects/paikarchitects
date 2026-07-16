@@ -1,8 +1,9 @@
 'use client'
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import type { CreditsSlide, DiagramSetSlide, ImageSlide, Project, ProjectSlide, QuoteSlide, TextSlide } from '@/types'
+import type { CreditsSlide, DiagramSetSlide, ImageSlide, PortableTextBlock, Project, ProjectSlide, QuoteSlide, TextSlide } from '@/types'
 import { useFinePointer } from '@/hooks/useFinePointer'
+import { BilingualText } from '@/lib/bilingual'
 import { sizeLabel, splitRole } from '@/lib/projectMeta'
 
 const FONT = "'Pretendard Variable', Pretendard, -apple-system, BlinkMacSystemFont, sans-serif"
@@ -11,6 +12,8 @@ const INFO_SLIDE_W = 200     // 세로 스택 — 수평 4열 폐기 (260714-B)
 const CREDITS_SLIDE_W = 420
 const TEXT_SLIDE_W = 560     // 서술문 — 한글 본문 가독 폭
 const QUOTE_SLIDE_W = 460    // 인용문 — 본문보다 좁게 하여 위계 부여
+// 텍스트·인용 슬라이드 좌우 인셋. 폭 상수(rects·모프 참조)는 불변, 내부만 좁힌다
+const SLIDE_TEXT_INSET = 40
 const SLIDE_GAP_PX = 24
 const TRACK_INSET = 24       // 트랙 뷰포트 좌측 오프셋 — 뷰포트 좌측 모서리가 곧 클립 라인 (Back/타이틀 좌측 라인과 정렬)
 const EASE = 'cubic-bezier(0.7, 0, 0.3, 1)'
@@ -61,7 +64,8 @@ function splitCaption(caption: string): { label: string; description: string } {
 
 // ── 이미지 슬라이드: 외피가 계산 폭을 예약 — img는 박스를 100% 채움 (기존 slide-img 시각 결과 유지) ──
 function ImageSlideView({ slide }: { slide: ImageSlide }) {
-  const { label, description } = slide.caption ? splitCaption(slide.caption) : { label: '', description: '' }
+  const en = slide.caption?.en ? splitCaption(slide.caption.en) : null
+  const ko = slide.caption?.ko ? splitCaption(slide.caption.ko) : null
 
   return (
     <div style={{ height: '100%', position: 'relative' }}>
@@ -86,16 +90,22 @@ function ImageSlideView({ slide }: { slide: ImageSlide }) {
           marginTop: 12,
           textAlign: 'center',
           fontFamily: FONT,
-          fontSize: 12,
-          fontWeight: 300,
-          color: '#0a0908',
-          opacity: 0.7,
           pointerEvents: 'none',
           whiteSpace: 'normal',
           wordBreak: 'keep-all',
         }}>
-          <span style={{ fontWeight: 500 }}>{label}</span>
-          {description && ` — ${description}`}
+          {en && (
+            <div style={{ fontSize: 12, fontWeight: 300, color: '#0a0908', opacity: 0.7 }}>
+              <span style={{ fontWeight: 500 }}>{en.label}</span>
+              {en.description && ` — ${en.description}`}
+            </div>
+          )}
+          {ko && (
+            <div style={{ fontSize: 11, fontWeight: 300, color: '#0a0908', opacity: 0.5, marginTop: 2 }}>
+              <span style={{ fontWeight: 400 }}>{ko.label}</span>
+              {ko.description && ` — ${ko.description}`}
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -236,9 +246,16 @@ function DiagramSetSlideView({ slide, active, finePointer, onHoverChange }: {
         whiteSpace: 'normal',
         wordBreak: 'keep-all',
       }}>
-        <div style={{ fontSize: 12, fontWeight: 300, color: '#0a0908', opacity: 0.7 }}>
-          <span style={{ fontWeight: 500 }}>{item.label}</span> — {item.description}
-        </div>
+        {/* 영문 세트 (주) */}
+        <div style={{ fontSize: 12, fontWeight: 500, color: '#0a0908', opacity: 0.85 }}>{item.label.en}</div>
+        <div style={{ fontSize: 11, fontWeight: 300, color: '#0a0908', opacity: 0.6, marginTop: 2 }}>{item.description.en}</div>
+        {/* 한글 세트 (종) — 있을 때만 */}
+        {item.label.ko && (
+          <div style={{ fontSize: 11, fontWeight: 400, color: '#0a0908', opacity: 0.6, marginTop: 6 }}>{item.label.ko}</div>
+        )}
+        {item.description.ko && (
+          <div style={{ fontSize: 10, fontWeight: 300, color: '#0a0908', opacity: 0.45, marginTop: 2 }}>{item.description.ko}</div>
+        )}
         <div style={{ fontSize: 11, opacity: 0.5, color: '#0a0908', marginTop: 4 }}>
           {String(subIdx + 1).padStart(2, '0')} / {String(total).padStart(2, '0')}
         </div>
@@ -248,11 +265,44 @@ function DiagramSetSlideView({ slide, active, finePointer, onHoverChange }: {
 }
 
 // ── 본문 텍스트: 좌정렬, 슬라이드 높이 내 수직 중앙. 폭은 상수 ──
+function renderBlocks(blocks: PortableTextBlock[], opacity: number) {
+  return blocks.map((block, i) => (
+    <p key={block._key ?? i} style={{
+      margin: 0,
+      fontFamily: FONT,
+      fontSize: 14,
+      fontWeight: 300,
+      lineHeight: 1.75,
+      letterSpacing: '-0.01em',
+      color: '#0a0908',
+      opacity,
+      wordBreak: 'keep-all',
+      whiteSpace: 'normal',
+    }}>
+      {block.children.map((span, j) => {
+        const bold = span.marks?.includes('strong')
+        const italic = span.marks?.includes('em')
+        if (!bold && !italic) return span.text
+        return (
+          <span key={span._key ?? j} style={{
+            fontWeight: bold ? 500 : undefined,
+            fontStyle: italic ? 'italic' : undefined,
+          }}>
+            {span.text}
+          </span>
+        )
+      })}
+    </p>
+  ))
+}
+
 function TextSlideView({ slide }: { slide: TextSlide }) {
   return (
     <div style={{
       height: '100%',
       width: TEXT_SLIDE_W,
+      paddingLeft: SLIDE_TEXT_INSET,
+      paddingRight: SLIDE_TEXT_INSET,
       display: 'flex',
       alignItems: 'center',
       boxSizing: 'border-box',
@@ -260,37 +310,16 @@ function TextSlideView({ slide }: { slide: TextSlide }) {
       <div style={{
         display: 'flex',
         flexDirection: 'column',
-        gap: 18,
+        gap: 24,
         maxHeight: '100%',
         overflowY: 'auto',
       }}>
-        {slide.body.map((block, i) => (
-          <p key={block._key ?? i} style={{
-            margin: 0,
-            fontFamily: FONT,
-            fontSize: 14,
-            fontWeight: 300,
-            lineHeight: 1.75,
-            letterSpacing: '-0.01em',
-            color: '#0a0908',
-            wordBreak: 'keep-all',
-            whiteSpace: 'normal',
-          }}>
-            {block.children.map((span, j) => {
-              const bold = span.marks?.includes('strong')
-              const italic = span.marks?.includes('em')
-              if (!bold && !italic) return span.text
-              return (
-                <span key={span._key ?? j} style={{
-                  fontWeight: bold ? 500 : undefined,
-                  fontStyle: italic ? 'italic' : undefined,
-                }}>
-                  {span.text}
-                </span>
-              )
-            })}
-          </p>
-        ))}
+        {/* 영문 (주) */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>{renderBlocks(slide.body.en, 1)}</div>
+        {/* 한글 (종) — 있을 때만 */}
+        {slide.body.ko && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>{renderBlocks(slide.body.ko, 0.6)}</div>
+        )}
       </div>
     </div>
   )
@@ -302,13 +331,16 @@ function QuoteSlideView({ slide }: { slide: QuoteSlide }) {
     <div style={{
       height: '100%',
       width: QUOTE_SLIDE_W,
+      paddingLeft: SLIDE_TEXT_INSET,
+      paddingRight: SLIDE_TEXT_INSET,
       display: 'flex',
       flexDirection: 'column',
       alignItems: 'center',
       justifyContent: 'center',
-      gap: 20,
+      gap: 16,
       boxSizing: 'border-box',
     }}>
+      {/* 영문 (주) — 따옴표 */}
       <div style={{
         fontFamily: FONT,
         fontSize: 15,
@@ -321,8 +353,24 @@ function QuoteSlideView({ slide }: { slide: QuoteSlide }) {
         maxHeight: '100%',
         overflowY: 'auto',
       }}>
-        {`“${slide.text}”`}
+        {`“${slide.text.en}”`}
       </div>
+      {/* 한글 (종) — 따옴표, 있을 때만 */}
+      {slide.text.ko && (
+        <div style={{
+          fontFamily: FONT,
+          fontSize: 13,
+          fontWeight: 300,
+          lineHeight: 1.7,
+          letterSpacing: '-0.01em',
+          color: '#0a0908',
+          opacity: 0.6,
+          textAlign: 'center',
+          wordBreak: 'keep-all',
+        }}>
+          {`“${slide.text.ko}”`}
+        </div>
+      )}
       {slide.attribution && (
         <div style={{
           fontFamily: FONT,
@@ -762,7 +810,7 @@ export function ContentArea({ project, mode, isBlacking, visible, onBack }: Cont
               <img
                 ref={(el) => { if (el) idleImgEl.current = el }}
                 src={project.coverImage}
-                alt={project.title}
+                alt={project.title.en}
                 style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
               />
             ) : (
@@ -786,7 +834,7 @@ export function ContentArea({ project, mode, isBlacking, visible, onBack }: Cont
             pointerEvents: 'none',
             zIndex: 2,
           }}>
-            {project.title}
+            {project.title.en}
           </div>
 
           {/* Blackout overlay */}
@@ -859,15 +907,24 @@ export function ContentArea({ project, mode, isBlacking, visible, onBack }: Cont
                   }}>
                     {/* 타이틀 + LOCATION — 한 세트. 아래 메타군과 시각적으로 분리 */}
                     <div style={{ marginBottom: 20 }}>
-                      <div style={{
-                        fontSize: 16,
-                        fontWeight: 500,
-                        lineHeight: 1.35,
-                        letterSpacing: '-0.01em',
-                        wordBreak: 'keep-all',
-                      }}>
-                        {project.title}
-                      </div>
+                      <BilingualText
+                        value={project.title}
+                        order="ko-first"
+                        primaryStyle={{ fontSize: 16, fontWeight: 500, lineHeight: 1.35, letterSpacing: '-0.01em', wordBreak: 'keep-all' }}
+                        secondaryStyle={{ fontSize: 12, fontWeight: 400, lineHeight: 1.3, opacity: 0.6, wordBreak: 'keep-all' }}
+                        gap={2}
+                      />
+                      {project.subtitle && (
+                        <div style={{ marginTop: 8 }}>
+                          <BilingualText
+                            value={project.subtitle}
+                            order="ko-first"
+                            primaryStyle={{ fontSize: 11, fontWeight: 300, lineHeight: 1.4, opacity: 0.75, wordBreak: 'keep-all' }}
+                            secondaryStyle={{ fontSize: 10, fontWeight: 300, lineHeight: 1.4, opacity: 0.5, wordBreak: 'keep-all' }}
+                            gap={1}
+                          />
+                        </div>
+                      )}
                       {project.location && (
                         <div style={{
                           marginTop: 8,
@@ -879,6 +936,15 @@ export function ContentArea({ project, mode, isBlacking, visible, onBack }: Cont
                         }}>
                           {project.location}
                         </div>
+                      )}
+                    </div>
+
+                    {/* Prize — 고정 높이 예약. 값 없으면 투명 (하위 항목 세로 위치 불변) */}
+                    <div style={{ minHeight: 20, display: 'flex', alignItems: 'center' }}>
+                      {project.result && (
+                        <span style={{ fontSize: 15, fontWeight: 400, color: '#b89773', letterSpacing: '0.01em' }}>
+                          {project.result}
+                        </span>
                       )}
                     </div>
 

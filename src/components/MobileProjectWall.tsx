@@ -9,7 +9,8 @@
 // 상태 소유는 LandingExperience (URL 동기화 일원화).
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import type { CreditsSlide, DiagramSetSlide, ImageSlide, Project, ProjectSlide, QuoteSlide, TextSlide } from '@/types'
+import type { CreditsSlide, DiagramSetSlide, ImageSlide, PortableTextBlock, Project, ProjectSlide, QuoteSlide, TextSlide } from '@/types'
+import { BilingualText } from '@/lib/bilingual'
 import { sanityCard } from '@/lib/imageUrl'
 import { shuffle } from '@/lib/shuffle'
 import { circDist, mod, useRingWall } from '@/hooks/useRingWall'
@@ -85,16 +86,21 @@ function splitCaption(caption: string): { label: string; description: string } {
 }
 
 // ── 캡션 — 자연 높이. 2줄 초과 시 ellipsis ──
-function MobileCaption({ label, description }: { label: string; description: string }) {
+// secondary=true: 한글 종(從) 스타일 — 영문 캡션 아래에 작고 옅게
+function MobileCaption({ label, description, secondary = false }: {
+  label: string
+  description: string
+  secondary?: boolean
+}) {
   return (
-    <div style={{ paddingTop: 6, width: '100%' }}>
+    <div style={{ paddingTop: secondary ? 2 : 6, width: '100%' }}>
       <div style={{
         fontFamily: FONT,
-        fontSize: 10,
+        fontSize: secondary ? 9 : 10,
         fontWeight: 300,
         lineHeight: 1.35,
         color: '#0a0908',
-        opacity: 0.55,
+        opacity: secondary ? 0.4 : 0.55,
         textAlign: 'center',        // ← 추가. 데스크톱 캡션과 정합
         wordBreak: 'keep-all',
         display: '-webkit-box',
@@ -102,7 +108,7 @@ function MobileCaption({ label, description }: { label: string; description: str
         WebkitBoxOrient: 'vertical' as const,
         overflow: 'hidden',
       }}>
-        <span style={{ fontWeight: 500 }}>{label}</span>
+        <span style={{ fontWeight: secondary ? 400 : 500 }}>{label}</span>
         {description && ` — ${description}`}
       </div>
     </div>
@@ -111,9 +117,8 @@ function MobileCaption({ label, description }: { label: string; description: str
 
 // ── 이미지 슬라이드 — 폭 100%, 높이는 ratio(w/h)가 결정. aspectRatio로 사전 예약 ──
 function MobileImageSlide({ slide }: { slide: ImageSlide }) {
-  const { label, description } = slide.caption
-    ? splitCaption(slide.caption)
-    : { label: '', description: '' }
+  const en = slide.caption?.en ? splitCaption(slide.caption.en) : null
+  const ko = slide.caption?.ko ? splitCaption(slide.caption.ko) : null
 
   return (
     <div style={{ width: '100%' }}>
@@ -128,7 +133,8 @@ function MobileImageSlide({ slide }: { slide: ImageSlide }) {
           style={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block' }}
         />
       </div>
-      {slide.caption && <MobileCaption label={label} description={description} />}
+      {en && <MobileCaption label={en.label} description={en.description} />}
+      {ko && <MobileCaption label={ko.label} description={ko.description} secondary />}
     </div>
   )
 }
@@ -152,6 +158,8 @@ function MobileDiagramSetSlide({ slide }: { slide: DiagramSetSlide }) {
   const item = slide.items[subIdx]
   // 프레임 비율 — 첫 항목 기준 고정. 서브슬라이드 전환 시 높이가 변하면 스크롤이 튄다
   const frameRatio = slide.items[0].ratio ?? DIAGRAM_RATIO_FALLBACK
+  // 묶음 내 한 항목이라도 한글이 있으면 전 항목에 한글 줄 높이를 예약한다
+  const setHasKo = slide.items.some(it => it.label.ko || it.description.ko)
 
   return (
     <div
@@ -191,9 +199,13 @@ function MobileDiagramSetSlide({ slide }: { slide: DiagramSetSlide }) {
           />
         ))}
       </div>
-      {/* 캡션 + 카운터 — 서브슬라이드 전환 시 높이 흔들림 방지: 2줄 고정 예약 */}
-      <div style={{ minHeight: 10 * 1.35 * 2 + 6 }}>
-        <MobileCaption label={item.label} description={item.description} />
+      {/* 캡션 + 카운터 — 서브슬라이드 전환 시 높이 흔들림 방지: 2줄 고정 예약.
+          한글 병기 세트는 묶음 전체 기준으로 예약한다 — 항목마다 ko 유무가 달라도 높이 불변 */}
+      <div style={{ minHeight: 10 * 1.35 * 2 + 6 + (setHasKo ? 9 * 1.35 * 2 + 2 : 0) }}>
+        <MobileCaption label={item.label.en} description={item.description.en} />
+        {(item.label.ko || item.description.ko) && (
+          <MobileCaption label={item.label.ko ?? ''} description={item.description.ko ?? ''} secondary />
+        )}
       </div>
       <div style={{
         fontFamily: FONT,
@@ -211,35 +223,45 @@ function MobileDiagramSetSlide({ slide }: { slide: DiagramSetSlide }) {
 }
 
 // ── 본문 텍스트 — 폭 100%, 높이 자연 결정. 좌정렬 ──
+function renderMobileBlocks(blocks: PortableTextBlock[], opacity: number) {
+  return blocks.map((block, i) => (
+    <p key={block._key ?? i} style={{
+      margin: 0,
+      fontFamily: FONT,
+      fontSize: 12,
+      fontWeight: 300,
+      lineHeight: 1.75,
+      letterSpacing: '-0.01em',
+      color: '#0a0908',
+      opacity,
+      wordBreak: 'keep-all',
+    }}>
+      {block.children.map((span, j) => {
+        const bold = span.marks?.includes('strong')
+        const italic = span.marks?.includes('em')
+        if (!bold && !italic) return span.text
+        return (
+          <span key={span._key ?? j} style={{
+            fontWeight: bold ? 500 : undefined,
+            fontStyle: italic ? 'italic' : undefined,
+          }}>
+            {span.text}
+          </span>
+        )
+      })}
+    </p>
+  ))
+}
+
 function MobileTextSlide({ slide }: { slide: TextSlide }) {
   return (
-    <div style={{ width: '100%', padding: '4px 0', display: 'flex', flexDirection: 'column', gap: 14 }}>
-      {slide.body.map((block, i) => (
-        <p key={block._key ?? i} style={{
-          margin: 0,
-          fontFamily: FONT,
-          fontSize: 12,
-          fontWeight: 300,
-          lineHeight: 1.75,
-          letterSpacing: '-0.01em',
-          color: '#0a0908',
-          wordBreak: 'keep-all',
-        }}>
-          {block.children.map((span, j) => {
-            const bold = span.marks?.includes('strong')
-            const italic = span.marks?.includes('em')
-            if (!bold && !italic) return span.text
-            return (
-              <span key={span._key ?? j} style={{
-                fontWeight: bold ? 500 : undefined,
-                fontStyle: italic ? 'italic' : undefined,
-              }}>
-                {span.text}
-              </span>
-            )
-          })}
-        </p>
-      ))}
+    <div style={{ width: '100%', padding: '4px 0', display: 'flex', flexDirection: 'column', gap: 20 }}>
+      {/* 영문 (주) */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>{renderMobileBlocks(slide.body.en, 1)}</div>
+      {/* 한글 (종) — 있을 때만 */}
+      {slide.body.ko && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>{renderMobileBlocks(slide.body.ko, 0.6)}</div>
+      )}
     </div>
   )
 }
@@ -266,8 +288,24 @@ function MobileQuoteSlide({ slide }: { slide: QuoteSlide }) {
         textAlign: 'center',
         wordBreak: 'keep-all',
       }}>
-        {`“${slide.text}”`}
+        {`“${slide.text.en}”`}
       </div>
+      {/* 한글 (종) — 따옴표, 있을 때만 */}
+      {slide.text.ko && (
+        <div style={{
+          fontFamily: FONT,
+          fontSize: 11,
+          fontWeight: 300,
+          lineHeight: 1.7,
+          letterSpacing: '-0.01em',
+          color: '#0a0908',
+          opacity: 0.6,
+          textAlign: 'center',
+          wordBreak: 'keep-all',
+        }}>
+          {`“${slide.text.ko}”`}
+        </div>
+      )}
       {slide.attribution && (
         <div style={{
           fontFamily: FONT,
@@ -330,6 +368,36 @@ function MobileInfoSlide({ project }: { project: Project }) {
       fontFamily: FONT,
       color: '#080706',
     }}>
+      {/* 타이틀 한글(종) — 영문 타이틀 행은 모프 종착점이라 위에서 별도 렌더된다.
+          데스크톱(ko-first)과 달리 모바일은 영문이 위 — 모프 종착점을 옮길 수 없기 때문 */}
+      {(project.title.ko || project.subtitle) && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginTop: -10 }}>
+          {project.title.ko && (
+            <div style={{ fontSize: 12, fontWeight: 400, lineHeight: 1.3, opacity: 0.6, wordBreak: 'keep-all' }}>
+              {project.title.ko}
+            </div>
+          )}
+          {project.subtitle && (
+            <BilingualText
+              value={project.subtitle}
+              order="en-first"
+              primaryStyle={{ fontSize: 11, fontWeight: 300, lineHeight: 1.4, opacity: 0.75, wordBreak: 'keep-all' }}
+              secondaryStyle={{ fontSize: 10, fontWeight: 300, lineHeight: 1.4, opacity: 0.5, wordBreak: 'keep-all' }}
+              gap={1}
+            />
+          )}
+        </div>
+      )}
+
+      {/* Prize — 고정 높이 예약. 값 없으면 투명 (하위 항목 세로 위치 불변) */}
+      <div style={{ minHeight: 20, display: 'flex', alignItems: 'center' }}>
+        {project.result && (
+          <span style={{ fontSize: 14, fontWeight: 400, color: '#b89773', letterSpacing: '0.01em' }}>
+            {project.result}
+          </span>
+        )}
+      </div>
+
       {project.location && (
         <div style={{
           fontSize: 10,
@@ -496,7 +564,7 @@ function ExpandedBlock({ project, onBack, heroRef, heroHidden, titleMorphing, ti
             // eslint-disable-next-line @next/next/no-img-element
             <img
               src={sanityCard(project.coverImage, 800, project.coverHotspot)}
-              alt={project.title}
+              alt={project.title.en}
               draggable={false}
               style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
             />
@@ -523,7 +591,7 @@ function ExpandedBlock({ project, onBack, heroRef, heroHidden, titleMorphing, ti
             marginTop: -SLIDE_GAP + 12,   // 히어로와의 간격을 좁힌다 (히어로와 한 세트로 읽힌다)
           }}
         >
-          {project.title}
+          {project.title.en}
         </div>
 
         {/* ② 정보 — 히어로 직후 고정 */}
@@ -890,7 +958,7 @@ export function MobileProjectWall({
             from: pending.from,
             to: { top: hr.top, left: 16, width: heroW, height: heroW * 2 / 3 },
             title: pending.titleFrom && title ? {
-              text: activeProject.title,
+              text: activeProject.title.en,
               from: { ...pending.titleFrom, fontSize: 13, fontWeight: 400 },
               to: { top: title.getBoundingClientRect().top, left: 16, fontSize: 18, fontWeight: 600 },
             } : null,
@@ -928,7 +996,7 @@ export function MobileProjectWall({
         // 이미지가 슬롯 최상단 — TOP_TEXT_H 가산 없음 (텍스트는 하단으로 이동함)
         to: { top: cardTop, left: thumbLeft, width: w0, height: h0 },
         title: pending.titleFrom ? {
-          text: project.title,
+          text: project.title.en,
           from: { ...pending.titleFrom, fontSize: 18, fontWeight: 600 },
           // 타이틀 종착 — 이미지 하단 텍스트 행의 첫 줄. paddingTop 6은 §3-3 렌더와 일치
           to: { top: cardTop + h0 + 6, left: thumbLeft, fontSize: 13, fontWeight: 400 },
@@ -1041,7 +1109,7 @@ export function MobileProjectWall({
                       // eslint-disable-next-line @next/next/no-img-element
                       <img
                         src={sanityCard(p.coverImage, 480, p.coverHotspot)}
-                        alt={p.title}
+                        alt={p.title.en}
                         loading="lazy"
                         draggable={false}
                         style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
@@ -1074,7 +1142,7 @@ export function MobileProjectWall({
                         visibility: titleMorphing ? 'hidden' : 'visible',
                       }}
                     >
-                      {p.title}
+                      {p.title.en}
                     </div>
                     {/* 용도 — 1줄 ellipsis */}
                     <div style={{

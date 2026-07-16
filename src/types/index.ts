@@ -30,16 +30,26 @@ export type ProjectStatus =
   | 'Completed'
   | 'Published'
 
+// ── 로케일 오브젝트 ──
+// en 필수, ko 선택. ko가 없으면 영문만 렌더링한다.
+
+/** 단일 행 병기 문자열 — 타이틀·서브타이틀·캡션·라벨·인용문 */
+export interface LocaleString { en: string; ko?: string }
+/** 여러 줄 병기 텍스트 (서식 없음) — 다이어그램 설명 */
+export interface LocaleText { en: string; ko?: string }
+/** 다문단 병기 서식 텍스트 (strong·em만) — 본문 서술 */
+export interface LocalePortableText { en: PortableTextBlock[]; ko?: PortableTextBlock[] }
+
 export interface Project {
   id: string              // URL slug — 변경 불가 (SEO)
   careerNo: number        // Career_260707.xlsx '프로젝트 연번' 기준
-  title: string
-  titleKr: string
+  title: LocaleString
+  subtitle?: LocaleString // 한 줄 설명
   year: number            // 설계 시작 연도
   type: ProjectType       // = Typology_Main. 카드·메타에 노출되는 유일한 라벨
   subTypes?: ProjectType[] // = Typology_Sub 1·2. 필터 매칭 전용 — 어디에도 표기하지 않는다
   status: ProjectStatus
-  result: string          // 'Winner', '2nd Prize', etc.
+  result?: string         // 'Winner', '2nd Prize', etc. 상이 없는 프로젝트는 비움
   featured: boolean       // true = 2배 너비 카드
   displayOrder: number    // 홈페이지 배치 순서 (수동 제어)
   coverImage?: string     // Cloudinary or /public 경로 — 비워두면 coverColor 사용
@@ -58,7 +68,7 @@ export interface ImageSlide {
   kind: 'image'
   src: string
   /** BIG 형식 캡션: "LABEL — description". 없으면 캡션 미표시 */
-  caption?: string
+  caption?: LocaleString
   /** true면 다이어그램으로 취급 — 트랙에서 DIAGRAM_H_PCT(48%) 높이 적용 */
   diagram?: boolean
   /** 이미지 w/h — Sanity metadata 공급 */
@@ -67,10 +77,10 @@ export interface ImageSlide {
 
 export interface DiagramItem {
   src: string
-  /** 대문자 라벨, 예: "MASS 01" */
-  label: string
+  /** 예: "Site Conditions" */
+  label: LocaleString
   /** 한 문장 설명 */
-  description: string
+  description: LocaleText
   /** 이미지 w/h — Sanity metadata 공급 */
   ratio?: number
 }
@@ -98,12 +108,12 @@ export interface PortableTextBlock {
 
 export interface TextSlide {
   kind: 'text'
-  body: PortableTextBlock[]
+  body: LocalePortableText
 }
 
 export interface QuoteSlide {
   kind: 'quote'
-  text: string
+  text: LocaleString
   /** 예: "BJARKE INGELS - FOUNDER & CREATIVE DIRECTOR, BIG" */
   attribution?: string
 }

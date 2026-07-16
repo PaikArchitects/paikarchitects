@@ -75,7 +75,7 @@ function WallCardImage({ project, height, opacity, below }: {
         // eslint-disable-next-line @next/next/no-img-element
         <img
           src={sanityThumb(project.coverImage, 480)}
-          alt={project.title}
+          alt={project.title.en}
           loading="lazy"
           style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
         />
@@ -128,7 +128,7 @@ function WallCardText({ project, opacity, below, width }: {
           textOverflow: 'ellipsis',
         } : {}),
       }}>
-        {project.title}
+        {project.title.en}
       </div>
       {/* 용도 — D2는 1줄 클램프 (D1은 기존 2줄 유지) */}
       <div style={{
