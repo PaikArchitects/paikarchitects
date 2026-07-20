@@ -1,65 +1,154 @@
-import Link from 'next/link'
+import { getAbout } from '@/lib/sanity/queries'
+import type { PortableTextBlock } from '@/types'
 
-const FONT = "'Pretendard Variable', Pretendard, -apple-system, BlinkMacSystemFont, sans-serif"
+export const revalidate = 60
 
-export default function AboutPage() {
+function renderBlocks(blocks: PortableTextBlock[] | undefined) {
+  if (!blocks || blocks.length === 0) return null
+  return blocks.map((b, i) => (
+    <p key={b._key ?? i} style={{ whiteSpace: 'pre-line' }}>
+      {b.children?.map(c => c.text).join('') ?? ''}
+    </p>
+  ))
+}
+
+export default async function AboutPage() {
+  const about = await getAbout()
+  if (!about) {
+    return (
+      <div className="about-page">
+        <div className="about-inner" />
+      </div>
+    )
+  }
+
+  const { position, preoccupations, education, employment, awards, exhibitions, contact } = about
+
   return (
-    <div style={{ fontFamily: FONT, background: '#FFFFFF', minHeight: '100vh', color: '#111110' }}>
+    <div className="about-page">
+      <div className="about-inner">
 
-      <div style={{ maxWidth: 680, padding: '64px 44px 100px', margin: '0 auto' }}>
+        {/* ── 층 1: POSITION ── */}
+        <section className="about-row">
+          <div className="about-label">Position</div>
+          <div className="about-body-en">{renderBlocks(position?.en)}</div>
+          <div className="about-body-ko">{renderBlocks(position?.ko)}</div>
+        </section>
 
-        <p style={{
-          fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase',
-          color: 'rgba(17,17,16,0.30)', fontWeight: 300, marginBottom: 40,
-        }}>
-          About
-        </p>
+        {/* ── 층 2: PREOCCUPATIONS ── */}
+        <section className="about-row">
+          <div className="about-label">Preoccupations</div>
+          <div className="about-body-en">
+            {preoccupations?.map((p, i) => (
+              <div key={i} className="about-preocc-item">
+                <div className="about-preocc-heading">{p.heading.en}</div>
+                <div>{p.body.en}</div>
+              </div>
+            ))}
+          </div>
+          <div className="about-body-ko">
+            {preoccupations?.map((p, i) => (
+              <div key={i} className="about-preocc-item">
+                <div className="about-preocc-heading">{p.heading.ko}</div>
+                <div>{p.body.ko}</div>
+              </div>
+            ))}
+          </div>
+        </section>
 
-        <h1 style={{
-          fontSize: 32, fontWeight: 400, letterSpacing: '0.04em',
-          color: '#111110', marginBottom: 36, lineHeight: 1.2,
-        }}>
-          Chang Hyun Paik
-        </h1>
+        {/* ── 층 3: CURRICULUM VITAE — 병기 없음, 전폭 단일 열 ── */}
+        <section className="about-row about-row--wide">
+          <div className="about-label">Curriculum<br />Vitae</div>
+          <div>
 
-        <div style={{
-          fontSize: 15, fontWeight: 300, lineHeight: 1.9,
-          color: 'rgba(17,17,16,0.65)', maxWidth: 520,
-        }}>
-          <p style={{ marginBottom: 24 }}>
-            Chang Hyun Paik is an architect based in Seoul, South Korea. With over
-            a decade of professional experience at SPACE GROUP, one of Korea&apos;s
-            most influential architecture firms, he has developed a design language
-            rooted in contextual clarity, material honesty, and spatial precision.
-          </p>
-          <p style={{ marginBottom: 24 }}>
-            His approach is driven by a belief that architecture begins with
-            attentiveness to the place — its history, topography, and cultural
-            rhythms — and culminates in built forms that quietly endure over time.
-          </p>
-          <p>
-            He values architecture not only as an act of construction, but as a
-            method of interpretation — where material and memory intersect.
-          </p>
-        </div>
+            {education && education.length > 0 && (
+              <div className="about-cv-section">
+                <div className="about-cv-heading">Education</div>
+                {education.map((e, i) => (
+                  <div key={i} className="about-cv-line">
+                    <div>
+                      {e.title}
+                      {e.period && <span className="about-cv-period">{e.period}</span>}
+                    </div>
+                    {e.detail && <div className="about-cv-detail">{e.detail}</div>}
+                  </div>
+                ))}
+              </div>
+            )}
 
-        <div id="contact" style={{
-          marginTop: 72, paddingTop: 36,
-          borderTop: '0.5px solid rgba(17,17,16,0.08)',
-        }}>
-          <p style={{
-            fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase',
-            color: 'rgba(17,17,16,0.30)', fontWeight: 300, marginBottom: 16,
-          }}>
-            Contact
-          </p>
-          <Link href="mailto:archipaik@gmail.com" style={{
-            fontSize: 18, fontWeight: 300, letterSpacing: '0.02em',
-            color: 'rgba(17,17,16,0.70)', textDecoration: 'none',
-          }}>
-            archipaik@gmail.com
-          </Link>
-        </div>
+            {employment && employment.length > 0 && (
+              <div className="about-cv-section">
+                <div className="about-cv-heading">Professional Experience</div>
+                {employment.map((emp, i) => (
+                  <div key={i}>
+                    <div className="about-cv-line">
+                      <div>
+                        {emp.title}
+                        {emp.period && <span className="about-cv-period">{emp.period}</span>}
+                      </div>
+                      {emp.detail && <div className="about-cv-detail">{emp.detail}</div>}
+                    </div>
+                    {emp.projects && emp.projects.length > 0 && (
+                      <div className="about-cv-projects">
+                        {emp.projects.map((p, j) => (
+                          <div key={j} className="about-cv-ranked">
+                            <span>{p.title}</span>
+                            <span>{p.result}</span>
+                            <span className="about-cv-year">{p.year}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {awards && awards.length > 0 && (
+              <div className="about-cv-section">
+                <div className="about-cv-heading">Awards</div>
+                {awards.map((a, i) => (
+                  <div key={i} className="about-cv-ranked">
+                    <span>{a.title}</span>
+                    <span>{a.result}</span>
+                    <span className="about-cv-year">{a.year}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {exhibitions && exhibitions.length > 0 && (
+              <div className="about-cv-section">
+                <div className="about-cv-heading">Exhibitions and Publications</div>
+                {exhibitions.map((x, i) => (
+                  <div key={i} className="about-cv-venue">
+                    <span>{x.title}</span>
+                    <span>{x.venue}</span>
+                    <span className="about-cv-year">{x.year}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+
+          </div>
+        </section>
+
+        {/* ── CONTACT — 층이 아니다. 라벨 없음 ── */}
+        {contact && (
+          <div className="about-contact">
+            <div />
+            <div>
+              {contact.location}
+              {contact.email && (
+                <>
+                  {contact.location && ' · '}
+                  <a href={`mailto:${contact.email}`}>{contact.email}</a>
+                </>
+              )}
+              {contact.phone && <>{' · '}{contact.phone}</>}
+            </div>
+          </div>
+        )}
 
       </div>
     </div>

@@ -303,3 +303,227 @@ body {
   background: rgba(255, 255, 255, 0.15);
   color: #FFFFFF;
 }
+
+/* ══════════════════════════════════════════════════════
+   ABOUT PAGE
+   3층 구조(POSITION / PREOCCUPATIONS / CURRICULUM VITAE).
+   좌측 라벨 월은 position:sticky로 상단 고정 → 다음 층 라벨이
+   물리적으로 밀어낸다(push-out). JS 스크롤 계산 없음.
+   반응형 경계는 WORKS와 동일: 1440 / 1024
+   ══════════════════════════════════════════════════════ */
+
+.about-page {
+  background: #FFFFFF;
+  color: #080706;
+  min-height: 100vh;
+  padding: 140px 44px 120px;
+}
+
+.about-inner {
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+/* 한 층 = [라벨 월 | EN | KO] 3열. CV 층만 .about-row--wide로 2열 */
+.about-row {
+  display: grid;
+  grid-template-columns: 200px 1fr 1fr;
+  column-gap: 48px;
+  padding-bottom: 120px;
+  align-items: start;
+}
+
+.about-row--wide {
+  grid-template-columns: 200px 1fr;
+}
+
+/* 라벨: sticky. top에 붙었다가 다음 라벨에 밀려난다.
+   부모(.about-row)가 grid item이므로 sticky 컨테이닝 블록은
+   그 grid item 자신 → 층 높이만큼만 고정되고 이후 밀려난다. */
+.about-label {
+  position: sticky;
+  top: 24px;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  line-height: 1.4;
+  color: #080706;
+}
+
+.about-body-en,
+.about-body-ko {
+  font-size: 14px;
+  font-weight: 300;
+  line-height: 1.75;
+  color: rgba(8, 7, 6, 0.72);
+}
+
+.about-body-ko {
+  line-height: 1.85;
+}
+
+.about-body-en p + p,
+.about-body-ko p + p {
+  margin-top: 14px;
+}
+
+/* PREOCCUPATIONS 항목 */
+.about-preocc-item + .about-preocc-item {
+  margin-top: 24px;
+}
+
+.about-preocc-heading {
+  font-weight: 500;
+  color: #080706;
+  margin-bottom: 4px;
+}
+
+/* ── CURRICULUM VITAE ── */
+.about-cv-section + .about-cv-section {
+  margin-top: 32px;
+}
+
+.about-cv-heading {
+  font-size: 14px;
+  font-weight: 500;
+  color: #080706;
+  margin-bottom: 14px;
+}
+
+.about-cv-line {
+  font-size: 13px;
+  font-weight: 300;
+  line-height: 1.7;
+  color: rgba(8, 7, 6, 0.72);
+}
+
+.about-cv-detail {
+  color: rgba(8, 7, 6, 0.45);
+}
+
+/* Education·Employment 헤더 행: 명칭 바로 뒤에 기간이 붙는다 (우측 정렬 아님) */
+.about-cv-period {
+  margin-left: 20px;
+  color: rgba(8, 7, 6, 0.45);
+}
+
+/* 프로젝트 목록·Awards: [명칭 | 결과 | 연도] 3열, 연도 우변 통일 */
+.about-cv-ranked {
+  display: grid;
+  grid-template-columns: 1fr 96px 56px;
+  font-size: 13px;
+  font-weight: 300;
+  line-height: 1.7;
+  color: rgba(8, 7, 6, 0.60);
+}
+
+/* Exhibitions: [명칭 | 장소 | 연도] 3열. 연도 우변은 위와 동일 */
+.about-cv-venue {
+  display: grid;
+  grid-template-columns: 1fr 260px 56px;
+  font-size: 13px;
+  font-weight: 300;
+  line-height: 1.7;
+  color: rgba(8, 7, 6, 0.60);
+}
+
+.about-cv-year {
+  text-align: right;
+}
+
+.about-cv-projects {
+  margin-top: 10px;
+}
+
+/* Contact — CV 층 아래, 라벨 열을 비우고 본문 열에서 시작 */
+.about-contact {
+  display: grid;
+  grid-template-columns: 200px 1fr;
+  column-gap: 48px;
+  padding-top: 20px;
+  border-top: 0.5px solid rgba(8, 7, 6, 0.10);
+  font-size: 13px;
+  font-weight: 300;
+  color: rgba(8, 7, 6, 0.60);
+}
+
+.about-contact a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.about-contact a:hover {
+  text-decoration: underline;
+}
+
+/* ── D2 (1024–1439px) — 3열 유지, 여백만 축소 ── */
+@media (max-width: 1439px) {
+  .about-page {
+    padding: 120px 32px 100px;
+  }
+  .about-row {
+    grid-template-columns: 160px 1fr 1fr;
+    column-gap: 32px;
+    padding-bottom: 96px;
+  }
+  .about-row--wide {
+    grid-template-columns: 160px 1fr;
+  }
+  .about-contact {
+    grid-template-columns: 160px 1fr;
+    column-gap: 32px;
+  }
+  .about-cv-venue {
+    grid-template-columns: 1fr 200px 56px;
+  }
+}
+
+/* ── M (<1024px) — 라벨 월 소멸. 라벨이 본문 위로 접히고 sticky 유지.
+       병기는 상하(EN 위 / KO 아래). 헤더 바 56px 회피 ── */
+@media (max-width: 1023px) {
+  .about-page {
+    padding: 88px 20px 80px;
+  }
+
+  .about-row,
+  .about-row--wide {
+    display: block;
+    padding-bottom: 64px;
+  }
+
+  .about-label {
+    display: block;
+    top: 56px;                  /* 모바일 헤더 바(56px) 바로 아래 */
+    background: #FFFFFF;        /* 본문이 라벨 뒤로 지나가므로 불투명 필요 */
+    padding: 12px 0 10px;
+    margin-bottom: 6px;
+    font-size: 10px;
+    z-index: 10;
+  }
+
+  /* 상하 병기 — EN 아래 KO */
+  .about-body-ko {
+    margin-top: 20px;
+  }
+
+  .about-cv-ranked {
+    grid-template-columns: 1fr 84px 48px;
+    font-size: 12px;
+  }
+
+  .about-cv-venue {
+    display: block;
+    font-size: 12px;
+  }
+
+  .about-cv-venue .about-cv-year {
+    text-align: left;
+    margin-left: 12px;
+  }
+
+  .about-contact {
+    display: block;
+    font-size: 12px;
+  }
+}

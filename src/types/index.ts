@@ -124,3 +124,53 @@ export interface QuoteSlide {
 }
 
 export type ProjectSlide = ImageSlide | DiagramSetSlide | CreditsSlide | TextSlide | QuoteSlide
+
+// ── ABOUT 페이지 ──
+
+/** CV 공통 — 명칭 + 부제 + 기간. Education·Employment 헤더 행 */
+export interface CvSimpleEntry {
+  title: string
+  detail?: string
+  period?: string
+}
+
+/** CV — 명칭 + 결과 + 연도. Employment 하위 프로젝트, Awards */
+export interface CvRankedEntry {
+  title: string
+  result?: string
+  year?: string
+}
+
+/** CV — 명칭 + 장소 + 연도. Exhibitions and Publications */
+export interface CvVenueEntry {
+  title: string
+  venue?: string
+  year?: string
+}
+
+/** CV — 재직 이력. 하위에 프로젝트 목록을 갖는다 */
+export interface CvEmployment extends CvSimpleEntry {
+  projects?: CvRankedEntry[]
+}
+
+/** PREOCCUPATIONS 항목 — 제목·본문 모두 병기 */
+export interface Preoccupation {
+  heading: LocaleString
+  body: LocaleText
+}
+
+export interface AboutContact {
+  location?: string
+  email?: string
+  phone?: string
+}
+
+export interface About {
+  position?: LocalePortableText
+  preoccupations?: Preoccupation[]
+  education?: CvSimpleEntry[]
+  employment?: CvEmployment[]
+  awards?: CvRankedEntry[]
+  exhibitions?: CvVenueEntry[]
+  contact?: AboutContact
+}

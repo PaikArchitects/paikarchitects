@@ -1,5 +1,5 @@
 import { sanityClient } from './client'
-import type { Award, LocaleString, Project, ProjectSlide, ProjectStatus, ProjectType } from '@/types'
+import type { About, Award, LocaleString, Project, ProjectSlide, ProjectStatus, ProjectType } from '@/types'
 
 const PROJECTS_QUERY = `*[_type == "project" && published != false] | order(careerNo desc) {
   "id": slug.current,
@@ -120,4 +120,22 @@ function normalizeSlide(slide: ProjectSlide): ProjectSlide {
 /** generateStaticParams용 경량 쿼리 */
 export async function getProjectSlugs(): Promise<string[]> {
   return sanityClient.fetch<string[]>(SLUGS_QUERY)
+}
+
+const ABOUT_QUERY = `*[_type == "about" && _id == "about"][0]{
+  position,
+  "preoccupations": preoccupations[]{ heading, body },
+  "education": education[]{ title, detail, period },
+  "employment": employment[]{
+    title, detail, period,
+    "projects": projects[]{ title, result, year }
+  },
+  "awards": awards[]{ title, result, year },
+  "exhibitions": exhibitions[]{ title, venue, year },
+  contact
+}`
+
+/** About 단일 문서. 문서가 없으면 null */
+export async function getAbout(): Promise<About | null> {
+  return sanityClient.fetch<About | null>(ABOUT_QUERY)
 }
