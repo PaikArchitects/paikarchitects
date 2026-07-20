@@ -288,6 +288,13 @@
 /* ── Base ── */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
+/* 프로젝트 월 / About 라벨 월 공용 폭.
+   ProjectWall.tsx의 인라인 width와 동일해야 한다.
+   변경 시 ProjectWall.tsx도 이 변수를 참조하도록 함께 수정할 것. */
+:root {
+  --wall-width: clamp(300px, 28vw, 28vw);
+}
+
 html { height: 100%; }
 
 body {
@@ -327,14 +334,14 @@ body {
 /* 한 층 = [라벨 월 | EN | KO] 3열. CV 층만 .about-row--wide로 2열 */
 .about-row {
   display: grid;
-  grid-template-columns: 200px 1fr 1fr;
+  grid-template-columns: var(--wall-width) 1fr 1fr;
   column-gap: 48px;
   padding-bottom: 120px;
   align-items: start;
 }
 
 .about-row--wide {
-  grid-template-columns: 200px 1fr;
+  grid-template-columns: var(--wall-width) 1fr;
 }
 
 /* 라벨: sticky. top에 붙었다가 다음 라벨에 밀려난다.
@@ -343,11 +350,10 @@ body {
 .about-label {
   position: sticky;
   top: 24px;
-  font-size: 11px;
-  font-weight: 500;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  line-height: 1.4;
+  font-size: 20px;
+  font-weight: 400;
+  letter-spacing: -0.01em;
+  line-height: 1.25;
   color: #080706;
 }
 
@@ -365,12 +371,12 @@ body {
 
 .about-body-en p + p,
 .about-body-ko p + p {
-  margin-top: 14px;
+  margin-top: 10px;
 }
 
 /* PREOCCUPATIONS 항목 */
 .about-preocc-item + .about-preocc-item {
-  margin-top: 24px;
+  margin-top: 28px;
 }
 
 .about-preocc-heading {
@@ -439,7 +445,7 @@ body {
 /* Contact — CV 층 아래, 라벨 열을 비우고 본문 열에서 시작 */
 .about-contact {
   display: grid;
-  grid-template-columns: 200px 1fr;
+  grid-template-columns: var(--wall-width) 1fr;
   column-gap: 48px;
   padding-top: 20px;
   border-top: 0.5px solid rgba(8, 7, 6, 0.10);
@@ -463,19 +469,19 @@ body {
     padding: 120px 32px 100px;
   }
   .about-row {
-    grid-template-columns: 160px 1fr 1fr;
     column-gap: 32px;
     padding-bottom: 96px;
   }
-  .about-row--wide {
-    grid-template-columns: 160px 1fr;
-  }
   .about-contact {
-    grid-template-columns: 160px 1fr;
     column-gap: 32px;
   }
   .about-cv-venue {
     grid-template-columns: 1fr 200px 56px;
+  }
+  /* 라벨 월이 300px을 점유하므로 EN/KO 열 폭 보상 */
+  .about-body-en,
+  .about-body-ko {
+    font-size: 13px;
   }
 }
 
@@ -498,13 +504,13 @@ body {
     background: #FFFFFF;        /* 본문이 라벨 뒤로 지나가므로 불투명 필요 */
     padding: 12px 0 10px;
     margin-bottom: 6px;
-    font-size: 10px;
+    font-size: 16px;
     z-index: 10;
   }
 
   /* 상하 병기 — EN 아래 KO */
   .about-body-ko {
-    margin-top: 20px;
+    margin-top: 32px;
   }
 
   .about-cv-ranked {
