@@ -1,7 +1,7 @@
 import { sanityClient } from './client'
 import type { Award, LocaleString, Project, ProjectSlide, ProjectStatus, ProjectType } from '@/types'
 
-const PROJECTS_QUERY = `*[_type == "project"] | order(careerNo desc) {
+const PROJECTS_QUERY = `*[_type == "project" && published != false] | order(careerNo desc) {
   "id": slug.current,
   careerNo, title, subtitle, year,
   "type": mainType,
@@ -40,7 +40,7 @@ const PROJECTS_QUERY = `*[_type == "project"] | order(careerNo desc) {
   }
 }`
 
-const SLUGS_QUERY = `*[_type == "project"].slug.current`
+const SLUGS_QUERY = `*[_type == "project" && published != false].slug.current`
 
 // GROQ는 부재 필드를 null로 반환 — 기존 optional 계약(undefined)에 맞춰 정규화
 interface RawProject {

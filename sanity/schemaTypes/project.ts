@@ -17,6 +17,13 @@ export default defineType({
   type: 'document',
   fields: [
     defineField({
+      name: 'published',
+      title: 'PUBLISHED',
+      type: 'boolean',
+      description: '체크 해제 시 사이트에 표시되지 않는다 (Studio에는 남는다)',
+      initialValue: true,
+    }),
+    defineField({
       name: 'careerNo',
       title: 'CAREER NO.',
       type: 'number',

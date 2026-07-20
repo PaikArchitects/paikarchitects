@@ -577,39 +577,40 @@ function ExpandedBlock({ project, onBack, heroRef, heroHidden, titleMorphing, ti
           )}
         </div>
 
-        {/* 프로젝트 코드 — 히어로와 타이틀 사이. 히어로와의 간격 제어를 여기서 맡는다 */}
-        <div style={{
-          fontFamily: FONT,
-          fontSize: 8,
-          fontWeight: 300,
-          letterSpacing: '0.15em',
-          opacity: 0.35,
-          color: '#080706',
-          marginTop: -SLIDE_GAP + 12,
-          marginBottom: 4,
-        }}>
-          {String(project.careerNo).padStart(3, '0')}
-        </div>
-
-        {/* 타이틀 행 — 코드 행 직후. 보간 중에는 오버레이가 대신 렌더 (모프 종착점) */}
-        <div
-          ref={titleRef}
-          style={{
+        {/* 코드 + 타이틀 — 한 세트. 부모 gap에서 제외해 데스크톱과 결속 관계를 맞춘다 */}
+        <div style={{ marginTop: -SLIDE_GAP + 12 }}>
+          {/* 프로젝트 코드 */}
+          <div style={{
             fontFamily: FONT,
-            fontSize: 18,
-            fontWeight: 600,
-            lineHeight: 1.35,
+            fontSize: 8,
+            fontWeight: 300,
+            letterSpacing: '0.15em',
+            opacity: 0.35,
             color: '#080706',
-            wordBreak: 'keep-all',
-            display: '-webkit-box',
-            WebkitLineClamp: 2,
-            WebkitBoxOrient: 'vertical' as const,
-            overflow: 'hidden',
-            opacity: titleMorphing ? 0 : 1,
-            marginTop: 0,   // 히어로와의 간격은 위 코드 행이 담당한다 (이중 적용 방지)
-          }}
-        >
-          {project.title.en}
+            marginBottom: 4,
+          }}>
+            {String(project.careerNo).padStart(3, '0')}
+          </div>
+
+          {/* 타이틀 행 — 보간 중에는 오버레이가 대신 렌더 (모프 종착점) */}
+          <div
+            ref={titleRef}
+            style={{
+              fontFamily: FONT,
+              fontSize: 18,
+              fontWeight: 600,
+              lineHeight: 1.35,
+              color: '#080706',
+              wordBreak: 'keep-all',
+              display: '-webkit-box',
+              WebkitLineClamp: 2,
+              WebkitBoxOrient: 'vertical' as const,
+              overflow: 'hidden',
+              opacity: titleMorphing ? 0 : 1,
+            }}
+          >
+            {project.title.en}
+          </div>
         </div>
 
         {/* ② 정보 — 히어로 직후 고정 */}
