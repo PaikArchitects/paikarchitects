@@ -8,6 +8,7 @@ interface ProjectCardProps {
 
 export default function ProjectCard({ project }: ProjectCardProps) {
   const careerCode = String(project.careerNo).padStart(3, '0')
+  const topAward = project.awards?.find(a => a.visible !== false)?.title
 
   return (
     <Link
@@ -43,7 +44,7 @@ export default function ProjectCard({ project }: ProjectCardProps) {
         </p>
         <h2 className="project-card-title">{project.title.en}</h2>
         <p className="project-card-meta">
-          {project.result ? `${project.result} · ` : ''}{project.status}
+          {topAward ? `${topAward} · ` : ''}{project.status}
           {project.location ? ` · ${project.location}` : ''}
         </p>
       </div>

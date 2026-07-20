@@ -361,15 +361,16 @@ function MobileInfoSlide({ project }: { project: Project }) {
     <div style={{
       width: '100%',
       padding: '4px 0',
-      marginTop: -SLIDE_GAP + 6,     // 타이틀과 LOCATION을 한 세트로 붙인다
+      marginTop: -SLIDE_GAP + 6,     // 히어로·타이틀과의 결속
+      marginBottom: Math.round(SLIDE_GAP * 0.1),   // 정보↔다음 슬라이드 간격 +10% (24 → 26.4 ≈ 26)
       display: 'flex',
       flexDirection: 'column',
-      gap: 16,
+      gap: 12,
       fontFamily: FONT,
       color: '#080706',
     }}>
       {/* 타이틀 한글(종) — 영문 타이틀 행은 모프 종착점이라 위에서 별도 렌더된다.
-          데스크톱(ko-first)과 달리 모바일은 영문이 위 — 모프 종착점을 옮길 수 없기 때문 */}
+          데스크톱·모바일 모두 en-first (260720 통일) */}
       {(project.title.ko || project.subtitle) && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginTop: -10 }}>
           {project.title.ko && (
@@ -389,28 +390,30 @@ function MobileInfoSlide({ project }: { project: Project }) {
         </div>
       )}
 
-      {/* Prize — 고정 높이 예약. 값 없으면 투명 (하위 항목 세로 위치 불변) */}
-      <div style={{ minHeight: 20, display: 'flex', alignItems: 'center' }}>
-        {project.result && (
-          <span style={{ fontSize: 14, fontWeight: 400, color: '#b89773', letterSpacing: '0.01em' }}>
-            {project.result}
-          </span>
-        )}
-      </div>
-
-      {project.location && (
-        <div style={{
-          fontSize: 10,
-          fontWeight: 300,
-          letterSpacing: '0.08em',
-          textTransform: 'uppercase',
-          opacity: 0.6,
-        }}>
-          {project.location}
-        </div>
-      )}
+      {/* AWARDS — 수상 있을 때만. 데스크톱과 동일 로직, fontSize만 14 */}
+      {(() => {
+        const visible = project.awards?.filter(a => a.visible !== false) ?? []
+        if (visible.length === 0) return null
+        return (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            {visible.map((a, i) => (
+              <div key={i} style={{
+                fontSize: 14,
+                fontWeight: 400,
+                color: '#b89773',
+                letterSpacing: '0.01em',
+                lineHeight: 1.35,
+                wordBreak: 'keep-all',
+              }}>
+                {a.title}
+              </div>
+            ))}
+          </div>
+        )
+      })()}
 
       <MobileMetaField label="CLIENT" value={project.client} />
+      <MobileMetaField label="LOCATION" value={project.location} />
 
       {/* 모바일은 2×2 그리드 — 4열 수평은 폭이 부족하다 */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>

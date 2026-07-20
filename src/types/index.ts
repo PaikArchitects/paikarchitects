@@ -40,6 +40,12 @@ export interface LocaleText { en: string; ko?: string }
 /** 다문단 병기 서식 텍스트 (strong·em만) — 본문 서술 */
 export interface LocalePortableText { en: PortableTextBlock[]; ko?: PortableTextBlock[] }
 
+/** 수상 내역 항목 — 영문 전용(병기 아님). title은 최종 표기 그대로, 렌더러 미가공 */
+export interface Award {
+  title: string
+  visible?: boolean
+}
+
 export interface Project {
   id: string              // URL slug — 변경 불가 (SEO)
   careerNo: number        // Career_260707.xlsx '프로젝트 연번' 기준
@@ -49,7 +55,7 @@ export interface Project {
   type: ProjectType       // = Typology_Main. 카드·메타에 노출되는 유일한 라벨
   subTypes?: ProjectType[] // = Typology_Sub 1·2. 필터 매칭 전용 — 어디에도 표기하지 않는다
   status: ProjectStatus
-  result?: string         // 'Winner', '2nd Prize', etc. 상이 없는 프로젝트는 비움
+  awards?: Award[]        // 수상 내역. visible!==false만 노출. 상이 없으면 비움
   featured: boolean       // true = 2배 너비 카드
   displayOrder: number    // 홈페이지 배치 순서 (수동 제어)
   coverImage?: string     // Cloudinary or /public 경로 — 비워두면 coverColor 사용

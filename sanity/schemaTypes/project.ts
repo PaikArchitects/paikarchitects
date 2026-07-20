@@ -85,10 +85,39 @@ export default defineType({
       validation: (Rule) => Rule.required(),
     }),
     defineField({
-      name: 'result',
-      title: '결과',
-      type: 'string',
-      description: '예: Winner, 2nd Prize, Honorable Mention. 없으면 비움',
+      name: 'awards',
+      title: '수상',
+      type: 'array',
+      description: '수상 내역. 개수 제한 없음. 체크 해제 시 사이트에 노출되지 않는다',
+      of: [
+        defineArrayMember({
+          type: 'object',
+          name: 'award',
+          title: '수상',
+          fields: [
+            defineField({
+              name: 'title',
+              title: '수상명',
+              type: 'string',
+              description: '최종 표기 그대로 입력 (렌더러는 가공하지 않는다). 예: Competition Winner / 2nd Prize / Grand Prize, 2020 Korea Remodeling Architecture Competition',
+              validation: (Rule) => Rule.required(),
+            }),
+            defineField({
+              name: 'visible',
+              title: '노출',
+              type: 'boolean',
+              description: '체크 시 사이트에 표시',
+              initialValue: true,
+            }),
+          ],
+          preview: {
+            select: { title: 'title', visible: 'visible' },
+            prepare({ title, visible }) {
+              return { title, subtitle: visible === false ? '숨김' : '노출' }
+            },
+          },
+        }),
+      ],
     }),
     defineField({
       name: 'featured',

@@ -1,11 +1,11 @@
 import { sanityClient } from './client'
-import type { LocaleString, Project, ProjectSlide, ProjectStatus, ProjectType } from '@/types'
+import type { Award, LocaleString, Project, ProjectSlide, ProjectStatus, ProjectType } from '@/types'
 
 const PROJECTS_QUERY = `*[_type == "project"] | order(displayOrder asc) {
   "id": slug.current,
   careerNo, title, subtitle, year,
   "type": mainType,
-  subTypes, status, result, featured, displayOrder,
+  subTypes, status, "awards": awards[]{ title, visible }, featured, displayOrder,
   "coverImage": coverImage.asset->url,
   "coverHotspot": coverImage.hotspot{ x, y },
   coverColor, location, client, size, role,
@@ -52,7 +52,7 @@ interface RawProject {
   type: ProjectType
   subTypes: ProjectType[] | null
   status: ProjectStatus
-  result: string | null
+  awards: Award[] | null
   featured: boolean
   displayOrder: number
   coverImage: string | null
@@ -76,7 +76,7 @@ export async function getProjects(): Promise<Project[]> {
     type: r.type,
     subTypes: r.subTypes ?? undefined,
     status: r.status,
-    result: r.result ?? undefined,
+    awards: r.awards ?? undefined,
     featured: r.featured,
     displayOrder: r.displayOrder,
     coverImage: r.coverImage ?? undefined,

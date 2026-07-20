@@ -9,6 +9,9 @@ import { sizeLabel, splitRole } from '@/lib/projectMeta'
 const FONT = "'Pretendard Variable', Pretendard, -apple-system, BlinkMacSystemFont, sans-serif"
 
 const INFO_SLIDE_W = 200     // 세로 스택 — 수평 4열 폐기 (260714-B)
+// 타이틀 세트 고정 슬롯 높이 — AWARDS 시작 y를 전 프로젝트 동일화. INFO_SLIDE_W(200) 기준
+// 결정론적 산출(영문타이틀 3줄+한글 2줄+서브 영3/한2, 260720 명세): 합 181.2 → 182
+const TITLE_SET_MIN_H = 182
 const CREDITS_SLIDE_W = 420
 const TEXT_SLIDE_W = 560     // 서술문 — 한글 본문 가독 폭
 const QUOTE_SLIDE_W = 460    // 인용문 — 본문보다 좁게 하여 위계 부여
@@ -889,7 +892,7 @@ export function ContentArea({ project, mode, isBlacking, visible, onBack }: Cont
                     willChange: 'transform',
                   }}
                 >
-                  {/* 트랙 첫 자식 — 정보 슬라이드. 타이틀 + LOCATION + 3블록 메타 */}
+                  {/* 트랙 첫 자식 — 정보 슬라이드. 타이틀 세트 + AWARDS + 메타 블록 */}
                   <div style={{
                     width: INFO_SLIDE_W,
                     flexShrink: 0,
@@ -905,11 +908,11 @@ export function ContentArea({ project, mode, isBlacking, visible, onBack }: Cont
                     boxSizing: 'border-box',
                     overflowY: 'auto',
                   }}>
-                    {/* 타이틀 + LOCATION — 한 세트. 아래 메타군과 시각적으로 분리 */}
-                    <div style={{ marginBottom: 20 }}>
+                    {/* 타이틀 세트 — 고정 높이 슬롯. AWARDS 시작 y를 전 프로젝트 동일화 */}
+                    <div style={{ minHeight: TITLE_SET_MIN_H, marginBottom: 20 }}>
                       <BilingualText
                         value={project.title}
-                        order="ko-first"
+                        order="en-first"
                         primaryStyle={{ fontSize: 16, fontWeight: 500, lineHeight: 1.35, letterSpacing: '-0.01em', wordBreak: 'keep-all' }}
                         secondaryStyle={{ fontSize: 12, fontWeight: 400, lineHeight: 1.3, opacity: 0.6, wordBreak: 'keep-all' }}
                         gap={2}
@@ -918,38 +921,43 @@ export function ContentArea({ project, mode, isBlacking, visible, onBack }: Cont
                         <div style={{ marginTop: 8 }}>
                           <BilingualText
                             value={project.subtitle}
-                            order="ko-first"
+                            order="en-first"
                             primaryStyle={{ fontSize: 11, fontWeight: 300, lineHeight: 1.4, opacity: 0.75, wordBreak: 'keep-all' }}
                             secondaryStyle={{ fontSize: 10, fontWeight: 300, lineHeight: 1.4, opacity: 0.5, wordBreak: 'keep-all' }}
                             gap={1}
                           />
                         </div>
                       )}
-                      {project.location && (
-                        <div style={{
-                          marginTop: 8,
-                          fontSize: 11,
-                          fontWeight: 300,
-                          letterSpacing: '0.08em',
-                          textTransform: 'uppercase',
-                          opacity: 0.6,
-                        }}>
-                          {project.location}
+                    </div>
+
+                    {/* AWARDS — 타이틀 세트 고정 슬롯 직후. 시작 y좌표가 전 프로젝트에서 동일하다.
+                        아래 CLIENT 이하는 수상 개수에 따라 자연히 밀린다 */}
+                    {(() => {
+                      const visible = project.awards?.filter(a => a.visible !== false) ?? []
+                      if (visible.length === 0) return null
+                      return (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                          {visible.map((a, i) => (
+                            <div key={i} style={{
+                              fontSize: 15,
+                              fontWeight: 400,
+                              color: '#b89773',
+                              letterSpacing: '0.01em',
+                              lineHeight: 1.35,
+                              wordBreak: 'keep-all',
+                            }}>
+                              {a.title}
+                            </div>
+                          ))}
                         </div>
-                      )}
-                    </div>
+                      )
+                    })()}
 
-                    {/* Prize — 고정 높이 예약. 값 없으면 투명 (하위 항목 세로 위치 불변) */}
-                    <div style={{ minHeight: 20, display: 'flex', alignItems: 'center' }}>
-                      {project.result && (
-                        <span style={{ fontSize: 15, fontWeight: 400, color: '#b89773', letterSpacing: '0.01em' }}>
-                          {project.result}
-                        </span>
-                      )}
+                    {/* CLIENT + LOCATION — 하나의 논리 블록 (2블록과 동일 내부 간격) */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                      <MetaField label="CLIENT" value={project.client} />
+                      <MetaField label="LOCATION" value={project.location} />
                     </div>
-
-                    {/* 1블록 — CLIENT */}
-                    <MetaField label="CLIENT" value={project.client} />
 
                     {/* 2블록 — TYPOLOGY / SIZE / STATUS / YEAR 세로 스택 */}
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
