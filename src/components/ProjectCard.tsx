@@ -30,7 +30,7 @@ export default function ProjectCard({ project }: ProjectCardProps) {
       ) : (
         <div
           className="project-card-bg"
-          style={{ backgroundColor: project.coverColor }}
+          style={{ backgroundColor: project.coverColor ?? '#1E1C18' }}
         />
       )}
 

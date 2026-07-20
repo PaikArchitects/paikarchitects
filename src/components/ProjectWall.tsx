@@ -80,7 +80,7 @@ function WallCardImage({ project, height, opacity, below }: {
           style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
         />
       ) : (
-        <div style={{ width: '100%', height: '100%', background: project.coverColor }} />
+        <div style={{ width: '100%', height: '100%', background: project.coverColor ?? '#1E1C18' }} />
       )}
     </div>
   )

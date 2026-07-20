@@ -14,7 +14,7 @@ import { BilingualText } from '@/lib/bilingual'
 import { sanityCard } from '@/lib/imageUrl'
 import { shuffle } from '@/lib/shuffle'
 import { circDist, mod, useRingWall } from '@/hooks/useRingWall'
-import { sizeLabel, splitRole } from '@/lib/projectMeta'
+import { sizeLabel, sizeValue, splitRole } from '@/lib/projectMeta'
 
 const FONT = "'Pretendard Variable', Pretendard, -apple-system, BlinkMacSystemFont, sans-serif"
 
@@ -421,7 +421,7 @@ function MobileInfoSlide({ project }: { project: Project }) {
         <MobileMetaField label="TYPOLOGY" value={project.type} />
         <MobileMetaField
           label={project.size ? sizeLabel(project.size) : 'SIZE'}
-          value={project.size}
+          value={project.size ? sizeValue(project.size) : undefined}
         />
         <MobileMetaField label="STATUS" value={project.status} />
         <MobileMetaField label="YEAR" value={String(project.year)} />
@@ -573,11 +573,25 @@ function ExpandedBlock({ project, onBack, heroRef, heroHidden, titleMorphing, ti
               style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
             />
           ) : (
-            <div style={{ width: '100%', height: '100%', background: project.coverColor }} />
+            <div style={{ width: '100%', height: '100%', background: project.coverColor ?? '#1E1C18' }} />
           )}
         </div>
 
-        {/* 타이틀 행 — 히어로 직후. 보간 중에는 오버레이가 대신 렌더 */}
+        {/* 프로젝트 코드 — 히어로와 타이틀 사이. 히어로와의 간격 제어를 여기서 맡는다 */}
+        <div style={{
+          fontFamily: FONT,
+          fontSize: 8,
+          fontWeight: 300,
+          letterSpacing: '0.15em',
+          opacity: 0.35,
+          color: '#080706',
+          marginTop: -SLIDE_GAP + 12,
+          marginBottom: 4,
+        }}>
+          {String(project.careerNo).padStart(3, '0')}
+        </div>
+
+        {/* 타이틀 행 — 코드 행 직후. 보간 중에는 오버레이가 대신 렌더 (모프 종착점) */}
         <div
           ref={titleRef}
           style={{
@@ -592,7 +606,7 @@ function ExpandedBlock({ project, onBack, heroRef, heroHidden, titleMorphing, ti
             WebkitBoxOrient: 'vertical' as const,
             overflow: 'hidden',
             opacity: titleMorphing ? 0 : 1,
-            marginTop: -SLIDE_GAP + 12,   // 히어로와의 간격을 좁힌다 (히어로와 한 세트로 읽힌다)
+            marginTop: 0,   // 히어로와의 간격은 위 코드 행이 담당한다 (이중 적용 방지)
           }}
         >
           {project.title.en}
@@ -958,7 +972,7 @@ export function MobileProjectWall({
           startMorph({
             slug: activeSlug,
             src: activeProject.coverImage ? sanityCard(activeProject.coverImage, 480, activeProject.coverHotspot) : null,
-            color: activeProject.coverColor,
+            color: activeProject.coverColor ?? '#1E1C18',
             from: pending.from,
             to: { top: hr.top, left: 16, width: heroW, height: heroW * 2 / 3 },
             title: pending.titleFrom && title ? {
@@ -995,7 +1009,7 @@ export function MobileProjectWall({
       startMorph({
         slug: prev,
         src: project.coverImage ? sanityCard(project.coverImage, 480, project.coverHotspot) : null,
-        color: project.coverColor,
+        color: project.coverColor ?? '#1E1C18',
         from: pending.from,
         // 이미지가 슬롯 최상단 — TOP_TEXT_H 가산 없음 (텍스트는 하단으로 이동함)
         to: { top: cardTop, left: thumbLeft, width: w0, height: h0 },
@@ -1119,7 +1133,7 @@ export function MobileProjectWall({
                         style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
                       />
                     ) : (
-                      <div style={{ width: '100%', height: '100%', background: p.coverColor }} />
+                      <div style={{ width: '100%', height: '100%', background: p.coverColor ?? '#1E1C18' }} />
                     )}
                   </div>
 

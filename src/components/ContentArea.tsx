@@ -4,14 +4,14 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { CreditsSlide, DiagramSetSlide, ImageSlide, PortableTextBlock, Project, ProjectSlide, QuoteSlide, TextSlide } from '@/types'
 import { useFinePointer } from '@/hooks/useFinePointer'
 import { BilingualText } from '@/lib/bilingual'
-import { sizeLabel, splitRole } from '@/lib/projectMeta'
+import { sizeLabel, sizeValue, splitRole } from '@/lib/projectMeta'
 
 const FONT = "'Pretendard Variable', Pretendard, -apple-system, BlinkMacSystemFont, sans-serif"
 
 const INFO_SLIDE_W = 200     // 세로 스택 — 수평 4열 폐기 (260714-B)
 // 타이틀 세트 고정 슬롯 높이 — AWARDS 시작 y를 전 프로젝트 동일화. INFO_SLIDE_W(200) 기준
 // 결정론적 산출(영문타이틀 3줄+한글 2줄+서브 영3/한2, 260720 명세): 합 181.2 → 182
-const TITLE_SET_MIN_H = 182
+const TITLE_SET_MIN_H = 197   // 기존 182 + careerNo 코드 행(9) + marginBottom(6)
 const CREDITS_SLIDE_W = 420
 const TEXT_SLIDE_W = 560     // 서술문 — 한글 본문 가독 폭
 const QUOTE_SLIDE_W = 460    // 인용문 — 본문보다 좁게 하여 위계 부여
@@ -817,7 +817,7 @@ export function ContentArea({ project, mode, isBlacking, visible, onBack }: Cont
                 style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
               />
             ) : (
-              <div style={{ width: '100%', height: '100%', background: project.coverColor }} />
+              <div style={{ width: '100%', height: '100%', background: project.coverColor ?? '#1E1C18' }} />
             )}
           </div>
 
@@ -910,6 +910,16 @@ export function ContentArea({ project, mode, isBlacking, visible, onBack }: Cont
                   }}>
                     {/* 타이틀 세트 — 고정 높이 슬롯. AWARDS 시작 y를 전 프로젝트 동일화 */}
                     <div style={{ minHeight: TITLE_SET_MIN_H, marginBottom: 20 }}>
+                      {/* 프로젝트 코드 — ProjectCard와 동일한 3자리 zero-pad 규약 */}
+                      <div style={{
+                        fontSize: 9,
+                        fontWeight: 300,
+                        letterSpacing: '0.15em',
+                        opacity: 0.35,
+                        marginBottom: 6,
+                      }}>
+                        {String(project.careerNo).padStart(3, '0')}
+                      </div>
                       <BilingualText
                         value={project.title}
                         order="en-first"
@@ -964,7 +974,7 @@ export function ContentArea({ project, mode, isBlacking, visible, onBack }: Cont
                       <MetaField label="TYPOLOGY" value={project.type} />
                       <MetaField
                         label={project.size ? sizeLabel(project.size) : 'SIZE'}
-                        value={project.size}
+                        value={project.size ? sizeValue(project.size) : undefined}
                       />
                       <MetaField label="STATUS" value={project.status} />
                       <MetaField label="YEAR" value={String(project.year)} />
@@ -1026,7 +1036,7 @@ export function ContentArea({ project, mode, isBlacking, visible, onBack }: Cont
                       width: FALLBACK_RATIO * slideH,
                       height: slideH,
                       flexShrink: 0,
-                      background: project.coverColor,
+                      background: project.coverColor ?? '#1E1C18',
                     }} />
                   )}
                 </div>
@@ -1130,7 +1140,7 @@ export function ContentArea({ project, mode, isBlacking, visible, onBack }: Cont
             left: morphRect.left,
             width: morphRect.width,
             height: morphRect.height,
-            background: project.coverColor,
+            background: project.coverColor ?? '#1E1C18',
             opacity: morphVisible ? 1 : 0,
             transition: `all ${MORPH_MS}ms ${EASE}, opacity ${MORPH_FADE_MS}ms ease-out`,
             pointerEvents: 'none',

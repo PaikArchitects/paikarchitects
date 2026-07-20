@@ -57,9 +57,8 @@ export interface Project {
   status: ProjectStatus
   awards?: Award[]        // 수상 내역. visible!==false만 노출. 상이 없으면 비움
   featured: boolean       // true = 2배 너비 카드
-  displayOrder: number    // 홈페이지 배치 순서 (수동 제어)
   coverImage?: string     // Cloudinary or /public 경로 — 비워두면 coverColor 사용
-  coverColor: string      // placeholder 색상
+  coverColor?: string     // placeholder 색상 — 미입력 시 렌더러가 #1E1C18로 폴백
   location?: string
   slides?: ProjectSlide[]  // Sanity에서 문서와 함께 로드
   client?: string          // 발주처 (4단계에서 표시)

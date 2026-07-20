@@ -41,7 +41,6 @@ const KNOWN_FIELDS = new Set([
   'subTypes',
   'slug',
   'careerNo',
-  'displayOrder',
   'featured',
   'coverImage',
   'coverColor',

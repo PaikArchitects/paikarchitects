@@ -13,7 +13,7 @@ const FONT = "'Pretendard Variable', Pretendard, -apple-system, BlinkMacSystemFo
 const HEADER_H = 80   // 데스크톱 헤더 존. 필터 행 포함 여유치
 
 interface LandingExperienceProps {
-  projects: Project[]         // Sanity에서 displayOrder 정렬 상태로 도착 — 재정렬 불요
+  projects: Project[]         // Sanity에서 careerNo 내림차순 정렬 상태로 도착 — 재정렬 불요
   initialSlug?: string        // /work/[slug] 딥링크
   initialShowFilters?: boolean
 }
