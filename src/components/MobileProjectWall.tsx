@@ -235,6 +235,7 @@ function renderMobileBlocks(blocks: PortableTextBlock[], opacity: number) {
       color: '#0a0908',
       opacity,
       wordBreak: 'keep-all',
+      whiteSpace: 'pre-line',
     }}>
       {block.children.map((span, j) => {
         const bold = span.marks?.includes('strong')
@@ -257,10 +258,10 @@ function MobileTextSlide({ slide }: { slide: TextSlide }) {
   return (
     <div style={{ width: '100%', padding: '4px 0', display: 'flex', flexDirection: 'column', gap: 20 }}>
       {/* 영문 (주) */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>{renderMobileBlocks(slide.body.en, 1)}</div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>{renderMobileBlocks(slide.body.en, 1)}</div>
       {/* 한글 (종) — 있을 때만 */}
       {slide.body.ko && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>{renderMobileBlocks(slide.body.ko, 0.6)}</div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>{renderMobileBlocks(slide.body.ko, 0.6)}</div>
       )}
     </div>
   )

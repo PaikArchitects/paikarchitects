@@ -280,7 +280,7 @@ function renderBlocks(blocks: PortableTextBlock[], opacity: number) {
       color: '#0a0908',
       opacity,
       wordBreak: 'keep-all',
-      whiteSpace: 'normal',
+      whiteSpace: 'pre-line',
     }}>
       {block.children.map((span, j) => {
         const bold = span.marks?.includes('strong')
@@ -318,10 +318,10 @@ function TextSlideView({ slide }: { slide: TextSlide }) {
         overflowY: 'auto',
       }}>
         {/* 영문 (주) */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>{renderBlocks(slide.body.en, 1)}</div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>{renderBlocks(slide.body.en, 1)}</div>
         {/* 한글 (종) — 있을 때만 */}
         {slide.body.ko && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>{renderBlocks(slide.body.ko, 0.6)}</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>{renderBlocks(slide.body.ko, 0.6)}</div>
         )}
       </div>
     </div>
