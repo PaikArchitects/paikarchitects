@@ -26,14 +26,19 @@ export default async function AboutPage() {
 
   return (
     <div className="about-page">
-      <div className="about-inner">
 
-        {/* 상단 층 내비 — 앵커 점프. scroll-behavior/scroll-margin-top으로 처리, JS 없음 */}
-        <nav className="about-nav">
+      {/* 상단 층 내비 — 앵커 점프. scroll-behavior/scroll-margin-top으로 처리, JS 없음.
+          .about-scroll 바깥에 둔다 — 안에 있으면 본문과 함께 스크롤된다 */}
+      <nav className="about-nav">
+        <div className="about-nav-row">
           <a href="#position" className="about-nav-link">Position</a>
           <a href="#preoccupations" className="about-nav-link">Preoccupations</a>
           <a href="#cv" className="about-nav-link">Curriculum Vitae</a>
-        </nav>
+        </div>
+      </nav>
+
+      <div className="about-scroll">
+        <div className="about-inner">
 
         {/* ── 층 1: POSITION ── */}
         <section className="about-row" id="position">
@@ -157,6 +162,7 @@ export default async function AboutPage() {
           </div>
         )}
 
+        </div>
       </div>
     </div>
   )

@@ -319,31 +319,34 @@ body {
    반응형 경계는 WORKS와 동일: 1440 / 1024
    ══════════════════════════════════════════════════════ */
 
+/* WORKS(LandingExperience.tsx)와 동일 — 문서 스크롤 없음.
+   콘텐츠가 헤더 영역에 도달할 경로 자체를 차단한다. */
 .about-page {
+  position: relative;
   background: #FFFFFF;
   color: #080706;
-  min-height: 100vh;
-  padding: 150px 44px 120px 0;   /* 좌측 0 — 라벨 월 좌변 = 프로젝트 월 좌변 */
-  /* 헤더 하부 페이드 — 스크롤 텍스트가 헤더 아래로 스며들게 한다.
-     mask-attachment: fixed가 핵심. 없으면 마스크가 문서 전체 높이로 늘어난다. */
-  -webkit-mask-image: linear-gradient(
-    to bottom,
-    transparent 0,
-    transparent 100px,
-    #000 140px
-  );
-  mask-image: linear-gradient(
-    to bottom,
-    transparent 0,
-    transparent 100px,
-    #000 140px
-  );
-  -webkit-mask-repeat: no-repeat;
-  mask-repeat: no-repeat;
-  -webkit-mask-size: 100% 100vh;
-  mask-size: 100% 100vh;
-  -webkit-mask-attachment: fixed;
-  mask-attachment: fixed;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+}
+
+/* 실제 스크롤 영역 — 헤더 존(0~110px) 아래에서 시작.
+   sticky 라벨의 스크롤 컨테이너가 된다. */
+.about-scroll {
+  position: absolute;
+  top: 110px;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 0 173px 120px 0;   /* 좌측 0 — 라벨 월 좌변 = 프로젝트 월 좌변 */
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.about-scroll::-webkit-scrollbar {
+  display: none;
 }
 
 /* max-width 없음 — 라벨 월이 프로젝트 월과 동일한 vw 기준으로 계산되어야 한다.
@@ -352,19 +355,34 @@ body {
   width: 100%;
 }
 
-/* 상단 층 내비 — WORKS 필터 칩 행과 동일 위치·문법 */
+/* 층 내비 — WORKS 필터 바(top:50)와 동일 문법.
+   .about-scroll 바깥에 있으므로 스크롤되지 않는다. */
 .about-nav {
-  position: fixed;
-  top: 68px;
+  position: absolute;
+  top: 82px;
   left: 0;
   right: 0;
-  z-index: 80;
+  height: 24px;
+  z-index: 50;
   display: flex;
-  gap: 32px;
-  padding: 0 44px 0 24px;
-  background: #FFFFFF;
-  height: 32px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  touch-action: pan-x;
+}
+
+.about-nav::-webkit-scrollbar {
+  display: none;
+}
+
+/* 중앙 정렬은 auto margin — justify-content:center는 좁은 폭에서 좌측 항목이 잘린다 */
+.about-nav-row {
+  display: flex;
   align-items: center;
+  gap: 28px;
+  margin: 0 auto;
+  flex-shrink: 0;
 }
 
 .about-nav-link {
@@ -373,6 +391,7 @@ body {
   letter-spacing: 0.08em;
   text-transform: uppercase;
   text-decoration: none;
+  white-space: nowrap;
   color: rgba(8, 7, 6, 0.55);
   transition: color 0.2s ease-out;
 }
@@ -388,8 +407,8 @@ body {
   column-gap: 48px;
   padding-bottom: 120px;
   align-items: start;
-  /* 앵커 점프 시 헤더+내비 아래로 정확히 착지 */
-  scroll-margin-top: 108px;
+  /* 앵커 점프는 .about-scroll 내부 — 헤더 오프셋은 top:110px에 이미 반영됨 */
+  scroll-margin-top: 24px;
 }
 
 .about-row--wide {
@@ -401,7 +420,7 @@ body {
    그 grid item 자신 → 층 높이만큼만 고정되고 이후 밀려난다. */
 .about-label {
   position: sticky;
-  top: 150px;                 /* 마스크 완전 불투명 구간(140px) 아래 */
+  top: 24px;                  /* 스크롤 컨테이너(.about-scroll) 내부 기준 */
   font-size: 20px;
   font-weight: 400;
   letter-spacing: -0.01em;
@@ -520,8 +539,8 @@ body {
 
 /* ── D2 (1024–1439px) — 3열 유지, 여백만 축소 ── */
 @media (max-width: 1439px) {
-  .about-page {
-    padding: 130px 32px 100px 0;
+  .about-scroll {
+    padding: 0 110px 100px 0;
   }
   .about-row {
     column-gap: 32px;
@@ -543,52 +562,37 @@ body {
 /* ── M (<1024px) — 라벨 월 소멸. 라벨이 본문 위로 접히고 sticky 유지.
        병기는 상하(EN 위 / KO 아래). 헤더 바 56px 회피 ── */
 @media (max-width: 1023px) {
-  .about-page {
-    padding: 104px 20px 80px;
-    -webkit-mask-image: linear-gradient(
-      to bottom,
-      transparent 0,
-      transparent 78px,
-      #000 108px
-    );
-    mask-image: linear-gradient(
-      to bottom,
-      transparent 0,
-      transparent 78px,
-      #000 108px
-    );
+  .about-scroll {
+    top: 92px;                  /* 모바일 헤더 바 56px + 층 내비 36px */
+    padding: 0 20px 80px;       /* 라벨 월이 없으므로 좌우 대칭 */
   }
 
+  /* overflow-x·스크롤바 숨김은 기본 규칙에서 상속 */
   .about-nav {
-    top: 56px;
-    height: 36px;
+    top: 60px;
+    height: 32px;
+  }
+
+  .about-nav-row {
     gap: 18px;
     padding: 0 16px;
-    overflow-x: auto;
-    scrollbar-width: none;
-    -ms-overflow-style: none;
-  }
-
-  .about-nav::-webkit-scrollbar {
-    display: none;
   }
 
   .about-nav-link {
     font-size: 10px;
-    white-space: nowrap;
   }
 
   .about-row,
   .about-row--wide {
     display: block;
     padding-bottom: 64px;
-    scroll-margin-top: 92px;
+    scroll-margin-top: 12px;
   }
 
   /* M 구간은 라벨이 본문 위로 접히므로 우측 정렬·수직선이 성립하지 않는다 */
   .about-label {
     display: block;
-    top: 112px;                 /* 마스크 불투명 구간(108px) 아래 */
+    top: 12px;
     background: #FFFFFF;        /* 본문이 라벨 뒤로 지나가므로 불투명 필요 */
     padding: 12px 0 10px;
     margin-bottom: 6px;
