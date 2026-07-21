@@ -86,16 +86,19 @@ export function SiteHeader() {
           pointerEvents: layoutVisible ? 'auto' : 'none',
         }}
       >
-        {NAV_ITEMS.map(({ label, href }) => (
-          <Link
-            key={label}
-            href={href}
-            className="site-nav-link"
-            style={{ color: navOnLight ? '#0a0908' : '#ffffff' }}
-          >
-            {label}
-          </Link>
-        ))}
+        {NAV_ITEMS.map(({ label, href }) => {
+          const current = pathname === href || (href === '/work' && pathname.startsWith('/work'))
+          return (
+            <Link
+              key={label}
+              href={href}
+              className={current ? 'site-nav-link is-current' : 'site-nav-link'}
+              style={{ color: navOnLight ? '#0a0908' : '#ffffff' }}
+            >
+              {label}
+            </Link>
+          )
+        })}
       </nav>
 
       {/* ── MOBILE HAMBURGER — <768px 전용 (globals.css가 표시 제어).

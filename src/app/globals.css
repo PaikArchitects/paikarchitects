@@ -160,6 +160,13 @@
   text-decoration: underline;
 }
 
+/* 현재 보고 있는 페이지 표시 — 호버 밑줄(text-decoration)과 구분하기 위해
+   border-bottom을 쓴다. 둘이 같은 속성이면 현재 페이지에서 호버 피드백이 사라진다. */
+.site-nav-link.is-current {
+  border-bottom: 1px solid currentColor;
+  padding-bottom: 2px;
+}
+
 /* ── MOBILE HEADER BAR — 데스크톱에서는 비표시 ── */
 .mobile-header-bar {
   display: none;
@@ -330,11 +337,11 @@ body {
   overflow: hidden;
 }
 
-/* 실제 스크롤 영역 — 헤더 존(0~110px) 아래에서 시작.
+/* 실제 스크롤 영역 — 층 내비(top 50 + 높이 24) 아래 12px 여백에서 시작.
    sticky 라벨의 스크롤 컨테이너가 된다. */
 .about-scroll {
   position: absolute;
-  top: 110px;
+  top: 86px;
   left: 0;
   right: 0;
   bottom: 0;
@@ -359,7 +366,7 @@ body {
    .about-scroll 바깥에 있으므로 스크롤되지 않는다. */
 .about-nav {
   position: absolute;
-  top: 82px;
+  top: 50px;
   left: 0;
   right: 0;
   height: 24px;
@@ -420,7 +427,10 @@ body {
    그 grid item 자신 → 층 높이만큼만 고정되고 이후 밀려난다. */
 .about-label {
   position: sticky;
-  top: 24px;                  /* 스크롤 컨테이너(.about-scroll) 내부 기준 */
+  top: 0;                     /* 스크롤 컨테이너(.about-scroll) 내부 기준 */
+  /* 20px 라벨과 14px 본문의 첫 줄 시각적 상단선을 맞춘다.
+     폰트 메트릭 의존값이므로 육안 확인 후 조정 대상. */
+  margin-top: -3px;
   font-size: 20px;
   font-weight: 400;
   letter-spacing: -0.01em;
@@ -592,7 +602,8 @@ body {
   /* M 구간은 라벨이 본문 위로 접히므로 우측 정렬·수직선이 성립하지 않는다 */
   .about-label {
     display: block;
-    top: 12px;
+    top: 0;
+    margin-top: 0;              /* 기본 규칙의 광학 보정 상속 차단 */
     background: #FFFFFF;        /* 본문이 라벨 뒤로 지나가므로 불투명 필요 */
     padding: 12px 0 10px;
     margin-bottom: 6px;
