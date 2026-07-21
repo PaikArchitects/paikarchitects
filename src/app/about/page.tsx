@@ -28,15 +28,22 @@ export default async function AboutPage() {
     <div className="about-page">
       <div className="about-inner">
 
+        {/* 상단 층 내비 — 앵커 점프. scroll-behavior/scroll-margin-top으로 처리, JS 없음 */}
+        <nav className="about-nav">
+          <a href="#position" className="about-nav-link">Position</a>
+          <a href="#preoccupations" className="about-nav-link">Preoccupations</a>
+          <a href="#cv" className="about-nav-link">Curriculum Vitae</a>
+        </nav>
+
         {/* ── 층 1: POSITION ── */}
-        <section className="about-row">
+        <section className="about-row" id="position">
           <div className="about-label">Position</div>
           <div className="about-body-en">{renderBlocks(position?.en)}</div>
           <div className="about-body-ko">{renderBlocks(position?.ko)}</div>
         </section>
 
         {/* ── 층 2: PREOCCUPATIONS ── */}
-        <section className="about-row">
+        <section className="about-row" id="preoccupations">
           <div className="about-label">Preoccupations</div>
           <div className="about-body-en">
             {preoccupations?.map((p, i) => (
@@ -57,7 +64,7 @@ export default async function AboutPage() {
         </section>
 
         {/* ── 층 3: CURRICULUM VITAE — 병기 없음, 전폭 단일 열 ── */}
-        <section className="about-row about-row--wide">
+        <section className="about-row about-row--wide" id="cv">
           <div className="about-label">Curriculum<br />Vitae</div>
           <div>
 

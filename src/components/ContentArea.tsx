@@ -8,10 +8,11 @@ import { sizeLabel, sizeValue, splitRole } from '@/lib/projectMeta'
 
 const FONT = "'Pretendard Variable', Pretendard, -apple-system, BlinkMacSystemFont, sans-serif"
 
-const INFO_SLIDE_W = 200     // 세로 스택 — 수평 4열 폐기 (260714-B)
-// 타이틀 세트 고정 슬롯 높이 — AWARDS 시작 y를 전 프로젝트 동일화. INFO_SLIDE_W(200) 기준
+const INFO_SLIDE_W = 240     // 세로 스택 — 수평 4열 폐기 (260714-B). 260721 200→240 (120%)
+// 타이틀 세트 고정 슬롯 높이 — AWARDS 시작 y를 전 프로젝트 동일화. INFO_SLIDE_W(240) 기준
 // 결정론적 산출(영문타이틀 3줄+한글 2줄+서브 영3/한2, 260720 명세): 합 181.2 → 182
-const TITLE_SET_MIN_H = 197   // 기존 182 + careerNo 코드 행(9) + marginBottom(6)
+// 260721: 폭 200→240 확대에 따른 재산출. 기존 197 → 175 (비례 164 + 여유 11)
+const TITLE_SET_MIN_H = 175
 const CREDITS_SLIDE_W = 420
 const TEXT_SLIDE_W = 560     // 서술문 — 한글 본문 가독 폭
 const QUOTE_SLIDE_W = 460    // 인용문 — 본문보다 좁게 하여 위계 부여
