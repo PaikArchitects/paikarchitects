@@ -316,7 +316,7 @@ export function ProjectWall({ projects, filterKey, highlightSlug, activeSlug, re
       ref={ring.containerRef}
       className="light-panel"
       style={{
-        width: 'clamp(300px, 28vw, 28vw)',
+        width: 'var(--wall-width)',
         height: '100%',
         flexShrink: 0,
         overflow: 'hidden',
