@@ -153,18 +153,16 @@
   letter-spacing: 0.08em;
   text-transform: uppercase;
   text-decoration: none;
-  transition: color 0.3s ease-out;
-}
-
-.site-nav-link:hover {
-  text-decoration: underline;
-}
-
-/* 현재 보고 있는 페이지 표시 — 호버 밑줄(text-decoration)과 구분하기 위해
-   border-bottom을 쓴다. 둘이 같은 속성이면 현재 페이지에서 호버 피드백이 사라진다. */
-.site-nav-link.is-current {
-  border-bottom: 1px solid currentColor;
+  border-bottom: 1px solid transparent;
   padding-bottom: 2px;
+  transition: color 0.3s ease-out, border-bottom-color 0.3s ease-out;
+}
+
+/* 호버와 현재 페이지가 같은 표현을 쓴다 — 서로 다른 속성이면 위치·길이가 어긋난다.
+   현재 페이지에서 호버해도 변화가 없는 것은 의도된 동작이다(클릭해도 이동이 없으므로). */
+.site-nav-link:hover,
+.site-nav-link.is-current {
+  border-bottom-color: currentColor;
 }
 
 /* ── MOBILE HEADER BAR — 데스크톱에서는 비표시 ── */
@@ -302,7 +300,7 @@
   --wall-width: clamp(300px, 28vw, 28vw);
 }
 
-html { height: 100%; scroll-behavior: smooth; }
+html { height: 100%; }
 
 body {
   background-color: #080706;
@@ -347,6 +345,7 @@ body {
   bottom: 0;
   overflow-y: auto;
   overflow-x: hidden;
+  scroll-behavior: smooth;    /* 실제 스크롤 컨테이너는 여기 — html이 아니다 */
   padding: 0 173px 120px 0;   /* 좌측 0 — 라벨 월 좌변 = 프로젝트 월 좌변 */
   scrollbar-width: none;
   -ms-overflow-style: none;
@@ -392,19 +391,27 @@ body {
   flex-shrink: 0;
 }
 
+/* WORKS 필터 버튼과 동일 문법 — font-weight는 인라인이 담당하고,
+   위계는 색이 아니라 weight가 만든다 */
 .about-nav-link {
   font-size: 11px;
-  font-weight: 300;
   letter-spacing: 0.08em;
   text-transform: uppercase;
   text-decoration: none;
   white-space: nowrap;
-  color: rgba(8, 7, 6, 0.55);
-  transition: color 0.2s ease-out;
+  color: #080706;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  transition: opacity 0.2s ease-out;
 }
 
-.about-nav-link:hover {
-  color: #080706;
+/* 항상 렌더되고 opacity만 전환 — 조건부 렌더면 활성 전환 시 폭이 흔들린다 */
+.about-nav-bullet {
+  font-size: 7px;
+  line-height: 1;
+  transition: opacity 200ms;
 }
 
 /* 한 층 = [라벨 월 | EN | KO] 3열. CV 층만 .about-row--wide로 2열 */
@@ -498,28 +505,21 @@ body {
   color: rgba(8, 7, 6, 0.45);
 }
 
-/* 프로젝트 목록·Awards: [명칭 | 결과 | 연도] 3열, 연도 우변 통일 */
-.about-cv-ranked {
-  display: grid;
-  grid-template-columns: 1fr 96px 56px;
-  font-size: 13px;
-  font-weight: 300;
-  line-height: 1.7;
-  color: rgba(8, 7, 6, 0.60);
-}
-
-/* Exhibitions: [명칭 | 장소 | 연도] 3열. 연도 우변은 위와 동일 */
+/* 프로젝트 목록·Awards·Exhibitions — 좌측 흐름.
+   명칭 길이에 따라 결과·장소·연도 위치가 자연히 달라진다 */
+.about-cv-ranked,
 .about-cv-venue {
-  display: grid;
-  grid-template-columns: 1fr 260px 56px;
   font-size: 13px;
   font-weight: 300;
   line-height: 1.7;
   color: rgba(8, 7, 6, 0.60);
 }
 
+/* 좌측 흐름이므로 우측 정렬을 폐기하고, 앞 요소와의 간격만 준다 */
+.about-cv-mid,
 .about-cv-year {
-  text-align: right;
+  margin-left: 16px;
+  color: rgba(8, 7, 6, 0.45);
 }
 
 .about-cv-projects {
@@ -558,9 +558,6 @@ body {
   }
   .about-contact {
     column-gap: 32px;
-  }
-  .about-cv-venue {
-    grid-template-columns: 1fr 200px 56px;
   }
   /* 라벨 월이 300px을 점유하므로 EN/KO 열 폭 보상 */
   .about-body-en,
@@ -619,19 +616,9 @@ body {
     margin-top: 32px;
   }
 
-  .about-cv-ranked {
-    grid-template-columns: 1fr 84px 48px;
-    font-size: 12px;
-  }
-
+  .about-cv-ranked,
   .about-cv-venue {
-    display: block;
     font-size: 12px;
-  }
-
-  .about-cv-venue .about-cv-year {
-    text-align: left;
-    margin-left: 12px;
   }
 
   .about-contact {

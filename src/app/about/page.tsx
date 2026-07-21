@@ -1,3 +1,4 @@
+import { AboutNav } from '@/components/AboutNav'
 import { getAbout } from '@/lib/sanity/queries'
 import type { PortableTextBlock } from '@/types'
 
@@ -29,13 +30,7 @@ export default async function AboutPage() {
 
       {/* 상단 층 내비 — 앵커 점프. scroll-behavior/scroll-margin-top으로 처리, JS 없음.
           .about-scroll 바깥에 둔다 — 안에 있으면 본문과 함께 스크롤된다 */}
-      <nav className="about-nav">
-        <div className="about-nav-row">
-          <a href="#position" className="about-nav-link">Position</a>
-          <a href="#preoccupations" className="about-nav-link">Preoccupations</a>
-          <a href="#cv" className="about-nav-link">Curriculum Vitae</a>
-        </div>
-      </nav>
+      <AboutNav />
 
       <div className="about-scroll">
         <div className="about-inner">
@@ -105,7 +100,7 @@ export default async function AboutPage() {
                         {emp.projects.map((p, j) => (
                           <div key={j} className="about-cv-ranked">
                             <span>{p.title}</span>
-                            <span>{p.result}</span>
+                            <span className="about-cv-mid">{p.result}</span>
                             <span className="about-cv-year">{p.year}</span>
                           </div>
                         ))}
@@ -122,7 +117,7 @@ export default async function AboutPage() {
                 {awards.map((a, i) => (
                   <div key={i} className="about-cv-ranked">
                     <span>{a.title}</span>
-                    <span>{a.result}</span>
+                    <span className="about-cv-mid">{a.result}</span>
                     <span className="about-cv-year">{a.year}</span>
                   </div>
                 ))}
@@ -135,7 +130,7 @@ export default async function AboutPage() {
                 {exhibitions.map((x, i) => (
                   <div key={i} className="about-cv-venue">
                     <span>{x.title}</span>
-                    <span>{x.venue}</span>
+                    <span className="about-cv-mid">{x.venue}</span>
                     <span className="about-cv-year">{x.year}</span>
                   </div>
                 ))}
