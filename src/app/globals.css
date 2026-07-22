@@ -270,11 +270,15 @@
     transform: translateX(0);
   }
 
-  .mobile-menu-link {
+  /* 밑줄은 텍스트 폭에만 — 데스크톱 .site-nav-link와 동일 형태.
+     링크가 display:block이라 밑줄을 링크가 아닌 내부 span에 건다. */
+  .mobile-menu-label {
+    display: inline-block;
     border-bottom: 1px solid transparent;
+    padding-bottom: 2px;
   }
 
-  .mobile-menu-link.is-current {
+  .mobile-menu-link.is-current .mobile-menu-label {
     border-bottom-color: currentColor;
   }
 }
@@ -448,8 +452,15 @@ body {
   line-height: 1.25;
   color: #080706;
   text-align: right;
-  padding-right: 20px;
+}
+
+/* 라인은 라벨 박스가 아닌 텍스트 span에 — line-height:1로
+   span 높이를 글자 높이에 근접시켜 라인이 짧아진다. */
+.about-label-text {
+  display: inline-block;
   border-right: 1px solid rgba(8, 7, 6, 0.18);
+  padding-right: 20px;
+  line-height: 1;
 }
 
 .about-body-en,
@@ -617,9 +628,13 @@ body {
     font-size: 16px;
     z-index: 10;
     text-align: left;
-    padding-right: 0;
+  }
+
+  /* 좌측 라인도 span으로 — line-height:1은 기본 규칙에서 상속 */
+  .about-label-text {
     border-right: none;
     border-left: 1px solid rgba(8, 7, 6, 0.18);
+    padding-right: 0;
     padding-left: 12px;
   }
 

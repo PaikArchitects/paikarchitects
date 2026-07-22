@@ -39,14 +39,14 @@ export default async function AboutPage() {
 
         {/* ── 층 1: POSITION ── */}
         <section className="about-row" id="position">
-          <div className="about-label">Position</div>
+          <div className="about-label"><span className="about-label-text">Position</span></div>
           <div className="about-body-en">{renderBlocks(position?.en)}</div>
           <div className="about-body-ko">{renderBlocks(position?.ko)}</div>
         </section>
 
         {/* ── 층 2: PREOCCUPATIONS ── */}
         <section className="about-row" id="preoccupations">
-          <div className="about-label">Preoccupations</div>
+          <div className="about-label"><span className="about-label-text">Preoccupations</span></div>
           <div className="about-body-en">
             {preoccupations?.map((p, i) => (
               <div key={i} className="about-preocc-item">
@@ -67,7 +67,7 @@ export default async function AboutPage() {
 
         {/* ── 층 3: CURRICULUM VITAE — 병기 없음, 전폭 단일 열 ── */}
         <section className="about-row about-row--wide" id="cv">
-          <div className="about-label">Curriculum Vitae</div>
+          <div className="about-label"><span className="about-label-text">Curriculum Vitae</span></div>
           <div>
 
             {education && education.length > 0 && (

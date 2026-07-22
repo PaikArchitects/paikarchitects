@@ -157,7 +157,7 @@ export function SiteHeader() {
                 color: '#0a0908',
               }}
             >
-              {label}
+              <span className="mobile-menu-label">{label}</span>
             </Link>
           )
         })}
