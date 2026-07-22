@@ -28,12 +28,14 @@ export default async function AboutPage() {
   return (
     <div className="about-page">
 
+      {/* 헤더 존 불투명 셸 — 문서 스크롤된 본문이 헤더·내비 뒤로 사라지게 한다 */}
+      <div className="about-header-shell" aria-hidden="true" />
+
       {/* 상단 층 내비 — 앵커 점프. scroll-behavior/scroll-margin-top으로 처리, JS 없음.
-          .about-scroll 바깥에 둔다 — 안에 있으면 본문과 함께 스크롤된다 */}
+          position:fixed이므로 문서 스크롤·앵커 점프와 무관하게 항상 상단 고정 */}
       <AboutNav />
 
-      <div className="about-scroll">
-        <div className="about-inner">
+      <div className="about-inner">
 
         {/* ── 층 1: POSITION ── */}
         <section className="about-row" id="position">
@@ -157,7 +159,6 @@ export default async function AboutPage() {
           </div>
         )}
 
-        </div>
       </div>
     </div>
   )
