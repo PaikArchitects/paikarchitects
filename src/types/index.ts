@@ -123,7 +123,15 @@ export interface QuoteSlide {
   attribution?: string
 }
 
-export type ProjectSlide = ImageSlide | DiagramSetSlide | CreditsSlide | TextSlide | QuoteSlide
+export interface VideoSlide {
+  kind: 'video'
+  /** YouTube 영상 ID (URL 아님). 예: dQw4w9WgXcQ */
+  youtubeId: string
+  /** BIG 형식 캡션: "LABEL — description". 없으면 미표시 */
+  caption?: LocaleString
+}
+
+export type ProjectSlide = ImageSlide | DiagramSetSlide | CreditsSlide | TextSlide | QuoteSlide | VideoSlide
 
 // ── ABOUT 페이지 ──
 

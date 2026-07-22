@@ -194,3 +194,32 @@ export const quoteSlide = defineType({
     },
   },
 })
+
+/** 영상 슬라이드 — YouTube 임베드. 자체 호스팅 없음 */
+export const videoSlide = defineType({
+  name: 'videoSlide',
+  title: '영상 (YouTube)',
+  type: 'object',
+  fields: [
+    defineField({
+      name: 'youtubeId',
+      title: 'YouTube 영상 ID',
+      type: 'string',
+      description: 'URL이 아니라 ID만 입력. youtube.com/watch?v=XXXX 의 XXXX 부분, 또는 youtu.be/XXXX 의 XXXX. 예: dQw4w9WgXcQ',
+      validation: (Rule) => Rule.required(),
+    }),
+    defineField({
+      name: 'caption',
+      title: '캡션',
+      type: 'localeString',
+      description: '형식: LABEL — description (이미지 슬라이드와 동일)',
+    }),
+  ],
+  preview: {
+    select: { youtubeId: 'youtubeId', caption: 'caption' },
+    prepare({ youtubeId, caption }) {
+      const cap = (caption as { en?: string } | undefined)?.en
+      return { title: cap ?? '영상', subtitle: `YouTube: ${youtubeId ?? '(ID 없음)'}` }
+    },
+  },
+})

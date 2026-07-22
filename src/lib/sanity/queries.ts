@@ -36,6 +36,10 @@ const PROJECTS_QUERY = `*[_type == "project" && published != false] | order(care
     _type == "quoteSlide" => {
       "kind": "quote",
       text, attribution
+    },
+    _type == "videoSlide" => {
+      "kind": "video",
+      youtubeId, caption
     }
   }
 }`
@@ -113,6 +117,12 @@ function normalizeSlide(slide: ProjectSlide): ProjectSlide {
         kind: 'quote',
         text: slide.text,
         attribution: slide.attribution ?? undefined,
+      }
+    case 'video':
+      return {
+        kind: 'video',
+        youtubeId: slide.youtubeId,
+        caption: slide.caption ?? undefined,
       }
   }
 }

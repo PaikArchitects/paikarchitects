@@ -9,7 +9,7 @@
 // 상태 소유는 LandingExperience (URL 동기화 일원화).
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import type { CreditsSlide, DiagramSetSlide, ImageSlide, PortableTextBlock, Project, ProjectSlide, QuoteSlide, TextSlide } from '@/types'
+import type { CreditsSlide, DiagramSetSlide, ImageSlide, PortableTextBlock, Project, ProjectSlide, QuoteSlide, TextSlide, VideoSlide } from '@/types'
 import { BilingualText } from '@/lib/bilingual'
 import { sanityCard } from '@/lib/imageUrl'
 import { shuffle } from '@/lib/shuffle'
@@ -325,6 +325,30 @@ function MobileQuoteSlide({ slide }: { slide: QuoteSlide }) {
   )
 }
 
+// ── 모바일 영상 — 폭 100%, 16:9 예약 (레이아웃 시프트 방지). 자동재생 없음 ──
+function MobileVideoSlide({ slide }: { slide: VideoSlide }) {
+  const src = `https://www.youtube-nocookie.com/embed/${slide.youtubeId}?rel=0&modestbranding=1`
+  const en = slide.caption?.en ? splitCaption(slide.caption.en) : null
+  const ko = slide.caption?.ko ? splitCaption(slide.caption.ko) : null
+
+  return (
+    <div style={{ width: '100%' }}>
+      <div style={{ width: '100%', aspectRatio: '16 / 9', position: 'relative', background: '#000' }}>
+        <iframe
+          src={src}
+          title={slide.caption?.en ?? 'Project video'}
+          allow="accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+          allowFullScreen
+          style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', border: 0 }}
+        />
+      </div>
+      {/* 캡션 — MobileImageSlide와 동일 방식 */}
+      {en && <MobileCaption label={en.label} description={en.description} />}
+      {ko && <MobileCaption label={ko.label} description={ko.description} secondary />}
+    </div>
+  )
+}
+
 // ── 크레딧 — 폭 100%, 높이는 행 수가 결정 ──
 function MobileCreditsSlide({ slide }: { slide: CreditsSlide }) {
   return (
@@ -506,6 +530,8 @@ function MobileSlide({ slide }: { slide: ProjectSlide }) {
       return <MobileTextSlide slide={slide} />
     case 'quote':
       return <MobileQuoteSlide slide={slide} />
+    case 'video':
+      return <MobileVideoSlide slide={slide} />
   }
 }
 

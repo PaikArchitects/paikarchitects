@@ -185,6 +185,7 @@ export default defineType({
         defineArrayMember({ type: 'creditsSlide' }),
         defineArrayMember({ type: 'textSlide' }),
         defineArrayMember({ type: 'quoteSlide' }),
+        defineArrayMember({ type: 'videoSlide' }),
       ],
     }),
   ],

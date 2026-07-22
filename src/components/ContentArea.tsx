@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import type { CreditsSlide, DiagramSetSlide, ImageSlide, PortableTextBlock, Project, ProjectSlide, QuoteSlide, TextSlide } from '@/types'
+import type { CreditsSlide, DiagramSetSlide, ImageSlide, PortableTextBlock, Project, ProjectSlide, QuoteSlide, TextSlide, VideoSlide } from '@/types'
 import { useFinePointer } from '@/hooks/useFinePointer'
 import { BilingualText } from '@/lib/bilingual'
 import { sizeLabel, sizeValue, splitRole } from '@/lib/projectMeta'
@@ -393,6 +393,61 @@ function QuoteSlideView({ slide }: { slide: QuoteSlide }) {
   )
 }
 
+// ── 영상: YouTube 임베드. 16:9, 높이 100% 기준. 자동재생 없음 ──
+function VideoSlideView({ slide }: { slide: VideoSlide }) {
+  const src = `https://www.youtube-nocookie.com/embed/${slide.youtubeId}?rel=0&modestbranding=1`
+  const en = slide.caption?.en ? splitCaption(slide.caption.en) : null
+  const ko = slide.caption?.ko ? splitCaption(slide.caption.ko) : null
+
+  return (
+    <div style={{
+      height: '100%',
+      aspectRatio: '16 / 9',
+      display: 'flex',
+      flexDirection: 'column',
+      justifyContent: 'center',
+    }}>
+      <div style={{ position: 'relative', width: '100%', aspectRatio: '16 / 9', background: '#000' }}>
+        <iframe
+          src={src}
+          title={slide.caption?.en ?? 'Project video'}
+          allow="accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+          allowFullScreen
+          style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', border: 0 }}
+        />
+        {/* 캡션 — ImageSlideView와 동일 방식: 미디어 하단 외부, 영문 주 + 한글 종 */}
+        {slide.caption && (
+          <div style={{
+            position: 'absolute',
+            top: '100%',
+            left: 0,
+            right: 0,
+            marginTop: 12,
+            textAlign: 'center',
+            fontFamily: FONT,
+            pointerEvents: 'none',
+            whiteSpace: 'normal',
+            wordBreak: 'keep-all',
+          }}>
+            {en && (
+              <div style={{ fontSize: 12, fontWeight: 300, color: '#0a0908', opacity: 0.7 }}>
+                <span style={{ fontWeight: 500 }}>{en.label}</span>
+                {en.description && ` — ${en.description}`}
+              </div>
+            )}
+            {ko && (
+              <div style={{ fontSize: 11, fontWeight: 300, color: '#0a0908', opacity: 0.5, marginTop: 2 }}>
+                <span style={{ fontWeight: 400 }}>{ko.label}</span>
+                {ko.description && ` — ${ko.description}`}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
 // ── 크레딧: 슬라이드 높이의 흰 블록, 고정 420px ──
 function CreditsSlideView({ slide }: { slide: CreditsSlide }) {
   return (
@@ -483,6 +538,8 @@ function SlideContent({ slide, nearCenter, finePointer, onDiagramHover }: {
       return <TextSlideView slide={slide} />
     case 'quote':
       return <QuoteSlideView slide={slide} />
+    case 'video':
+      return <VideoSlideView slide={slide} />
   }
 }
 
@@ -558,6 +615,7 @@ export function ContentArea({ project, mode, isBlacking, visible, onBack }: Cont
         if (slide.kind === 'credits') widths.push(CREDITS_SLIDE_W)
         else if (slide.kind === 'text') widths.push(TEXT_SLIDE_W)
         else if (slide.kind === 'quote') widths.push(QUOTE_SLIDE_W)
+        else if (slide.kind === 'video') widths.push((16 / 9) * slideH)
         else if (isDiagram(slide)) widths.push(ratio * diagramH)
         else widths.push(ratio * slideH)
       })
