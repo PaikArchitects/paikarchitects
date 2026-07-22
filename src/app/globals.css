@@ -360,6 +360,7 @@ body {
    fixed이므로 문서 스크롤·앵커 점프와 무관하게 항상 top:50px 고정. */
 .about-nav {
   position: fixed;
+  background: #FFFFFF;
   top: 50px;
   left: 0;
   right: 0;
