@@ -67,7 +67,7 @@ export default async function AboutPage() {
 
         {/* ── 층 3: CURRICULUM VITAE — 병기 없음, 전폭 단일 열 ── */}
         <section className="about-row about-row--wide" id="cv">
-          <div className="about-label">Curriculum<br />Vitae</div>
+          <div className="about-label">Curriculum Vitae</div>
           <div>
 
             {education && education.length > 0 && (

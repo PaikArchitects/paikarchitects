@@ -28,7 +28,24 @@ export default defineConfig({
                   .title('ABOUT')
               ),
             S.divider(),
-            S.documentTypeListItem('project').title('PROJECTS'),
+            S.listItem()
+              .title('PROJECTS — PUBLISHED')
+              .id('projectsPublished')
+              .child(
+                S.documentList()
+                  .title('Published Projects')
+                  .filter('_type == "project" && published != false')
+                  .defaultOrdering([{ field: 'careerNo', direction: 'desc' }])
+              ),
+            S.listItem()
+              .title('PROJECTS — HIDDEN')
+              .id('projectsHidden')
+              .child(
+                S.documentList()
+                  .title('Hidden Projects')
+                  .filter('_type == "project" && published == false')
+                  .defaultOrdering([{ field: 'careerNo', direction: 'desc' }])
+              ),
           ]),
     }),
     visionTool(),

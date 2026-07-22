@@ -144,6 +144,7 @@ export function SiteHeader() {
               key={label}
               href={href}
               onClick={() => setMenuOpen(false)}
+              className={current ? 'mobile-menu-link is-current' : 'mobile-menu-link'}
               style={{
                 display: 'block',
                 padding: '14px 0',

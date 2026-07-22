@@ -269,6 +269,14 @@
   .mobile-menu-panel.open {
     transform: translateX(0);
   }
+
+  .mobile-menu-link {
+    border-bottom: 1px solid transparent;
+  }
+
+  .mobile-menu-link.is-current {
+    border-bottom-color: currentColor;
+  }
 }
 
 /* ── TABLET (1024~1439px) — 내비 중앙 정렬 해제 → 우측 이동으로 좌상단 워드마크와 분리 ── */
@@ -611,6 +619,8 @@ body {
     text-align: left;
     padding-right: 0;
     border-right: none;
+    border-left: 1px solid rgba(8, 7, 6, 0.18);
+    padding-left: 12px;
   }
 
   /* 상하 병기 — EN 아래 KO */
