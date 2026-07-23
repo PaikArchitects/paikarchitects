@@ -1,3 +1,5 @@
+export const metadata = { title: 'Contacts' }
+
 export default function ContactPage() {
   return (
     <main style={{

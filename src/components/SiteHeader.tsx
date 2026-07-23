@@ -36,7 +36,7 @@ export function SiteHeader() {
   const navOnLight = isLanding ? dynamicNavOnLight : isStaticLight(pathname)
 
   const layoutVisible = introPhase === 'done'
-  const wordmarkActive = introPhase !== 'wordmark'
+  const wordmarkMoved = introPhase !== 'wordmark'
 
   // ── 모바일 햄버거 메뉴 — 전역 크롬이므로 SiteHeader 소유 (§8). 라우트 변경 시 자동 닫힘 ──
   const [menuOpen, setMenuOpen] = useState(false)
@@ -50,32 +50,21 @@ export function SiteHeader() {
            데스크톱에서는 display:none (globals.css) ── */}
       <div className="mobile-header-bar" aria-hidden="true" />
 
-      {/* ── ACP MONOGRAM — 홈 링크 ── */}
+      {/* ── WORDMARK "Paik Architects" — 히어로 겸 헤더 로고(단일 요소). 홈 링크 ── */}
       <Link
         href="/"
         aria-label="Home"
         className={[
           'wordmark-intro',
-          wordmarkActive ? 'collapsed moved' : '',
+          wordmarkMoved ? 'moved' : '',
           wordmarkOnLight ? 'on-light' : '',
           introSkipped ? 'instant' : '',
           !isLanding ? 'no-color-transition' : '',
         ].filter(Boolean).join(' ')}
       >
-        <span className="word" style={{ fontWeight: 900 }}>
-          <span className="initial">A</span>
-          <span className="rest">rchitect</span>
-        </span>
-        <span className="spacer">&nbsp;</span>
-        <span className="word" style={{ fontWeight: 400 }}>
-          <span className="initial">C</span>
-          <span className="rest">hanghyun</span>
-        </span>
-        <span className="spacer">&nbsp;</span>
-        <span className="word" style={{ fontWeight: 300 }}>
-          <span className="initial">P</span>
-          <span className="rest">aik</span>
-        </span>
+        <span className="word" style={{ fontWeight: 700 }}>Paik</span>
+        <span className="wordmark-gap">&nbsp;</span>
+        <span className="word" style={{ fontWeight: 300 }}>Architects</span>
       </Link>
 
       {/* ── NAVIGATION — 데스크톱: 헤더 존 수평 중앙 / 모바일: 56px 바 내 우측 정렬 (globals.css) ── */}

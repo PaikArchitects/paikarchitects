@@ -1,3 +1,5 @@
+export const metadata = { title: 'Essays' }
+
 export default function EssaysPage() {
   return (
     <main style={{

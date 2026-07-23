@@ -4,6 +4,8 @@ import type { PortableTextBlock } from '@/types'
 
 export const revalidate = 60
 
+export const metadata = { title: 'About' }
+
 function renderBlocks(blocks: PortableTextBlock[] | undefined) {
   if (!blocks || blocks.length === 0) return null
   return blocks.map((b, i) => (

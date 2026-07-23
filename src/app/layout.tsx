@@ -4,13 +4,16 @@ import { SiteChromeProvider } from '@/components/SiteChromeContext'
 import { SiteHeader } from '@/components/SiteHeader'
 
 export const metadata: Metadata = {
-  title: 'Chang Hyun Paik — Architect, Seoul',
+  title: {
+    default: 'Paik Architects',
+    template: '%s — Paik Architects',
+  },
   description:
-    'Chang Hyun Paik is an architect based in Seoul, South Korea. A decade of professional practice spanning culture, infrastructure, and civic work.',
+    'Paik Architects is the architecture practice of Chang Hyun Paik, based in Seoul, South Korea. A decade of professional practice spanning culture, infrastructure, and civic work.',
   openGraph: {
-    title: 'Chang Hyun Paik — Architect, Seoul',
+    title: 'Paik Architects',
     description:
-      'A decade of professional practice spanning culture, infrastructure, and civic work.',
+      'The architecture practice of Chang Hyun Paik. A decade of professional work spanning culture, infrastructure, and civic projects.',
     type: 'website',
     url: 'https://paikarchitects.com',
   },
