@@ -281,6 +281,12 @@
 /* ── Base ── */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
+/* 스크롤바 폭 상시 예약 — About(문서 스크롤) ↔ WORKS(overflow:hidden) 뷰포트 폭 차이로
+   헤더 내비가 7px 이동하는 문제 해결. 중앙 정렬 기준 통일. */
+html {
+  scrollbar-gutter: stable;
+}
+
 /* 프로젝트 월 / About 라벨 월 공용 폭.
    ProjectWall.tsx의 인라인 width와 동일해야 한다.
    변경 시 ProjectWall.tsx도 이 변수를 참조하도록 함께 수정할 것. */
