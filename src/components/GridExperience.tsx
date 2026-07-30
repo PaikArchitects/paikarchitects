@@ -1,24 +1,32 @@
 'use client'
 
-// ── GridExperience — 독립 그리드 뷰 (GRID_MODE_V2_SPEC) ──
+// ── GridExperience — 독립 그리드 뷰 (GRID_MODE_V3_SPEC) ──
 //
-// 링월(/work)·랜딩(/)을 일절 건드리지 않는 완전 독립 라우트(/work-grid)의 루트.
-// V2의 핵심은 밀도 전환 모델이다. 1차의 CSS Grid + `col = i % ncol` 방식은 열 수가 바뀌는
-// 순간 전체 카드의 (행,열)을 재계산해 "보이던 카드가 순간이동"하는 결함이 있었다(§0).
+// 링월(/work)·랜딩(/)·ContentArea를 일절 건드리지 않는 완전 독립 라우트(/work-grid)의 루트.
 //
-// V2 모델:
-//   1) 정수 열 레이아웃 L(n)을 단일 규칙 deriveUp으로만 파생한다. L(n+1)은 L(n)의 상위
-//      ceil(N/(n+1))개 행을 (row,col) 그대로 보존하고, 새로 생긴 마지막 열만 L(n)의 하단
-//      잔여 카드(=대기 카드)로 채운다. → 인접 두 정수 열 사이에서 "보이는 카드는 자기
-//      (행,열)을 절대 바꾸지 않는다"가 구조적으로 보장된다(§2-3).
-//   2) 렌더는 CSS Grid가 아니라 절대좌표(position:absolute + transform translate, px 전용).
-//      드래그 진행도 t(0=A열, 1=B열)에 따라 매 프레임 x·y·width·opacity를 직접 세팅한다.
-//   3) 기존 열(0..A-1)은 폭만 wA→wB로 수렴하고, 새 열은 폭 0→wB로 열리며 opacity 0→1
-//      페이드인한다. 새 열로 끌어올려지는 대기 카드는 원래 하단 자리에서 opacity 1→0으로
-//      빠지므로 어떤 카드도 화면에서 날아다니지 않는다(§2-4 대칭).
+// V3의 핵심은 밀도 전환 모델의 재정의다. V2는 "기존 열은 폭 수렴 / 새 열은 폭 0→wB로 열림"
+// 이었고, 그 결과 전환 중 새 카드만 작게 시작해 커지는 결함이 있었다(§0-1).
+//
+// V3 모델 — "모든 카드 항상 동일 크기 + 화면 밖 대기":
+//   1) 전환은 정수 열 A→B(=A+1) 사이 보간이다. 진행도 t(0=A, 1=B).
+//   2) **카드 폭은 전 카드가 공유하는 단일 값** cardW(t)=lerp(wA, wB, t). 예외 없음.
+//      새 열 카드도 같은 폭이다. 높이는 cardW/(4/3), 간격은 항상 GAP.
+//   3) 새로 생기는 열(col≥A) 카드는 처음부터 그 자리에 같은 크기로 존재한다. t=0에서
+//      x = originX + A*(wA+GAP) 이므로 콘텐츠 우측 경계 밖이고 opacity 0이다. t가 커지며
+//      전체 폭이 줄어들면 그 자리가 화면 안으로 들어오고 opacity가 0→1로 드러난다.
+//      즉 "이동해 들어오는" 게 아니라 "화면이 그 자리를 품게" 된다(§1-2).
+//   4) 보이던 카드는 A의 (row,col)을 유지한다 — 행 이동 없음. 이를 구조적으로 보장하려고
+//      정수 레이아웃 L(n)을 deriveUp 한 규칙으로만 파생한다(§1-3). L(n+1)은 L(n)의 상위
+//      ceil(N/(n+1))개 행을 (row,col) 그대로 보존하고, 새로 생긴 열과 기존 빈 슬롯만
+//      L(n) 하단 잔여 카드(=대기 카드)로 채운다. 대기 카드 순서는 careerNo를 따르지 않는다(§1-3).
+//   5) 렌더는 CSS Grid가 아니라 절대좌표(position:absolute + transform translate, px 전용).
+//      좌우 오버플로는 overflow-x로 잘라 가로 스크롤을 만들지 않는다(§1-2).
+//
+// 필터는 카드를 숨기지 않는다. 해당 카드를 좌상단부터 앞쪽에, 비해당 카드를 그 뒤에 이어
+// 배치해 그리드를 항상 꽉 채우고, 비해당만 opacity를 낮춘다(§4).
 //
 // 카드 프레임은 열 수와 무관하게 항상 4:3 균등폭이다. 원본 이미지 비율은 카드 폭에 일절
-// 반영하지 않고 object-fit:cover + coverHotspot으로 크롭한다(§1).
+// 반영하지 않고 object-fit:cover + coverHotspot으로 크롭한다(§2).
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
@@ -30,9 +38,9 @@ const FONT = "'Pretendard Variable', Pretendard, -apple-system, BlinkMacSystemFo
 // ── 단일 정의 상수 ──
 const UI_PAD = 34               // 헤더·컨트롤·그리드 공유 좌우 여백 (링월 헤더 기준)
 const GAP = 16                  // 카드 간격 (수평·수직 공통)
-const CARD_RATIO = 4 / 3        // 카드 프레임 비율 — 원본 비율과 무관하게 고정 (§1)
-const SLIDE_H_RATIO = 0.72      // ContentArea 히어로 높이 비율 — 1열 폭 공식 (§3)
-const MIN_COLS = 1              // 하한. 실물 판단 후 1→3 변경은 이 한 줄만 바꾼다 (§3)
+const CARD_RATIO = 4 / 3        // 카드 프레임 비율 — 원본 비율과 무관하게 고정 (§2)
+const SLIDE_H_RATIO = 0.72      // ContentArea 히어로 높이 비율 — 1열 폭 공식 (§6)
+const MIN_COLS = 1              // 하한. 실물 판단 후 1→3 변경은 이 한 줄만 바꾼다 (§6)
 const MAX_COLS = 6              // 절대 상한 (뷰포트 종횡비가 실제 상한을 더 낮출 수 있다)
 const BASE_COLS = 3             // 레이아웃 파생 기저 — 이 열에서 카드가 careerNo 순 행우선 배열
 const DEFAULT_COLS = 3
@@ -40,14 +48,20 @@ const COVER_FALLBACK = '#1E1C18'
 const AWARD_GOLD = '#b89773'
 const HEADER_H = 80             // 전역 헤더(워드마크·nav) 존 회피 상단 여백
 const BAR_RESERVE = 120         // 하단 플로팅 밀도바 회피 여백
-const TWEEN_MS = 420            // 릴리스 후 정수 정착 트윈 (§2-5)
+const TWEEN_MS = 420            // 릴리스 후 정수 정착 트윈 (§1-4)
+const FADE_LAG = 0.15           // 새 열 카드 페이드 지연 — clamp((t-0.15)/0.7) (§1-2)
+const FADE_SPAN = 0.7
+const DIM_OPACITY = 0.15        // 필터 비해당 카드 (§4)
+const FLOW_MS = 560             // 필터 재정렬 트랜지션 지속 — 이 시간만 transition 활성
+const ICON_W = 34               // 스냅 아이콘 고정 폭 — 트랙 좌표계의 양단 인셋 기준 (§6)
 
 // 카드 하단 텍스트 — 폭에 연동한 연속 스케일. 정수 열 경계에서 행 피치가 튀지 않게
-// 이산 분기(dense 플래그) 대신 폭의 연속 함수로 둔다 (§5).
+// 이산 분기(dense 플래그) 대신 폭의 연속 함수로 둔다.
+// 타이틀은 1행만 예약한다 — 2행 예약이 요약을 타이틀에서 멀리 밀어내던 결함(§0-2)의 원인.
 const META_PT = 10              // 이미지 ↔ 타이틀
 const TITLE_LH = 1.35
-const TITLE_LINES = 2           // 2행 예약 — 타이틀 줄바꿈이 행 피치를 흔들지 않도록
-const SUM_MT = 4
+const TITLE_LINES = 1
+const SUM_MT = 5                // 타이틀 ↔ 요약 (§5: 4~6px)
 const SUM_LH = 1.5
 
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v))
@@ -67,7 +81,7 @@ function maxColsForAspect(r: number): number {
 }
 
 // ── 정수 열 레이아웃 ─────────────────────────────────────────────────────────
-// Layout = 행 × 열 격자. 값은 projectOrder 인덱스, 빈 슬롯은 null.
+// Layout = 행 × 열 격자. 값은 order 인덱스(=배치 위치), 빈 슬롯은 null.
 
 type Layout = (number | null)[][]
 
@@ -84,12 +98,13 @@ function rowMajor(order: number[], cols: number): Layout {
 /**
  * n열 → n+1열. 상위 ceil(total/(n+1))개 행의 기존 카드는 (row,col)을 그대로 보존하고,
  * 새로 생긴 마지막 열과(있다면) 기존 빈 슬롯만 하단 잔여 카드(=대기 카드)로 위에서부터
- * 순서대로 채운다 (§2-3, §2-6).
+ * 순서대로 채운다 (§1-3).
  *
  * 빈 슬롯까지 채우는 이유: 신규 열만 채우면 수용량이 `보존행 카드 수 + 행 수`로 제한돼
- * 필터로 카드 수가 적을 때 카드가 배치되지 못하고 유실된다(총량 rows×(n+1)로 채우면 항상 수용).
- * 빈 슬롯은 A에서도 비어 있던 자리이므로, 여기에 카드가 들어와도 "보이던 카드는 이동하지
- * 않는다"는 불변식은 유지된다 — 새 카드가 빈자리에 페이드인할 뿐이다.
+ * 카드가 배치되지 못하고 유실된다(6열 대부분이 빈칸이던 §0-3의 표면 원인). 총량
+ * rows×(n+1)로 채우면 어느 열 수에서도 30개가 전부 배치된다. 빈 슬롯은 A에서도 비어
+ * 있던 자리이므로 "보이던 카드는 이동하지 않는다"는 불변식은 유지된다 — 새 카드가
+ * 빈자리에 페이드인할 뿐이다.
  *
  * 이 규칙이 위치 고정의 유일한 근거이므로 다른 경로로 레이아웃을 만들지 않는다.
  */
@@ -137,7 +152,8 @@ function deriveDown(prev: Layout, n: number): Layout {
  * MIN_COLS..MAX_COLS 전 레이아웃을 만든다.
  * 1) BASE_COLS(3열) 행우선 배열을 MIN_COLS까지 역파생해 기저 순서(seed)를 얻는다.
  * 2) seed에서 deriveUp만으로 상향 파생한다 → 인접 열 간 (row,col) 보존이 전 구간 성립하고,
- *    카드 수가 열 수로 정확히 나뉘는 일반 경우 BASE_COLS는 careerNo 순 행우선으로 복원된다.
+ *    카드 수가 열 수로 정확히 나뉘는 일반 경우 BASE_COLS는 행우선 순서로 복원된다.
+ * 어느 n에서도 행 수는 ceil(total/n), 배치 카드 수는 total이다(30개 전부 배치, §3).
  */
 function buildLayouts(total: number): Record<number, Layout> {
   const out: Record<number, Layout> = {}
@@ -145,8 +161,8 @@ function buildLayouts(total: number): Record<number, Layout> {
     for (let n = MIN_COLS; n <= MAX_COLS; n++) out[n] = []
     return out
   }
-  const order = Array.from({ length: total }, (_, i) => i)
-  let seedLayout = rowMajor(order, Math.max(BASE_COLS, MIN_COLS))
+  const seq = Array.from({ length: total }, (_, i) => i)
+  let seedLayout = rowMajor(seq, Math.max(BASE_COLS, MIN_COLS))
   for (let n = Math.max(BASE_COLS, MIN_COLS); n > MIN_COLS; n--) seedLayout = deriveDown(seedLayout, n)
   const seed: number[] = []
   for (const row of seedLayout) for (const v of row) if (v !== null) seed.push(v)
@@ -165,13 +181,21 @@ function slotMap(l: Layout): Map<number, Slot> {
 }
 
 // ── 전환 인스턴스 ────────────────────────────────────────────────────────────
-// stay : A·B에서 (row,col)이 동일 — 위치 고정(열 불변), 폭만 보간, opacity 1
-// out  : A에만 남는 자리 — 그 자리에서 opacity 1→0 (역방향에선 0→1)
-// in   : B의 새 열 자리 — 폭 0→wB로 열리며 opacity 0→1 (§2-3, §2-4)
+// stay : A·B에서 (row,col) 동일 — 위치 고정, opacity 1. 폭은 공통 cardW(t)
+// in   : B의 자리(주로 새 열 col≥A) — t=0에 화면 밖 + opacity 0, 페이드인 (§1-2)
+// out  : A에만 있던 자리(하단 잔여행) — 그 자리에서 opacity 1→0
+//        같은 카드의 in/out은 서로 다른 자리의 교차 페이드이므로 어떤 카드도 날아다니지 않는다.
 type InstKind = 'stay' | 'out' | 'in'
-interface Inst { key: string; idx: number; row: number; col: number; kind: InstKind }
+interface Inst {
+  key: string           // 프로젝트 id 기반 — 필터 재정렬 시 DOM을 유지해 transform 트랜지션이 걸린다
+  pos: number           // order 인덱스
+  row: number
+  col: number
+  kind: InstKind
+  dim: boolean          // 필터 비해당 (§4)
+}
 
-/** 드래그·트윈 중의 분수 cols → 보간 구간 (A=정수 하한, B=A+1, t=진행도) (§2-5) */
+/** 드래그·트윈 중의 분수 cols → 보간 구간 (A=정수 하한, B=A+1, t=진행도) (§1-4) */
 function pairFor(cols: number, maxCols: number) {
   const hi = Math.max(MIN_COLS, maxCols)
   const c = clamp(cols, MIN_COLS, hi)
@@ -188,18 +212,31 @@ interface GridExperienceProps {
 }
 
 export function GridExperience({ projects }: GridExperienceProps) {
-  // ── 필터 (링월과 동일 술어, 그리드 자체 상태) ──
+  const total = projects.length
+
+  // ── 필터 — 숨김이 아니라 재정렬 + dim (§4) ──
   const FILTER_TYPES = useMemo(() => ['All', ...TYPOLOGY_ORDER.filter(t =>
     projects.some(p => p.type === t || p.subTypes?.includes(t))
   )], [projects])
   const [activeFilter, setActiveFilter] = useState('All')
-  const filteredProjects = useMemo(
-    () => activeFilter === 'All'
-      ? projects
-      : projects.filter(p => p.type === activeFilter || p.subTypes?.includes(activeFilter as ProjectType)),
-    [activeFilter, projects],
-  )
-  const total = filteredProjects.length
+
+  /** order: 배치 위치 → projects 인덱스. 해당 카드가 앞, 비해당이 뒤. 전체 30개 유지 */
+  const { order, dimSet } = useMemo(() => {
+    if (activeFilter === 'All') {
+      return {
+        order: Array.from({ length: total }, (_, i) => i),
+        dimSet: new Set<number>(),
+      }
+    }
+    const hit: number[] = []
+    const miss: number[] = []
+    projects.forEach((p, i) => {
+      const ok = p.type === activeFilter || p.subTypes?.includes(activeFilter as ProjectType)
+      if (ok) hit.push(i)
+      else miss.push(i)
+    })
+    return { order: [...hit, ...miss], dimSet: new Set(miss) }
+  }, [activeFilter, projects, total])
 
   // ── 뷰포트 치수 — 열 상한·1열 히어로 폭이 의존 ──
   const [vp, setVp] = useState({ w: 0, h: 0 })
@@ -212,7 +249,7 @@ export function GridExperience({ projects }: GridExperienceProps) {
   const ready = vp.w > 0 && vp.h > 0
   const maxCols = ready ? maxColsForAspect(vp.w / vp.h) : MAX_COLS
 
-  // ── 레이아웃 테이블 — 필터(카드 수) 변경 시에만 재계산 ──
+  // ── 레이아웃 테이블 — 카드 수는 필터와 무관하게 항상 total이므로 1회 계산 ──
   const layouts = useMemo(() => buildLayouts(total), [total])
 
   // ── 밀도 상태 ──
@@ -227,6 +264,16 @@ export function GridExperience({ projects }: GridExperienceProps) {
   const [nLabel, setNLabel] = useState(clamp(DEFAULT_COLS, MIN_COLS, MAX_COLS))
   const nLabelRef = useRef(nLabel)
 
+  // 필터 재정렬 구간에만 transition을 켠다 (드래그 중에는 매 프레임 좌표를 쓰므로 항상 꺼둔다)
+  const [flow, setFlow] = useState(false)
+  const flowTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const startFlow = useCallback(() => {
+    setFlow(true)
+    if (flowTimer.current) clearTimeout(flowTimer.current)
+    flowTimer.current = setTimeout(() => setFlow(false), FLOW_MS)
+  }, [])
+  useEffect(() => () => { if (flowTimer.current) clearTimeout(flowTimer.current) }, [])
+
   // ── 인스턴스 목록 — 현재 보간 구간(A,B)에서만 유효 ──
   const instances = useMemo<Inst[]>(() => {
     const la = layouts[pair.a] ?? []
@@ -234,25 +281,29 @@ export function GridExperience({ projects }: GridExperienceProps) {
     const sa = slotMap(la)
     const sb = slotMap(lb)
     const list: Inst[] = []
-    for (let i = 0; i < total; i++) {
-      const A = sa.get(i)
-      const B = sb.get(i)
-      // key 규칙: 'in'과 'stay'가 같은 key('-p')를 공유해 정수 경계를 넘을 때 DOM 재사용
+    for (let pos = 0; pos < total; pos++) {
+      const project = projects[order[pos]]
+      if (!project) continue
+      const dim = dimSet.has(order[pos])
+      const A = sa.get(pos)
+      const B = sb.get(pos)
+      // key는 프로젝트 id 기반 — 필터 재정렬 시 같은 DOM이 새 좌표로 트랜지션한다.
+      // 'in'과 'stay'가 같은 접미사('-p')를 쓰므로 정수 경계를 넘을 때도 DOM이 재사용된다.
       if (A && B) {
         if (A.row === B.row && A.col === B.col) {
-          list.push({ key: `${i}-p`, idx: i, row: A.row, col: A.col, kind: 'stay' })
+          list.push({ key: `${project.id}-p`, pos, row: A.row, col: A.col, kind: 'stay', dim })
         } else {
-          list.push({ key: `${i}-o`, idx: i, row: A.row, col: A.col, kind: 'out' })
-          list.push({ key: `${i}-p`, idx: i, row: B.row, col: B.col, kind: 'in' })
+          list.push({ key: `${project.id}-o`, pos, row: A.row, col: A.col, kind: 'out', dim })
+          list.push({ key: `${project.id}-p`, pos, row: B.row, col: B.col, kind: 'in', dim })
         }
       } else if (B) {
-        list.push({ key: `${i}-p`, idx: i, row: B.row, col: B.col, kind: 'in' })
+        list.push({ key: `${project.id}-p`, pos, row: B.row, col: B.col, kind: 'in', dim })
       } else if (A) {
-        list.push({ key: `${i}-o`, idx: i, row: A.row, col: A.col, kind: 'out' })
+        list.push({ key: `${project.id}-o`, pos, row: A.row, col: A.col, kind: 'out', dim })
       }
     }
     return list
-  }, [layouts, pair, total])
+  }, [dimSet, layouts, order, pair, projects, total])
 
   // ── DOM 참조 ──
   const cardEls = useRef(new Map<string, HTMLElement>())
@@ -263,7 +314,7 @@ export function GridExperience({ projects }: GridExperienceProps) {
   const instRef = useRef<{ a: number; b: number; list: Inst[] }>({ a: pair.a, b: pair.b, list: [] })
 
   const span = Math.max(1, maxCols - MIN_COLS)
-  // knob·fill·스냅 아이콘이 공유하는 유일한 좌표 함수. 기준 폭은 항상 '트랙 폭'이다 (§4)
+  // knob·fill·스냅 아이콘이 공유하는 유일한 좌표 함수. 기준은 트랙의 레일 폭이다 (§6)
   const colsToPos = useCallback((c: number) => clamp((c - MIN_COLS) / span, 0, 1), [span])
   const posToCols = useCallback((pos: number) => MIN_COLS + clamp(pos, 0, 1) * span, [span])
 
@@ -282,7 +333,7 @@ export function GridExperience({ projects }: GridExperienceProps) {
       setNLabel(nr)
     }
 
-    // 슬라이더 크롬 — 트랙 폭 기준 동일 좌표계
+    // 슬라이더 크롬 — 아이콘과 동일한 레일 좌표계 (fill·knob은 레일 안의 % )
     const pos = colsToPos(cols) * 100
     if (fillRef.current) fillRef.current.style.width = `${pos}%`
     if (knobRef.current) knobRef.current.style.left = `${pos}%`
@@ -291,44 +342,47 @@ export function GridExperience({ projects }: GridExperienceProps) {
     const cur = instRef.current
     if (cur.a !== a || cur.b !== b) return   // 목록이 아직 이 구간이 아님 — 재렌더 후 페인트
 
-    const full = Math.max(0, vp.w - UI_PAD * 2)
-    const heroW = Math.min(full, CARD_RATIO * vp.h * SLIDE_H_RATIO)
+    const full = Math.max(1, vp.w - UI_PAD * 2)
+    const heroW = Math.min(full, CARD_RATIO * vp.h * SLIDE_H_RATIO)   // 1열 = 히어로 폭 (§6)
     const widthAt = (n: number) => (n <= 1 ? heroW : Math.max(1, (full - GAP * (n - 1)) / n))
+    /** n열이 콘텐츠 폭 안에서 중앙정렬될 때의 좌측 원점 */
+    const originAt = (n: number, w: number) => UI_PAD + (full - (n * w + (n - 1) * GAP)) / 2
+
     const wA = widthAt(a)
     const wB = widthAt(b)
+    // ★ 전 카드 공유 단일 폭. 새 카드도 예외 없이 이 값이다 (§1-2)
+    const cardW = lerp(wA, wB, t)
+    const originX = lerp(originAt(a, wA), originAt(b, wB), t)
+    const pitch = cardW / CARD_RATIO + metaH(cardW) + GAP
+    const wPx = Math.round(cardW)                      // 정수화 → 전 카드 clientWidth 완전 동일
+    const fadeIn = clamp((t - FADE_LAG) / FADE_SPAN, 0, 1)
 
-    const opening = b > a
-    const wMain = lerp(wA, wB, t)          // 기존 열 — 폭만 A→B로 수렴
-    const wNew = opening ? t * wB : 0      // 새 열 — 폭 0→wB로 열린다
-    const gapNew = opening ? t * GAP : 0
-    // 행 총폭이 t 전 구간에서 콘텐츠 폭과 정확히 일치한다(오버플로·팝 없음).
-    // a*wA+(a-1)*GAP = b*wB+(b-1)*GAP = full 이므로 신규 열·간격 증가분이 기존 열 축소분과 상쇄된다.
-    const rowW = a * wMain + (a - 1) * GAP + gapNew + wNew
-    const originX = UI_PAD + (full - rowW) / 2
-    const newColX = originX + a * wMain + (a - 1) * GAP + gapNew
-
-    const pitch = wMain / CARD_RATIO + metaH(wMain) + GAP
+    // 대기 열(col≥a)의 t=0 시작점을 콘텐츠 우측 경계 밖으로 보정한다. 보정량은 t=0
+    // 기하(wA)만으로 정해 (1-t)로 감쇠시킨다 — a열이 콘텐츠 폭을 꽉 채우는 일반 구간
+    // (a≥2)에서는 값이 항상 0이므로 "이동 없이 드러난다"가 그대로 유지되고, 1열처럼
+    // 히어로 폭이 중앙정렬돼 좌우 여백이 남는 구간에서만 그 여백만큼 밀어낸다.
+    const slack0 = Math.max(0, UI_PAD + full - (originAt(a, wA) + a * (wA + GAP)))
+    const enterShift = (1 - t) * slack0
 
     for (const inst of cur.list) {
       const el = cardEls.current.get(inst.key)
       if (!el) continue
-      const isNew = inst.col >= a
-      const w = isNew ? wNew : wMain
-      const x = isNew
-        ? newColX + (inst.col - a) * (wNew + GAP)
-        : originX + inst.col * (wMain + GAP)
+      // 열 격자는 공통 cardW·GAP 하나로만 만든다. col≥a 카드는 t=0에서 콘텐츠 우측 경계
+      // 밖에 놓이고, 전체 축소에 따라 화면이 그 자리를 품으면서 들어온다.
+      const x = originX + inst.col * (cardW + GAP) + (inst.col >= a ? enterShift : 0)
       const y = inst.row * pitch
-      const op = inst.kind === 'stay' ? 1 : inst.kind === 'in' ? t : 1 - t
+      const base = inst.kind === 'stay' ? 1 : inst.kind === 'in' ? fadeIn : 1 - t
+      const op = base * (inst.dim ? DIM_OPACITY : 1)
 
-      el.style.transform = `translate(${x}px, ${y}px)`
-      el.style.width = `${Math.round(w)}px`   // 정수화 → 같은 열 수에서 전 카드 clientWidth 동일
+      el.style.transform = `translate(${Math.round(x)}px, ${Math.round(y)}px)`
+      el.style.width = `${wPx}px`
       el.style.opacity = `${op}`
-      // 완전 투명한 유령은 display로 빼야 한다 — absolute 요소라도 문서 스크롤 범위에는
+      // 완전 투명한 유령은 display로 빼야 한다 — absolute 요소라도 스크롤 범위에는
       // 기여하므로, 남겨두면 최대 밀도에서 빈 스크롤 영역이 생긴다.
       el.style.display = op <= 0.001 ? 'none' : 'block'
-      el.style.pointerEvents = op > 0.85 ? 'auto' : 'none'
-      el.style.setProperty('--ts', `${titlePx(w)}px`)
-      el.style.setProperty('--ss', `${sumPx(w)}px`)
+      el.style.pointerEvents = base > 0.85 ? 'auto' : 'none'
+      el.style.setProperty('--ts', `${titlePx(cardW)}px`)
+      el.style.setProperty('--ss', `${sumPx(cardW)}px`)
     }
 
     if (gridRef.current) {
@@ -349,7 +403,7 @@ export function GridExperience({ projects }: GridExperienceProps) {
     paint(colsRef.current)
   })
 
-  // ── 릴리스/클릭 시 정수 정착 트윈 (§2-5) ──
+  // ── 릴리스/클릭 시 정수 정착 트윈 (§1-4) ──
   const rafRef = useRef(0)
   const animateTo = useCallback((target: number) => {
     cancelAnimationFrame(rafRef.current)
@@ -385,16 +439,20 @@ export function GridExperience({ projects }: GridExperienceProps) {
     }
   }, [maxCols])
 
-  // ── 드래그 ──
+  // ── 드래그 ── 레일 좌표계(양단 ICON_W/2 인셋) = 스냅 아이콘 중심 좌표계
   const draggingRef = useRef(false)
   const posFromEvent = (clientX: number) => {
     const el = trackRef.current
     if (!el) return 0
     const rect = el.getBoundingClientRect()
-    return rect.width > 0 ? clamp((clientX - rect.left) / rect.width, 0, 1) : 0
+    const railW = rect.width - ICON_W
+    if (railW <= 0) return 0
+    return clamp((clientX - rect.left - ICON_W / 2) / railW, 0, 1)
   }
   const onTrackDown = (e: React.PointerEvent<HTMLDivElement>) => {
     cancelAnimationFrame(rafRef.current)
+    if (flowTimer.current) { clearTimeout(flowTimer.current); flowTimer.current = null }
+    setFlow(false)
     draggingRef.current = true
     e.currentTarget.setPointerCapture(e.pointerId)
     const v = posToCols(posFromEvent(e.clientX))
@@ -431,6 +489,9 @@ export function GridExperience({ projects }: GridExperienceProps) {
         해당 파일은 수정 금지 대상) 흰 배경 위에서 흰 글자가 된다. 이 라우트에서만 색을 덮는다.
       */}
       <style>{`
+        /* 전환 중 새 열 카드는 콘텐츠 우측 밖에서 대기한다 — 잘라내되 가로 스크롤은 금지 (§1-2) */
+        html, body { overflow-x: hidden; }
+        .gm-stage { overflow-x: clip; }
         .gm-card {
           position: absolute;
           top: 0;
@@ -441,6 +502,12 @@ export function GridExperience({ projects }: GridExperienceProps) {
           text-decoration: none;
           cursor: pointer;
           will-change: transform, width, opacity;
+        }
+        /* 필터 재정렬 구간에만 켠다 — 드래그 중에는 매 프레임 좌표를 직접 쓰므로 꺼둔다 (§4) */
+        .gm-flow .gm-card {
+          transition: transform ${FLOW_MS - 40}ms cubic-bezier(0.22, 0.61, 0.36, 1),
+                      width ${FLOW_MS - 40}ms cubic-bezier(0.22, 0.61, 0.36, 1),
+                      opacity 280ms ease;
         }
         .gm-frame {
           width: 100%;
@@ -459,12 +526,12 @@ export function GridExperience({ projects }: GridExperienceProps) {
           font-weight: 450;
           line-height: ${TITLE_LH};
           word-break: keep-all;
-          display: -webkit-box;
-          -webkit-line-clamp: ${TITLE_LINES};
-          -webkit-box-orient: vertical;
+          white-space: nowrap;
           overflow: hidden;
+          text-overflow: ellipsis;
           height: calc(var(--ts, 13px) * ${TITLE_LH * TITLE_LINES});
         }
+        /* 요약은 타이틀 바로 아래(${SUM_MT}px). 높이를 예약해 호버 시 reflow가 없다 (§5) */
         .gm-sum {
           margin-top: ${SUM_MT}px;
           font-size: var(--ss, 11px);
@@ -499,7 +566,7 @@ export function GridExperience({ projects }: GridExperienceProps) {
           {FILTER_TYPES.map(t => (
             <button
               key={t}
-              onClick={() => setActiveFilter(t)}
+              onClick={() => { if (t !== activeFilter) { startFlow(); setActiveFilter(t) } }}
               style={{
                 background: 'none',
                 border: 'none',
@@ -559,9 +626,13 @@ export function GridExperience({ projects }: GridExperienceProps) {
       </div>
 
       {/* ── GRID — 절대좌표. height는 paint가 t에 맞춰 연속 갱신 ── */}
-      <div ref={gridRef} style={{ position: 'relative', width: '100%' }}>
+      <div
+        ref={gridRef}
+        className={`gm-stage${flow ? ' gm-flow' : ''}`}
+        style={{ position: 'relative', width: '100%' }}
+      >
         {instances.map(inst => {
-          const project = filteredProjects[inst.idx]
+          const project = projects[order[inst.pos]]
           if (!project) return null
           const award = project.awards?.find(a => a.visible !== false)?.title
           const hotspot = project.coverHotspot
@@ -592,7 +663,7 @@ export function GridExperience({ projects }: GridExperienceProps) {
                 )}
               </div>
 
-              {/* 하단 텍스트 — 타이틀 상시, 호버 요약은 전 구간 노출(높이 예약으로 reflow 없음) */}
+              {/* 하단 텍스트 — 타이틀 상시, 요약은 호버 시 타이틀 바로 아래에 페이드인 */}
               <div className="gm-meta">
                 <div className="gm-title">{project.title.en}</div>
                 <div className="gm-sum">
@@ -610,7 +681,7 @@ export function GridExperience({ projects }: GridExperienceProps) {
         })}
       </div>
 
-      {/* ── DENSITY BAR — 하단 전용 컴팩트 바. width: min(440px, 64vw) 고정 (§4) ── */}
+      {/* ── DENSITY BAR — 하단 전용 컴팩트 바. width: min(440px, 64vw) 고정 (§6) ── */}
       <div style={{
         position: 'fixed',
         bottom: 24,
@@ -637,7 +708,12 @@ export function GridExperience({ projects }: GridExperienceProps) {
           Density
         </span>
 
-        {/* 트랙 — knob·fill·스냅 아이콘이 모두 이 요소의 폭을 좌표계로 쓴다 (§4 정렬 수정) */}
+        {/*
+          트랙 — 바 폭을 늘리지 않고, 스냅 아이콘이 트랙 안에 완전히 들어오도록 좌표계를
+          레일(양단 ICON_W/2 인셋)로 통일한다. 아이콘은 폭 ICON_W 박스를 left:
+          calc(pos * (100% - ICON_W))로 놓아 첫 아이콘 좌변 = 트랙 좌단, 마지막 아이콘
+          우변 = 트랙 우단이 되고, 그 중심은 레일의 pos와 정확히 일치한다 (§6, §7).
+        */}
         <div
           ref={trackRef}
           onPointerDown={onTrackDown}
@@ -653,23 +729,32 @@ export function GridExperience({ projects }: GridExperienceProps) {
             touchAction: 'none',
           }}
         >
+          {/* 레일 — fill·knob의 % 기준. 아이콘 중심 좌표계와 동일 */}
           <div style={{
-            position: 'absolute', top: 6, left: 0, right: 0, height: 2,
-            background: 'rgba(255,255,255,0.18)',
-          }} />
-          <div ref={fillRef} style={{
-            position: 'absolute', top: 6, left: 0, width: '0%', height: 2,
-            background: 'rgba(255,255,255,0.6)',
-          }} />
-          <div ref={knobRef} style={{
-            position: 'absolute', top: 1, left: '0%',
-            transform: 'translateX(-50%)',
-            width: 12, height: 12, borderRadius: '50%',
-            background: '#FFFFFF',
+            position: 'absolute',
+            left: ICON_W / 2,
+            right: ICON_W / 2,
+            top: 0,
+            height: 16,
             pointerEvents: 'none',
-          }} />
+          }}>
+            <div style={{
+              position: 'absolute', top: 6, left: 0, right: 0, height: 2,
+              background: 'rgba(255,255,255,0.18)',
+            }} />
+            <div ref={fillRef} style={{
+              position: 'absolute', top: 6, left: 0, width: '0%', height: 2,
+              background: 'rgba(255,255,255,0.6)',
+            }} />
+            <div ref={knobRef} style={{
+              position: 'absolute', top: 1, left: '0%',
+              transform: 'translateX(-50%)',
+              width: 12, height: 12, borderRadius: '50%',
+              background: '#FFFFFF',
+            }} />
+          </div>
 
-          {/* 스냅 아이콘 — knob과 동일한 colsToPos(트랙 폭 기준). 첫/마지막 중심 = 트랙 좌/우 끝 */}
+          {/* 스냅 아이콘 — 박스만(숫자 없음). 트랙 안에 정렬 */}
           {snapCols.map(c => {
             const active = c === nLabel
             return (
@@ -679,9 +764,10 @@ export function GridExperience({ projects }: GridExperienceProps) {
                 style={{
                   position: 'absolute',
                   top: 18,
-                  left: `${colsToPos(c) * 100}%`,
-                  transform: 'translateX(-50%)',
+                  left: `calc(${colsToPos(c)} * (100% - ${ICON_W}px))`,
+                  width: ICON_W,
                   display: 'flex',
+                  justifyContent: 'center',
                   gap: 2,
                   cursor: 'pointer',
                 }}
