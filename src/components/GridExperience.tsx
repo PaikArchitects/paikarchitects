@@ -15,10 +15,12 @@
 //      x = originX + A*(wA+GAP) 이므로 콘텐츠 우측 경계 밖이고 opacity 0이다. t가 커지며
 //      전체 폭이 줄어들면 그 자리가 화면 안으로 들어오고 opacity가 0→1로 드러난다.
 //      즉 "이동해 들어오는" 게 아니라 "화면이 그 자리를 품게" 된다(§1-2).
-//   4) 보이던 카드는 A의 (row,col)을 유지한다 — 행 이동 없음. 이를 구조적으로 보장하려고
-//      정수 레이아웃 L(n)을 deriveUp 한 규칙으로만 파생한다(§1-3). L(n+1)은 L(n)의 상위
-//      ceil(N/(n+1))개 행을 (row,col) 그대로 보존하고, 새로 생긴 열과 기존 빈 슬롯만
-//      L(n) 하단 잔여 카드(=대기 카드)로 채운다. 대기 카드 순서는 careerNo를 따르지 않는다(§1-3).
+//   4) **정수 열 상태의 레이아웃은 순수 i순 행우선 격자다** — row=floor(i/n), col=i%n.
+//      어떤 n에서도 total개가 전부 배치되고, 빈 슬롯은 마지막 행의 나머지(total%n)뿐이다.
+//      (구버전은 L(n)→L(n+1) 파생 규칙(deriveUp)으로 "보이던 카드 위치 고정"을 노렸으나,
+//       파생 잔여 카드 수가 신규 슬롯 수와 맞지 않아 중간 행에 구멍이 남았다 — §0-3의 재발.
+//       위치 고정 불변식보다 "빈틈없는 격자"가 우선이므로 파생 모델은 폐기했다.)
+//      A와 B에서 (row,col)이 같은 카드는 stay로 고정되고, 달라지는 카드만 교차 페이드한다.
 //   5) 렌더는 CSS Grid가 아니라 절대좌표(position:absolute + transform translate, px 전용).
 //      좌우 오버플로는 overflow-x로 잘라 가로 스크롤을 만들지 않는다(§1-2).
 //
@@ -42,7 +44,6 @@ const CARD_RATIO = 4 / 3        // 카드 프레임 비율 — 원본 비율과 
 const SLIDE_H_RATIO = 0.72      // ContentArea 히어로 높이 비율 — 1열 폭 공식 (§6)
 const MIN_COLS = 1              // 하한. 실물 판단 후 1→3 변경은 이 한 줄만 바꾼다 (§6)
 const MAX_COLS = 6              // 절대 상한 (뷰포트 종횡비가 실제 상한을 더 낮출 수 있다)
-const BASE_COLS = 3             // 레이아웃 파생 기저 — 이 열에서 카드가 careerNo 순 행우선 배열
 const DEFAULT_COLS = 3
 const COVER_FALLBACK = '#1E1C18'
 const AWARD_GOLD = '#b89773'
@@ -96,79 +97,22 @@ function rowMajor(order: number[], cols: number): Layout {
 }
 
 /**
- * n열 → n+1열. 상위 ceil(total/(n+1))개 행의 기존 카드는 (row,col)을 그대로 보존하고,
- * 새로 생긴 마지막 열과(있다면) 기존 빈 슬롯만 하단 잔여 카드(=대기 카드)로 위에서부터
- * 순서대로 채운다 (§1-3).
- *
- * 빈 슬롯까지 채우는 이유: 신규 열만 채우면 수용량이 `보존행 카드 수 + 행 수`로 제한돼
- * 카드가 배치되지 못하고 유실된다(6열 대부분이 빈칸이던 §0-3의 표면 원인). 총량
- * rows×(n+1)로 채우면 어느 열 수에서도 30개가 전부 배치된다. 빈 슬롯은 A에서도 비어
- * 있던 자리이므로 "보이던 카드는 이동하지 않는다"는 불변식은 유지된다 — 새 카드가
- * 빈자리에 페이드인할 뿐이다.
- *
- * 이 규칙이 위치 고정의 유일한 근거이므로 다른 경로로 레이아웃을 만들지 않는다.
- */
-function deriveUp(prev: Layout, n: number, total: number): Layout {
-  const rows = Math.max(1, Math.ceil(total / (n + 1)))
-  const next: Layout = []
-  for (let r = 0; r < rows; r++) {
-    const src = prev[r] ?? []
-    const row: (number | null)[] = []
-    for (let c = 0; c < n; c++) row.push(src[c] ?? null)
-    row.push(null)                                   // 새로 열리는 열
-    next.push(row)
-  }
-  const pool: number[] = []
-  for (let r = rows; r < prev.length; r++) {
-    for (const v of prev[r]) if (v !== null) pool.push(v)
-  }
-  let k = 0
-  for (let r = 0; r < rows && k < pool.length; r++) {
-    for (let c = 0; c <= n && k < pool.length; c++) {
-      if (next[r][c] === null) next[r][c] = pool[k++]
-    }
-  }
-  return next
-}
-
-/** deriveUp의 역 — 마지막 열을 떼어 하단 신규 행으로 되돌린다. 기저 순서 산출에만 쓴다. */
-function deriveDown(prev: Layout, n: number): Layout {
-  const nn = n - 1
-  const out: Layout = prev.map(r => r.slice(0, nn))
-  const tail: number[] = []
-  for (const r of prev) {
-    const v = r[nn]
-    if (v !== null && v !== undefined) tail.push(v)
-  }
-  for (let i = 0; i < tail.length; i += nn) {
-    const row: (number | null)[] = []
-    for (let c = 0; c < nn; c++) row.push(i + c < tail.length ? tail[i + c] : null)
-    out.push(row)
-  }
-  return out
-}
-
-/**
  * MIN_COLS..MAX_COLS 전 레이아웃을 만든다.
- * 1) BASE_COLS(3열) 행우선 배열을 MIN_COLS까지 역파생해 기저 순서(seed)를 얻는다.
- * 2) seed에서 deriveUp만으로 상향 파생한다 → 인접 열 간 (row,col) 보존이 전 구간 성립하고,
- *    카드 수가 열 수로 정확히 나뉘는 일반 경우 BASE_COLS는 행우선 순서로 복원된다.
- * 어느 n에서도 행 수는 ceil(total/n), 배치 카드 수는 total이다(30개 전부 배치, §3).
+ *
+ * 정수 열 상태는 예외 없이 순수 i순 행우선 격자다 — row=floor(i/n), col=i%n.
+ * total은 실제 카드 수(가변, 필터와 무관하게 항상 전량)이며 어디에도 하드코딩하지 않는다.
+ *
+ * 불변식 (임의의 n, 임의의 total):
+ *   · 배치 카드 수 == total (누락 0)
+ *   · 행 수 == ceil(total/n)
+ *   · 마지막 행을 제외한 모든 행은 n칸이 꽉 참 (중간행 빈 슬롯 0)
+ *   · 마지막 행 = total%n (0이면 n)칸 — 나머지만큼만 차는 것은 정상
+ * rowMajor가 정확히 이 규칙이므로 다른 경로로 레이아웃을 만들지 않는다.
  */
 function buildLayouts(total: number): Record<number, Layout> {
   const out: Record<number, Layout> = {}
-  if (total <= 0) {
-    for (let n = MIN_COLS; n <= MAX_COLS; n++) out[n] = []
-    return out
-  }
-  const seq = Array.from({ length: total }, (_, i) => i)
-  let seedLayout = rowMajor(seq, Math.max(BASE_COLS, MIN_COLS))
-  for (let n = Math.max(BASE_COLS, MIN_COLS); n > MIN_COLS; n--) seedLayout = deriveDown(seedLayout, n)
-  const seed: number[] = []
-  for (const row of seedLayout) for (const v of row) if (v !== null) seed.push(v)
-
-  out[MIN_COLS] = rowMajor(seed, MIN_COLS)
-  for (let n = MIN_COLS; n < MAX_COLS; n++) out[n + 1] = deriveUp(out[n], n, total)
+  const seq = Array.from({ length: Math.max(0, total) }, (_, i) => i)
+  for (let n = MIN_COLS; n <= MAX_COLS; n++) out[n] = rowMajor(seq, n)
   return out
 }
 
@@ -220,7 +164,7 @@ export function GridExperience({ projects }: GridExperienceProps) {
   )], [projects])
   const [activeFilter, setActiveFilter] = useState('All')
 
-  /** order: 배치 위치 → projects 인덱스. 해당 카드가 앞, 비해당이 뒤. 전체 30개 유지 */
+  /** order: 배치 위치 → projects 인덱스. 해당 카드가 앞, 비해당이 뒤. 항상 total개 전량 유지 */
   const { order, dimSet } = useMemo(() => {
     if (activeFilter === 'All') {
       return {
@@ -357,12 +301,16 @@ export function GridExperience({ projects }: GridExperienceProps) {
     const wPx = Math.round(cardW)                      // 정수화 → 전 카드 clientWidth 완전 동일
     const fadeIn = clamp((t - FADE_LAG) / FADE_SPAN, 0, 1)
 
-    // 대기 열(col≥a)의 t=0 시작점을 콘텐츠 우측 경계 밖으로 보정한다. 보정량은 t=0
+    // 전환 중(0<t<1)에만 켜지는 구간. 정수 정착(t=0 또는 1)에서는 대기열 보정이 완전히
+    // 꺼지고, 보이는 카드는 해당 정수 레이아웃의 순수 i순 격자 좌표 그대로다.
+    const transitioning = t > 1e-4 && t < 1 - 1e-4
+
+    // 대기 열(col≥a)의 t≈0 시작점을 콘텐츠 우측 경계 밖으로 보정한다. 보정량은 t=0
     // 기하(wA)만으로 정해 (1-t)로 감쇠시킨다 — a열이 콘텐츠 폭을 꽉 채우는 일반 구간
     // (a≥2)에서는 값이 항상 0이므로 "이동 없이 드러난다"가 그대로 유지되고, 1열처럼
     // 히어로 폭이 중앙정렬돼 좌우 여백이 남는 구간에서만 그 여백만큼 밀어낸다.
     const slack0 = Math.max(0, UI_PAD + full - (originAt(a, wA) + a * (wA + GAP)))
-    const enterShift = (1 - t) * slack0
+    const enterShift = transitioning ? (1 - t) * slack0 : 0
 
     for (const inst of cur.list) {
       const el = cardEls.current.get(inst.key)
@@ -386,6 +334,8 @@ export function GridExperience({ projects }: GridExperienceProps) {
     }
 
     if (gridRef.current) {
+      // 행 수는 곧 ceil(total/n) — 레이아웃이 순수 행우선 격자이므로 length가 그 값이다.
+      // 전환 중에는 두 정수 높이를 t로 보간한다. 말미 GAP은 pitch에 포함돼 있어 한 번 뺀다.
       const rowsA = (layouts[a] ?? []).length
       const rowsB = (layouts[b] ?? []).length
       const h = pitch * lerp(rowsA, rowsB, t) - GAP
