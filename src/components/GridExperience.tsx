@@ -4,25 +4,24 @@
 //
 // 링월(/work)·랜딩(/)·ContentArea를 일절 건드리지 않는 완전 독립 라우트(/work-grid)의 루트.
 //
-// V3의 핵심은 밀도 전환 모델의 재정의다. V2는 "기존 열은 폭 수렴 / 새 열은 폭 0→wB로 열림"
-// 이었고, 그 결과 전환 중 새 카드만 작게 시작해 커지는 결함이 있었다(§0-1).
+// 밀도 전환 모델 — **plomp식 연속 리플로우** (GRID_FIX_reflow_content §2).
 //
-// V3 모델 — "모든 카드 항상 동일 크기 + 화면 밖 대기":
-//   1) 전환은 정수 열 A→B(=A+1) 사이 보간이다. 진행도 t(0=A, 1=B).
-//   2) **카드 폭은 전 카드가 공유하는 단일 값** cardW(t)=lerp(wA, wB, t). 예외 없음.
-//      새 열 카드도 같은 폭이다. 높이는 cardW/(4/3), 간격은 항상 GAP.
-//   3) 새로 생기는 열(col≥A) 카드는 처음부터 그 자리에 같은 크기로 존재한다. t=0에서
-//      x = originX + A*(wA+GAP) 이므로 콘텐츠 우측 경계 밖이고 opacity 0이다. t가 커지며
-//      전체 폭이 줄어들면 그 자리가 화면 안으로 들어오고 opacity가 0→1로 드러난다.
-//      즉 "이동해 들어오는" 게 아니라 "화면이 그 자리를 품게" 된다(§1-2).
-//   4) **정수 열 상태의 레이아웃은 순수 i순 행우선 격자다** — row=floor(i/n), col=i%n.
-//      어떤 n에서도 total개가 전부 배치되고, 빈 슬롯은 마지막 행의 나머지(total%n)뿐이다.
-//      (구버전은 L(n)→L(n+1) 파생 규칙(deriveUp)으로 "보이던 카드 위치 고정"을 노렸으나,
-//       파생 잔여 카드 수가 신규 슬롯 수와 맞지 않아 중간 행에 구멍이 남았다 — §0-3의 재발.
-//       위치 고정 불변식보다 "빈틈없는 격자"가 우선이므로 파생 모델은 폐기했다.)
-//      A와 B에서 (row,col)이 같은 카드는 stay로 고정되고, 달라지는 카드만 교차 페이드한다.
+// 폐기된 모델(정수 A·B 격자 매칭 + stay/in/out 교차 페이드)은 열 수가 바뀌면 같은 order
+// 인덱스라도 (row,col)이 달라져 out+in으로 분리됐고, 그 결과 드래그 중 보이는 카드가 뒤로
+// 밀리거나 다른 프로젝트로 교체되는 결함이 있었다(결함 1).
+//
+// 현재 모델 — "순서 고정, 크기만 연속 변형":
+//   1) 열 수 n은 분수를 그대로 쓴다. 정수 스냅은 라벨·릴리스 트윈의 목표값일 뿐이다.
+//   2) 카드 하나당 DOM 하나. key는 프로젝트 id 고정이라 어떤 n에서도 재사용된다.
+//      order 인덱스(pos)가 곧 배치 순서이며 **절대 바뀌지 않는다**.
+//   3) 좌표는 wrap으로 구한다. 카드의 "흐름 거리" flow = pos * stride(=cardW+GAP)를
+//      한 행이 담는 흐름 폭 rowWidth로 감는다:
+//         row = floor(flow / rowWidth),  x = originX + (flow - row*rowWidth),  y = row*pitch
+//      n이 연속 변하면 stride·rowWidth가 연속 변하므로 (x,y)도 매 프레임 연속 이동한다.
+//      카드가 행 끝에서 다음 행으로 넘어가는 지점만 n에 따라 이동한다 = 슬롯이 연속으로 열림.
+//   4) 카드 프레임은 항상 4:3. 폭만 균등 축소·확대되고 높이는 cardW/(4/3)로 따라간다.
 //   5) 렌더는 CSS Grid가 아니라 절대좌표(position:absolute + transform translate, px 전용).
-//      좌우 오버플로는 overflow-x로 잘라 가로 스크롤을 만들지 않는다(§1-2).
+//      좌우 오버플로는 overflow-x로 잘라 가로 스크롤을 만들지 않는다.
 //
 // 필터는 카드를 숨기지 않는다. 해당 카드를 좌상단부터 앞쪽에, 비해당 카드를 그 뒤에 이어
 // 배치해 그리드를 항상 꽉 채우고, 비해당만 opacity를 낮춘다(§4).
@@ -52,8 +51,6 @@ const AWARD_GOLD = '#b89773'
 const HEADER_H = 80             // 전역 헤더(워드마크·nav) 존 회피 상단 여백
 const BAR_RESERVE = 120         // 하단 플로팅 밀도바 회피 여백
 const TWEEN_MS = 420            // 릴리스 후 정수 정착 트윈 (§1-4)
-const FADE_LAG = 0.15           // 새 열 카드 페이드 지연 — clamp((t-0.15)/0.7) (§1-2)
-const FADE_SPAN = 0.7
 const DIM_OPACITY = 0.15        // 필터 비해당 카드 (§4)
 const FLOW_MS = 560             // 필터 재정렬 트랜지션 지속 — 이 시간만 transition 활성
 const ICON_W = 34               // 스냅 아이콘 고정 폭 — 트랙 좌표계의 양단 인셋 기준 (§6)
@@ -71,7 +68,6 @@ const SUM_MT = 5                // 타이틀 ↔ 요약 (§5: 4~6px)
 const SUM_LH = 1.5
 
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v))
-const lerp = (a: number, b: number, t: number) => a + (b - a) * t
 
 const titlePx = (w: number) => clamp(w * 0.030, 10, 13)
 const sumPx = (w: number) => clamp(w * 0.024, 8.5, 11)
@@ -84,76 +80,6 @@ function maxColsForAspect(r: number): number {
   if (r < 0.85) return 2        // portrait
   if (r < 1.25) return 4        // ~square
   return 6                      // landscape
-}
-
-// ── 정수 열 레이아웃 ─────────────────────────────────────────────────────────
-// Layout = 행 × 열 격자. 값은 order 인덱스(=배치 위치), 빈 슬롯은 null.
-
-type Layout = (number | null)[][]
-
-function rowMajor(order: number[], cols: number): Layout {
-  const rows: Layout = []
-  for (let i = 0; i < order.length; i += cols) {
-    const row: (number | null)[] = []
-    for (let c = 0; c < cols; c++) row.push(i + c < order.length ? order[i + c] : null)
-    rows.push(row)
-  }
-  return rows
-}
-
-/**
- * MIN_COLS..MAX_COLS 전 레이아웃을 만든다.
- *
- * 정수 열 상태는 예외 없이 순수 i순 행우선 격자다 — row=floor(i/n), col=i%n.
- * total은 실제 카드 수(가변, 필터와 무관하게 항상 전량)이며 어디에도 하드코딩하지 않는다.
- *
- * 불변식 (임의의 n, 임의의 total):
- *   · 배치 카드 수 == total (누락 0)
- *   · 행 수 == ceil(total/n)
- *   · 마지막 행을 제외한 모든 행은 n칸이 꽉 참 (중간행 빈 슬롯 0)
- *   · 마지막 행 = total%n (0이면 n)칸 — 나머지만큼만 차는 것은 정상
- * rowMajor가 정확히 이 규칙이므로 다른 경로로 레이아웃을 만들지 않는다.
- */
-function buildLayouts(total: number): Record<number, Layout> {
-  const out: Record<number, Layout> = {}
-  const seq = Array.from({ length: Math.max(0, total) }, (_, i) => i)
-  for (let n = MIN_COLS; n <= MAX_COLS; n++) out[n] = rowMajor(seq, n)
-  return out
-}
-
-interface Slot { row: number; col: number }
-
-function slotMap(l: Layout): Map<number, Slot> {
-  const m = new Map<number, Slot>()
-  l.forEach((row, r) => row.forEach((v, c) => { if (v !== null) m.set(v, { row: r, col: c }) }))
-  return m
-}
-
-// ── 전환 인스턴스 ────────────────────────────────────────────────────────────
-// stay : A·B에서 (row,col) 동일 — 위치 고정, opacity 1. 폭은 공통 cardW(t)
-// in   : B의 자리(주로 새 열 col≥A) — t=0에 화면 밖 + opacity 0, 페이드인 (§1-2)
-// out  : A에만 있던 자리(하단 잔여행) — 그 자리에서 opacity 1→0
-//        같은 카드의 in/out은 서로 다른 자리의 교차 페이드이므로 어떤 카드도 날아다니지 않는다.
-type InstKind = 'stay' | 'out' | 'in'
-interface Inst {
-  key: string           // 프로젝트 id 기반 — 필터 재정렬 시 DOM을 유지해 transform 트랜지션이 걸린다
-  pos: number           // order 인덱스
-  row: number
-  col: number
-  kind: InstKind
-  dim: boolean          // 필터 비해당 (§4)
-}
-
-/** 드래그·트윈 중의 분수 cols → 보간 구간 (A=정수 하한, B=A+1, t=진행도) (§1-4) */
-function pairFor(cols: number, maxCols: number) {
-  const hi = Math.max(MIN_COLS, maxCols)
-  const c = clamp(cols, MIN_COLS, hi)
-  let a = Math.floor(c + 1e-6)
-  if (a >= hi) a = hi - 1
-  a = Math.max(MIN_COLS, a)
-  const b = Math.min(hi, a + 1)
-  const t = b === a ? 1 : clamp(c - a, 0, 1)
-  return { a, b, t }
 }
 
 interface GridExperienceProps {
@@ -206,18 +132,11 @@ export function GridExperience({ projects }: GridExperienceProps) {
   const ready = vp.w > 0 && vp.h > 0
   const maxCols = ready ? maxColsForAspect(vp.w / vp.h) : MAX_COLS
 
-  // ── 레이아웃 테이블 — 카드 수는 필터와 무관하게 항상 total이므로 1회 계산 ──
-  const layouts = useMemo(() => buildLayouts(total), [total])
-
   // ── 밀도 상태 ──
-  // cols(분수)는 매 프레임 갱신되므로 ref가 정본이다. React state는 인스턴스 목록(pair)과
-  // 라벨(nLabel)처럼 프레임 단위로 바뀌지 않는 것만 보유한다.
+  // cols(분수)는 매 프레임 갱신되므로 ref가 정본이다. React state는 라벨(nLabel)처럼
+  // 프레임 단위로 바뀌지 않는 것만 보유한다 — 렌더는 order를 직접 map하므로 인스턴스
+  // 목록이나 보간 구간(pair) 같은 파생 state가 없다.
   const colsRef = useRef<number>(clamp(DEFAULT_COLS, MIN_COLS, MAX_COLS))
-  const [pair, setPair] = useState(() => {
-    const p = pairFor(clamp(DEFAULT_COLS, MIN_COLS, MAX_COLS), MAX_COLS)
-    return { a: p.a, b: p.b }
-  })
-  const pairRef = useRef(pair)
   const [nLabel, setNLabel] = useState(clamp(DEFAULT_COLS, MIN_COLS, MAX_COLS))
   const nLabelRef = useRef(nLabel)
 
@@ -231,137 +150,86 @@ export function GridExperience({ projects }: GridExperienceProps) {
   }, [])
   useEffect(() => () => { if (flowTimer.current) clearTimeout(flowTimer.current) }, [])
 
-  // ── 인스턴스 목록 — 현재 보간 구간(A,B)에서만 유효 ──
-  const instances = useMemo<Inst[]>(() => {
-    const la = layouts[pair.a] ?? []
-    const lb = layouts[pair.b] ?? []
-    const sa = slotMap(la)
-    const sb = slotMap(lb)
-    const list: Inst[] = []
-    for (let pos = 0; pos < total; pos++) {
-      const project = projects[order[pos]]
-      if (!project) continue
-      const dim = dimSet.has(order[pos])
-      const A = sa.get(pos)
-      const B = sb.get(pos)
-      // key는 프로젝트 id 기반 — 필터 재정렬 시 같은 DOM이 새 좌표로 트랜지션한다.
-      // 'in'과 'stay'가 같은 접미사('-p')를 쓰므로 정수 경계를 넘을 때도 DOM이 재사용된다.
-      if (A && B) {
-        if (A.row === B.row && A.col === B.col) {
-          list.push({ key: `${project.id}-p`, pos, row: A.row, col: A.col, kind: 'stay', dim })
-        } else {
-          list.push({ key: `${project.id}-o`, pos, row: A.row, col: A.col, kind: 'out', dim })
-          list.push({ key: `${project.id}-p`, pos, row: B.row, col: B.col, kind: 'in', dim })
-        }
-      } else if (B) {
-        list.push({ key: `${project.id}-p`, pos, row: B.row, col: B.col, kind: 'in', dim })
-      } else if (A) {
-        list.push({ key: `${project.id}-o`, pos, row: A.row, col: A.col, kind: 'out', dim })
-      }
-    }
-    return list
-  }, [dimSet, layouts, order, pair, projects, total])
-
   // ── DOM 참조 ──
   const cardEls = useRef(new Map<string, HTMLElement>())
   const gridRef = useRef<HTMLDivElement>(null)
   const fillRef = useRef<HTMLDivElement>(null)
   const knobRef = useRef<HTMLDivElement>(null)
   const trackRef = useRef<HTMLDivElement>(null)
-  const instRef = useRef<{ a: number; b: number; list: Inst[] }>({ a: pair.a, b: pair.b, list: [] })
 
   const span = Math.max(1, maxCols - MIN_COLS)
   // knob·fill·스냅 아이콘이 공유하는 유일한 좌표 함수. 기준은 트랙의 레일 폭이다 (§6)
   const colsToPos = useCallback((c: number) => clamp((c - MIN_COLS) / span, 0, 1), [span])
   const posToCols = useCallback((pos: number) => MIN_COLS + clamp(pos, 0, 1) * span, [span])
 
-  // ── 매 프레임 페인트 — 절대좌표 px 전용 (퍼센트 금지, Safari 대비) ──
+  // ── 매 프레임 페인트 — 절대좌표 px 정수 전용 (transform 퍼센트 금지, Safari 대비) ──
+  // 연속 wrap 산식(§2-3). 카드 DOM은 order 인덱스 하나당 하나이고 항상 존재하므로
+  // 교차 페이드도, 인스턴스 목록도 없다.
   const paint = useCallback((cols: number) => {
-    const { a, b, t } = pairFor(cols, maxCols)
-
-    // 보간 구간이 바뀌면 인스턴스 목록을 갱신해야 한다 → state 반영 후 재렌더 시 페인트
-    if (a !== pairRef.current.a || b !== pairRef.current.b) {
-      pairRef.current = { a, b }
-      setPair({ a, b })
-    }
-    const nr = clamp(Math.round(cols), MIN_COLS, maxCols)
+    const n = clamp(cols, MIN_COLS, maxCols)              // 연속(분수) 열 수
+    const nr = clamp(Math.round(n), MIN_COLS, maxCols)    // 라벨·스냅용 정수
     if (nr !== nLabelRef.current) {
       nLabelRef.current = nr
       setNLabel(nr)
     }
 
-    // 슬라이더 크롬 — 아이콘과 동일한 레일 좌표계 (fill·knob은 레일 안의 % )
-    const pos = colsToPos(cols) * 100
+    // 슬라이더 크롬 — 아이콘과 동일한 레일 좌표계 (fill·knob은 레일 안의 %)
+    const pos = colsToPos(n) * 100
     if (fillRef.current) fillRef.current.style.width = `${pos}%`
     if (knobRef.current) knobRef.current.style.left = `${pos}%`
 
     if (!ready) return
-    const cur = instRef.current
-    if (cur.a !== a || cur.b !== b) return   // 목록이 아직 이 구간이 아님 — 재렌더 후 페인트
 
     const full = Math.max(1, vp.w - UI_PAD * 2)
+    // 1열은 히어로 폭 상한, 그 외는 연속 축소. 폭은 n의 연속 함수다.
     const heroW = Math.min(full, CARD_RATIO * vp.h * SLIDE_H_RATIO)   // 1열 = 히어로 폭 (§6)
-    const widthAt = (n: number) => (n <= 1 ? heroW : Math.max(1, (full - GAP * (n - 1)) / n))
-    /** n열이 콘텐츠 폭 안에서 중앙정렬될 때의 좌측 원점 */
-    const originAt = (n: number, w: number) => UI_PAD + (full - (n * w + (n - 1) * GAP)) / 2
+    const cardW = n <= 1 ? heroW : Math.max(1, (full - GAP * (n - 1)) / n)
+    const cardH = cardW / CARD_RATIO
+    const pitch = cardH + metaH(cardW) + GAP
+    const rowWidth = n * cardW + (n - 1) * GAP    // 한 행이 담는 흐름 폭 (분수 n 허용)
+    const stride = cardW + GAP                    // 카드 하나의 흐름 간격
+    // n열이 콘텐츠 폭 안에서 중앙정렬될 때의 좌측 원점
+    const originX = UI_PAD + (full - rowWidth) / 2
+    const wPx = Math.round(cardW)                 // 정수화 → 전 카드 clientWidth 완전 동일
 
-    const wA = widthAt(a)
-    const wB = widthAt(b)
-    // ★ 전 카드 공유 단일 폭. 새 카드도 예외 없이 이 값이다 (§1-2)
-    const cardW = lerp(wA, wB, t)
-    const originX = lerp(originAt(a, wA), originAt(b, wB), t)
-    const pitch = cardW / CARD_RATIO + metaH(cardW) + GAP
-    const wPx = Math.round(cardW)                      // 정수화 → 전 카드 clientWidth 완전 동일
-    const fadeIn = clamp((t - FADE_LAG) / FADE_SPAN, 0, 1)
-
-    // 전환 중(0<t<1)에만 켜지는 구간. 정수 정착(t=0 또는 1)에서는 대기열 보정이 완전히
-    // 꺼지고, 보이는 카드는 해당 정수 레이아웃의 순수 i순 격자 좌표 그대로다.
-    const transitioning = t > 1e-4 && t < 1 - 1e-4
-
-    // 대기 열(col≥a)의 t≈0 시작점을 콘텐츠 우측 경계 밖으로 보정한다. 보정량은 t=0
-    // 기하(wA)만으로 정해 (1-t)로 감쇠시킨다 — a열이 콘텐츠 폭을 꽉 채우는 일반 구간
-    // (a≥2)에서는 값이 항상 0이므로 "이동 없이 드러난다"가 그대로 유지되고, 1열처럼
-    // 히어로 폭이 중앙정렬돼 좌우 여백이 남는 구간에서만 그 여백만큼 밀어낸다.
-    const slack0 = Math.max(0, UI_PAD + full - (originAt(a, wA) + a * (wA + GAP)))
-    const enterShift = transitioning ? (1 - t) * slack0 : 0
-
-    for (const inst of cur.list) {
-      const el = cardEls.current.get(inst.key)
+    let maxRow = 0
+    for (let p = 0; p < total; p++) {
+      const project = projects[order[p]]
+      if (!project) continue
+      const key = `${project.id}-c`
+      const el = cardEls.current.get(key)
       if (!el) continue
-      // 열 격자는 공통 cardW·GAP 하나로만 만든다. col≥a 카드는 t=0에서 콘텐츠 우측 경계
-      // 밖에 놓이고, 전체 축소에 따라 화면이 그 자리를 품으면서 들어온다.
-      const x = originX + inst.col * (cardW + GAP) + (inst.col >= a ? enterShift : 0)
-      const y = inst.row * pitch
-      const base = inst.kind === 'stay' ? 1 : inst.kind === 'in' ? fadeIn : 1 - t
-      const op = base * (inst.dim ? DIM_OPACITY : 1)
 
+      // ── plomp식 wrap: 흐름 거리 p*stride 를 rowWidth로 감는다 ──
+      // n이 연속 변하면 stride·rowWidth가 연속 변하므로 (x,y)가 매 프레임 부드럽게 이동하고,
+      // 순서(p)는 절대 바뀌지 않는다.
+      const flowDist = p * stride
+      const row = Math.floor(flowDist / rowWidth)
+      const x = originX + (flowDist - row * rowWidth)
+      const y = row * pitch
+      if (row > maxRow) maxRow = row
+
+      const dim = dimSet.has(order[p])
       el.style.transform = `translate(${Math.round(x)}px, ${Math.round(y)}px)`
       el.style.width = `${wPx}px`
-      el.style.opacity = `${op}`
-      // 완전 투명한 유령은 display로 빼야 한다 — absolute 요소라도 스크롤 범위에는
-      // 기여하므로, 남겨두면 최대 밀도에서 빈 스크롤 영역이 생긴다.
-      el.style.display = op <= 0.001 ? 'none' : 'block'
-      el.style.pointerEvents = base > 0.85 ? 'auto' : 'none'
+      el.style.opacity = `${dim ? DIM_OPACITY : 1}`
+      el.style.display = 'block'
+      el.style.pointerEvents = 'auto'
       el.style.setProperty('--ts', `${titlePx(cardW)}px`)
       el.style.setProperty('--ss', `${sumPx(cardW)}px`)
     }
 
     if (gridRef.current) {
-      // 행 수는 곧 ceil(total/n) — 레이아웃이 순수 행우선 격자이므로 length가 그 값이다.
-      // 전환 중에는 두 정수 높이를 t로 보간한다. 말미 GAP은 pitch에 포함돼 있어 한 번 뺀다.
-      const rowsA = (layouts[a] ?? []).length
-      const rowsB = (layouts[b] ?? []).length
-      const h = pitch * lerp(rowsA, rowsB, t) - GAP
-      gridRef.current.style.height = `${Math.max(0, h)}px`
+      // 말미 GAP은 pitch에 포함돼 있어 한 번 뺀다
+      gridRef.current.style.height = `${Math.max(0, (maxRow + 1) * pitch - GAP)}px`
     }
-  }, [colsToPos, layouts, maxCols, ready, vp.w, vp.h])
+  }, [colsToPos, dimSet, maxCols, order, projects, ready, total, vp.w, vp.h])
 
   // paint는 매 렌더 새로 만들어지므로 rAF·포인터 핸들러는 ref를 경유해 최신 것을 호출한다
   const paintRef = useRef(paint)
 
-  // 렌더 직후: 인스턴스 목록을 확정하고 즉시 페인트(필터·리사이즈·구간 변경 전부 여기서 수렴)
+  // 렌더 직후 즉시 페인트 — 필터 재정렬(order)·리사이즈(vp)·마운트가 전부 여기서 수렴한다
   useLayoutEffect(() => {
-    instRef.current = { a: pair.a, b: pair.b, list: instances }
     paintRef.current = paint
     paint(colsRef.current)
   })
@@ -617,38 +485,41 @@ export function GridExperience({ projects }: GridExperienceProps) {
         </div>
       </div>
 
-      {/* ── GRID — 절대좌표. height는 paint가 t에 맞춰 연속 갱신 ── */}
+      {/* ── GRID — 절대좌표. height는 paint가 wrap 결과(maxRow)에 맞춰 연속 갱신 ── */}
       <div
         ref={gridRef}
         className={`gm-stage${flow ? ' gm-flow' : ''}`}
         style={{ position: 'relative', width: '100%' }}
       >
-        {instances.map(inst => {
-          const project = projects[order[inst.pos]]
+        {/* 카드 DOM은 order 인덱스 하나당 하나. key는 프로젝트 id 고정이라 밀도가 바뀌어도
+            DOM이 재사용되고, 필터 재정렬 시에는 같은 DOM이 새 pos로 gm-flow 트랜지션을 탄다 */}
+        {order.map((projIdx) => {
+          const project = projects[projIdx]
           if (!project) return null
+          const key = `${project.id}-c`
           const award = project.awards?.find(a => a.visible !== false)?.title
           const hotspot = project.coverHotspot
           const objectPosition = hotspot ? `${hotspot.x * 100}% ${hotspot.y * 100}%` : 'center'
           return (
             <div
-              key={inst.key}
+              key={key}
               role="button"
               tabIndex={0}
               className="gm-card"
               aria-label={project.title.en}
               // ref 콜백 유지 — cardEls가 클릭 시 morph 시작 rect 획득에 필수다
               ref={(el: HTMLDivElement | null) => {
-                if (el) cardEls.current.set(inst.key, el)
-                else cardEls.current.delete(inst.key)
+                if (el) cardEls.current.set(key, el)
+                else cardEls.current.delete(key)
               }}
               onClick={() => {
-                const el = cardEls.current.get(inst.key)
+                const el = cardEls.current.get(key)
                 if (el) openProject(project, el)
               }}
               onKeyDown={(e) => {
                 if (e.key === 'Enter' || e.key === ' ') {
                   e.preventDefault()
-                  const el = cardEls.current.get(inst.key)
+                  const el = cardEls.current.get(key)
                   if (el) openProject(project, el)
                 }
               }}
