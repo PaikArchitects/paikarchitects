@@ -31,9 +31,11 @@
 // 반영하지 않고 object-fit:cover + coverHotspot으로 크롭한다(§2).
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+// Link는 뷰토글 "Ring"(/work) 링크가 계속 쓴다 — 카드만 <div role="button">로 바뀐다
 import Link from 'next/link'
 import { TYPOLOGY_ORDER, type Project, type ProjectType } from '@/types'
 import { sanityThumb } from '@/lib/imageUrl'
+import { GridContentArea } from './GridContentArea'
 
 const FONT = "'Pretendard Variable', Pretendard, -apple-system, BlinkMacSystemFont, sans-serif"
 
@@ -55,6 +57,9 @@ const FADE_SPAN = 0.7
 const DIM_OPACITY = 0.15        // 필터 비해당 카드 (§4)
 const FLOW_MS = 560             // 필터 재정렬 트랜지션 지속 — 이 시간만 transition 활성
 const ICON_W = 34               // 스냅 아이콘 고정 폭 — 트랙 좌표계의 양단 인셋 기준 (§6)
+// 콘텐츠 오버레이 언마운트 지연 — GridContentArea의 역-morph(MORPH_MS 700 + 여유 60)가
+// 끝난 뒤에 언마운트되도록 한다 (GRID_CONTENT_AREA_SPEC §3-1 (c))
+const CONTENT_EXIT_MS = 760
 
 // 카드 하단 텍스트 — 폭에 연동한 연속 스케일. 정수 열 경계에서 행 피치가 튀지 않게
 // 이산 분기(dense 플래그) 대신 폭의 연속 함수로 둔다.
@@ -163,6 +168,14 @@ export function GridExperience({ projects }: GridExperienceProps) {
     projects.some(p => p.type === t || p.subTypes?.includes(t))
   )], [projects])
   const [activeFilter, setActiveFilter] = useState('All')
+
+  // ── 콘텐츠 오버레이 상태 (GRID_CONTENT_AREA_SPEC §3-1 (b)) ──
+  // selected: 열린 프로젝트. null이면 그리드만 표시
+  // contentMode: GridContentArea의 morph 모드. 진입 시 idle→active로 전환해 morph를 발동한다
+  // enterRectRef: 클릭된 카드의 화면 좌표 — morph 시작 rect이자 역-morph 도착 rect
+  const [selected, setSelected] = useState<Project | null>(null)
+  const [contentMode, setContentMode] = useState<'idle' | 'active'>('idle')
+  const enterRectRef = useRef<{ top: number; left: number; width: number; height: number } | null>(null)
 
   /** order: 배치 위치 → projects 인덱스. 해당 카드가 앞, 비해당이 뒤. 항상 total개 전량 유지 */
   const { order, dimSet } = useMemo(() => {
@@ -380,6 +393,35 @@ export function GridExperience({ projects }: GridExperienceProps) {
   }, [])
   useEffect(() => () => cancelAnimationFrame(rafRef.current), [])
 
+  // ── 카드 클릭 → 콘텐츠 오버레이 (딥링크 대신 SPA morph) (§3-1 (c)) ──
+  const openProject = useCallback((project: Project, el: HTMLElement) => {
+    const r = el.getBoundingClientRect()
+    enterRectRef.current = { top: r.top, left: r.left, width: r.width, height: r.height }
+    setSelected(project)
+    setContentMode('idle')
+    // 브라우저 뒤로가기 = 닫기
+    window.history.pushState({ gridContent: project.id }, '', `/work/${project.id}`)
+    // idle→active morph 발동 (다음 프레임)
+    requestAnimationFrame(() => requestAnimationFrame(() => setContentMode('active')))
+  }, [])
+
+  const closeProject = useCallback(() => {
+    setContentMode('idle')
+    // 역-morph 재생이 끝난 뒤 언마운트
+    setTimeout(() => setSelected(null), CONTENT_EXIT_MS)
+    // URL 원복 — pushState 되돌림 없이 replaceState로 그리드 URL 복원
+    if (window.location.pathname !== '/work-grid') {
+      window.history.replaceState({}, '', '/work-grid')
+    }
+  }, [])
+
+  // 브라우저 뒤로가기 → 닫기
+  useEffect(() => {
+    const onPop = () => { if (selected) closeProject() }
+    window.addEventListener('popstate', onPop)
+    return () => window.removeEventListener('popstate', onPop)
+  }, [selected, closeProject])
+
   // 상한 변경(리사이즈·회전) 시 현재 열 클램프
   useEffect(() => {
     const c = clamp(colsRef.current, MIN_COLS, maxCols)
@@ -588,15 +630,27 @@ export function GridExperience({ projects }: GridExperienceProps) {
           const hotspot = project.coverHotspot
           const objectPosition = hotspot ? `${hotspot.x * 100}% ${hotspot.y * 100}%` : 'center'
           return (
-            <Link
+            <div
               key={inst.key}
-              href={`/work/${project.id}`}
-              prefetch={false}
+              role="button"
+              tabIndex={0}
               className="gm-card"
               aria-label={project.title.en}
-              ref={(el: HTMLAnchorElement | null) => {
+              // ref 콜백 유지 — cardEls가 클릭 시 morph 시작 rect 획득에 필수다
+              ref={(el: HTMLDivElement | null) => {
                 if (el) cardEls.current.set(inst.key, el)
                 else cardEls.current.delete(inst.key)
+              }}
+              onClick={() => {
+                const el = cardEls.current.get(inst.key)
+                if (el) openProject(project, el)
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault()
+                  const el = cardEls.current.get(inst.key)
+                  if (el) openProject(project, el)
+                }
               }}
             >
               {/* 이미지 — 항상 4:3. 원본 비율은 폭에 반영하지 않고 cover + hotspot으로 크롭 */}
@@ -626,7 +680,7 @@ export function GridExperience({ projects }: GridExperienceProps) {
                   )}
                 </div>
               </div>
-            </Link>
+            </div>
           )
         })}
       </div>
@@ -751,6 +805,16 @@ export function GridExperience({ projects }: GridExperienceProps) {
           {nLabel} cols
         </span>
       </div>
+
+      {/* ── 콘텐츠 오버레이 — fixed inset:0, z-index 100으로 그리드 전체를 덮는다 (§3-1 (f)) ── */}
+      {selected && (
+        <GridContentArea
+          project={selected}
+          mode={contentMode}
+          enterRect={enterRectRef.current}
+          onBack={closeProject}
+        />
+      )}
     </div>
   )
 }
