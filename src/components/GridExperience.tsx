@@ -99,9 +99,12 @@ function maxColsForAspect(r: number): number {
 
 interface GridExperienceProps {
   projects: Project[]   // Sanity에서 careerNo 내림차순 정렬 상태로 도착 — 재정렬 불요
+  // 직접 진입(/work-grid/[slug] 새로고침·공유) 시 즉시 열 프로젝트 slug. 없으면 그리드 랜딩만
+  // (GRID_URL_split §2-1)
+  initialSlug?: string
 }
 
-export function GridExperience({ projects }: GridExperienceProps) {
+export function GridExperience({ projects, initialSlug }: GridExperienceProps) {
   const total = projects.length
 
   // ── 필터 — 숨김이 아니라 재정렬 + dim (§4) ──
@@ -114,8 +117,18 @@ export function GridExperience({ projects }: GridExperienceProps) {
   // selected: 열린 프로젝트. null이면 그리드만 표시
   // contentMode: GridContentArea의 morph 모드. 진입 시 idle→active로 전환해 morph를 발동한다
   // enterRectRef: 클릭된 카드의 화면 좌표 — morph 시작 rect이자 역-morph 도착 rect
-  const [selected, setSelected] = useState<Project | null>(null)
-  const [contentMode, setContentMode] = useState<'idle' | 'active'>('idle')
+  //
+  // 직접 진입(initialSlug) = morph 생략 즉시 표시 (GRID_URL_split §2-2).
+  // 마운트 후 effect로 열면 그리드가 한 프레임 비쳤다가 콘텐츠가 덮는 깜빡임이 생기므로
+  // 최초 state 자체를 열린 상태로 둔다 — enterRectRef는 초기값 null 그대로이고(= morph 생략
+  // 신호), contentMode는 idle을 거치지 않고 바로 active다. 결과는 §2-2의 effect와 동일하다.
+  // URL은 이미 /work-grid/[slug]이므로 pushState 불요.
+  const initialProject = useMemo(
+    () => (initialSlug ? projects.find(p => p.id === initialSlug) ?? null : null),
+    [initialSlug, projects],
+  )
+  const [selected, setSelected] = useState<Project | null>(initialProject)
+  const [contentMode, setContentMode] = useState<'idle' | 'active'>(initialProject ? 'active' : 'idle')
   const enterRectRef = useRef<{ top: number; left: number; width: number; height: number } | null>(null)
 
   /** order: 배치 위치 → projects 인덱스. 해당 카드가 앞, 비해당이 뒤. 항상 total개 전량 유지 */
@@ -281,8 +294,9 @@ export function GridExperience({ projects }: GridExperienceProps) {
     enterRectRef.current = { top: r.top, left: r.left, width: r.width, height: r.height }
     setSelected(project)
     setContentMode('idle')
-    // 브라우저 뒤로가기 = 닫기
-    window.history.pushState({ gridContent: project.id }, '', `/work/${project.id}`)
+    // 브라우저 뒤로가기 = 닫기. URL은 그리드 전용 /work-grid/[slug] — 링월 /work/[slug]와
+    // 별개 경로라 새로고침해도 그리드 콘텐츠가 유지된다 (GRID_URL_split §2-3)
+    window.history.pushState({ gridContent: project.id }, '', `/work-grid/${project.id}`)
     // idle→active morph 발동 (다음 프레임)
     requestAnimationFrame(() => requestAnimationFrame(() => setContentMode('active')))
   }, [])

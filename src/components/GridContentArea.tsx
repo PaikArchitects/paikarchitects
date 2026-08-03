@@ -44,6 +44,8 @@ const DIAGRAM_H_RATIO = 0.48   // diagramSet·단일 다이어그램 이미지 �
 
 // 역-morph 여유 — 부모(GridExperience)의 언마운트 타이머가 이 값 이상이어야 한다
 export const REVERSE_MORPH_TAIL_MS = 60
+// 직접 진입 닫기 — 역-morph 대신 콘텐츠 페이드아웃 (트랙 페이드 400ms와 동일 지속)
+const FADE_OUT_MS = 400
 
 // ── 플릭(관성) — 기존 600ms transition을 그대로 타는 단발 보간 ──
 const FLICK_VELOCITY_MIN = 0.4   // px/ms — 이 속도 초과 시 플릭 판정
@@ -600,6 +602,10 @@ export function GridContentArea({ project, mode, enterRect, onBack }: GridConten
   const [diagramHover, setDiagramHover] = useState(false)
   const [infoIn, setInfoIn] = useState(false)
   const [trackIn, setTrackIn] = useState(false)
+  // 직접 진입(enterRect null)의 닫기 — 되돌아갈 카드 rect가 없어 역-morph 대신 페이드아웃한다.
+  // 콘텐츠 블록은 mode==='active'로만 마운트되므로 페이드가 재생될 창을 이 플래그가 연다
+  // (GRID_URL_split §3-2). 클릭 진입은 이 플래그를 켜지 않아 기존 역-morph 그대로다.
+  const [fadingOut, setFadingOut] = useState(false)
   const dragState = useRef<{
     startX: number; startScroll: number; moved: boolean
     lastX: number; lastT: number; v: number   // 마지막 두 샘플 기반 속도 (px/ms)
@@ -721,38 +727,52 @@ export function GridContentArea({ project, mode, enterRect, onBack }: GridConten
 
     if (mode === 'active' && !morphStartedRef.current && vpSize.w > 0 && rootRef.current) {
       morphStartedRef.current = true
+      setFadingOut(false)
 
       const { rects: rc, clampScroll: cs } = geomRef.current
-      const rw = rootRef.current.clientWidth
       const rh = rootRef.current.clientHeight
 
+      // 슬라이드 0개 엣지 케이스 대비: rects가 2개 미만이면 링월과 동일한 좌측 상주로 폴백 (§2-5)
+      const hasHero = rc.length >= 2
+      // 초기 scrollPos = centers[1] - viewportW/2 (§2-4) — goToSlide·리사이즈 재중앙과 동일 공식.
+      // 직접 진입·클릭 진입 공통이다: 양쪽 모두 히어로 중앙에 정착한다 (GRID_URL_split §3-1)
+      const initScroll = hasHero ? Math.round(cs(rc[1].x + rc[1].w / 2 - vpSize.w / 2)) : 0
+
+      setScrollPos(initScroll)
+      setAnimated(false)
+
+      // ── 직접 진입(enterRect === null) — morph 생략, 콘텐츠 즉시 표시 (GRID_URL_split §3-1) ──
+      // 새로고침·공유로 /work-grid/[slug]를 열면 출발 카드 rect가 존재하지 않는다. 모프 레이어를
+      // 아예 띄우지 않고 트랙·정보 슬라이드만 켠다(직후 trackIn/infoIn effect가 페이드인 처리).
+      if (enterRect === null) {
+        setMorphing(false)
+        setMorphVisible(false)
+        setMorphRect(null)
+        setTrackIn(true)
+        setInfoIn(true)
+        return
+      }
+
+      // ── 클릭 진입 — 기존 카드→히어로 morph ──
       // 도착 aspect = Sanity metadata 원본 비율 (GRID_CONTENT_v3 §2-1). 출발은 4:3 카드 rect이므로
       // 모프 중 종횡비가 4:3 → 원본비로 변하며 확대된다. 4/3은 metadata 부재 시 폴백일 뿐이다.
       const aspect = project.coverRatio && project.coverRatio > 0
         ? project.coverRatio
         : FALLBACK_RATIO
       const th = rh * SLIDE_H_RATIO
-
-      // 슬라이드 0개 엣지 케이스 대비: rects가 2개 미만이면 링월과 동일한 좌측 상주로 폴백 (§2-5)
-      const hasHero = rc.length >= 2
       // 도착 폭은 트랙이 예약한 rects[1].w 그대로 — getSlides가 주입한 coverRatio로 계산된 값이라
       // aspect 기반 재계산과 같지만, 1px도 어긋나지 않도록 동일 소스를 쓴다
       const tw = hasHero ? rc[1].w : th * aspect
-      // 초기 scrollPos = centers[1] - viewportW/2 (§2-4) — goToSlide·리사이즈 재중앙과 동일 공식.
-      // clamp를 먼저 적용하고 그 결과에서 heroScreenLeft를 파생한다 — morph 도착 left와
-      // 정착 후 히어로 화면 left가 동일 픽셀이어야 모프 종료 시 이미지가 튀지 않는다 (전부 px 정수)
-      const initScroll = hasHero ? Math.round(cs(rc[1].x + rc[1].w / 2 - vpSize.w / 2)) : 0
+      // morph 도착 left와 정착 후 히어로 화면 left가 동일 픽셀이어야 모프 종료 시 이미지가
+      // 튀지 않는다 — clamp된 initScroll에서 파생한다 (전부 px 정수)
       const heroScreenLeft = hasHero
         ? Math.round(TRACK_INSET + rc[1].x - initScroll)
         : TRACK_INSET + INFO_SLIDE_W + SLIDE_GAP_PX
 
-      setScrollPos(initScroll)
-      setAnimated(false)
-
       setMorphing(true)
       setMorphVisible(true)
-      // 개조 2 — 시작 rect는 클릭한 카드. null이면 루트 풀블리드로 폴백(링월 동형)
-      setMorphRect(enterRect ?? { top: 0, left: 0, width: rw, height: rh })
+      // 개조 2 — 시작 rect는 클릭한 카드
+      setMorphRect(enterRect)
 
       let cancelled = false
       requestAnimationFrame(() => requestAnimationFrame(() => {
@@ -816,11 +836,19 @@ export function GridContentArea({ project, mode, enterRect, onBack }: GridConten
         return () => { cancelled = true }
       }
 
-      // enterRect가 없으면 역-morph 없이 즉시 정리
+      // ── 직접 진입(enterRect === null) — 되돌아갈 카드 rect가 없다. 역-morph를 생략하고
+      //    콘텐츠를 페이드아웃시킨 뒤 그리드 랜딩을 드러낸다 (GRID_URL_split §3-2).
+      //    위에서 trackIn·infoIn을 이미 false로 내렸으므로 fadingOut이 그 페이드가 재생될
+      //    동안 콘텐츠 블록을 마운트 상태로 유지한다. scrollPos 리셋은 페이드 후로 미룬다
+      //    — 보이는 중에 트랙이 좌측 끝으로 튀지 않게 한다.
       setMorphVisible(false)
       setMorphRect(null)
-      setScrollPos(0)
-      setAnimated(false)
+      setFadingOut(true)
+      timersRef.current.push(setTimeout(() => {
+        setFadingOut(false)
+        setScrollPos(0)
+        setAnimated(false)
+      }, FADE_OUT_MS))
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode, vpSize.w, vpSize.h])
@@ -1110,7 +1138,8 @@ export function GridContentArea({ project, mode, enterRect, onBack }: GridConten
         transition: 'background-color 0.3s ease-out',
       }}
     >
-      {mode === 'active' && (
+      {/* fadingOut = 직접 진입 닫기 페이드 창 (§3-2). 클릭 진입은 항상 false라 기존과 동일 */}
+      {(mode === 'active' || fadingOut) && (
         <>
           {/* ── 슬라이드 뷰포트 — 좌측 클립 인셋 안쪽에서 시작, 좌측 모서리 = 클립 라인 ── */}
           <div
