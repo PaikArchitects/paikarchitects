@@ -147,6 +147,12 @@ export default defineType({
       options: { hotspot: true },
     }),
     defineField({
+      name: 'coverCaption',
+      title: 'COVER CAPTION',
+      type: 'localeString',
+      description: '커버 이미지 하단 캡션. 형식: LABEL — description. 미입력 시 캡션 없이 이미지만 표시된다',
+    }),
+    defineField({
       name: 'coverColor',
       title: 'COVER COLOR',
       type: 'string',

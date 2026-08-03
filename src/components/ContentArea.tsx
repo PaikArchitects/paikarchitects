@@ -48,9 +48,18 @@ interface MorphRect {
   height: number
 }
 
+// 커버 = 첫 슬라이드 (GRID_CONTENT_v2 §2). 커버를 항상 첫 image 슬라이드로 prepend하고
+// 실제 slides를 이어붙인다 — 모프 출발(커버 썸네일)과 도착(첫 슬라이드)이 같은 이미지가 된다.
+// 캡션은 project.coverCaption. 없으면 캡션 없이 이미지만.
 function getSlides(project: Project): ProjectSlide[] {
-  return project.slides
-    ?? (project.coverImage ? [{ kind: 'image', src: project.coverImage }] : [])
+  const rest = project.slides ?? []
+  if (!project.coverImage) return rest
+  const cover: ImageSlide = {
+    kind: 'image',
+    src: project.coverImage,
+    ...(project.coverCaption ? { caption: project.coverCaption } : {}),
+  }
+  return [cover, ...rest]
 }
 
 // 다이어그램 판정 — diagramSet 또는 diagram 표기된 단일 이미지 (다이어그램 높이 공통 적용)

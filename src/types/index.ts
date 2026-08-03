@@ -65,6 +65,7 @@ export interface Project {
   size?: string            // 규모 — 단위 포함 자유 표기. "22,333.78 ㎡" / "5 min." / "A2"
   role?: string           // Career 엑셀 Role 원문. "직위 (업무1, 업무2)" 형식
   coverHotspot?: { x: number; y: number }   // 커버 크롭 초점 (Studio hotspot)
+  coverCaption?: LocaleString   // 커버 슬라이드 하단 캡션 (BIG 형식 "LABEL — description")
 }
 
 // ── 프로젝트 상세 슬라이드 ──

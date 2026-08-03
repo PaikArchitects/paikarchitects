@@ -66,9 +66,17 @@ interface MorphRect {
   height: number
 }
 
+// 커버 = 첫 슬라이드 (GRID_CONTENT_v2 §2). ContentArea.tsx와 동일 로직 — 한쪽만 바꾸지 말 것.
+// 커버를 항상 첫 image 슬라이드로 prepend하고 실제 slides를 이어붙인다. 캡션은 project.coverCaption.
 function getSlides(project: Project): ProjectSlide[] {
-  return project.slides
-    ?? (project.coverImage ? [{ kind: 'image', src: project.coverImage }] : [])
+  const rest = project.slides ?? []
+  if (!project.coverImage) return rest
+  const cover: ImageSlide = {
+    kind: 'image',
+    src: project.coverImage,
+    ...(project.coverCaption ? { caption: project.coverCaption } : {}),
+  }
+  return [cover, ...rest]
 }
 
 // 다이어그램 판정 — diagramSet 또는 diagram 표기된 단일 이미지 (다이어그램 높이 공통 적용)
@@ -712,7 +720,7 @@ export function GridContentArea({ project, mode, enterRect, onBack }: GridConten
     if (mode === 'active' && !morphStartedRef.current && vpSize.w > 0 && rootRef.current) {
       morphStartedRef.current = true
 
-      const { rects: rc, centers: ct, clampScroll: cs } = geomRef.current
+      const { rects: rc, clampScroll: cs } = geomRef.current
       const rw = rootRef.current.clientWidth
       const rh = rootRef.current.clientHeight
 
@@ -721,13 +729,16 @@ export function GridContentArea({ project, mode, enterRect, onBack }: GridConten
       const th = rh * SLIDE_H_RATIO
       const tw = th * aspect
 
-      // 초기 scrollPos — 히어로(트랙 인덱스 1) 중앙이 뷰포트 중앙에 오는 값 (§2)
+      // 초기 scrollPos — 히어로(트랙 인덱스 1) 중심을 화면 정중앙에 두는 단일 기준값 (§1)
+      // 히어로 중심의 화면 좌표 = TRACK_INSET(뷰포트 좌측 오프셋) + 트랙 내 x + w/2
       // 슬라이드 0개 엣지 케이스 대비: rects가 2개 미만이면 링월과 동일한 좌측 상주로 폴백
       const hasHero = rc.length >= 2
-      const initScroll = hasHero ? cs(ct[1] - vpSize.w / 2) : 0
-      // 화면상 히어로 좌측 = 트랙 인셋 + 트랙 내 x - 실제 적용될 스크롤 (전부 px 정수 계산)
+      const heroCenterInTrack = hasHero ? TRACK_INSET + rc[1].x + rc[1].w / 2 : 0
+      // clamp를 먼저 적용하고 그 결과에서 heroScreenLeft를 파생한다 — morph 도착 left와
+      // 정착 후 히어로 화면 left가 동일 픽셀이어야 모프 종료 시 이미지가 튀지 않는다 (전부 px 정수)
+      const initScroll = hasHero ? Math.round(cs(heroCenterInTrack - vpSize.w / 2)) : 0
       const heroScreenLeft = hasHero
-        ? TRACK_INSET + rc[1].x - initScroll
+        ? Math.round(TRACK_INSET + rc[1].x - initScroll)
         : TRACK_INSET + INFO_SLIDE_W + SLIDE_GAP_PX
 
       setScrollPos(initScroll)
@@ -999,6 +1010,31 @@ export function GridContentArea({ project, mode, enterRect, onBack }: GridConten
                     boxSizing: 'border-box',
                     overflowY: 'auto',
                   }}>
+                    {/* ── Back — 정보 슬라이드 최상단(careerNo 위). 좌상단 로고와 겹치지 않도록
+                        오버레이가 아니라 트랙 안에 둔다 (§3). 링월 ContentArea의 버튼 스타일 동일 ── */}
+                    <div>
+                      <button
+                        onClick={onBack}
+                        onPointerDown={(e) => e.stopPropagation()}
+                        onPointerUp={(e) => e.stopPropagation()}
+                        style={{
+                          display: 'block',
+                          background: 'none',
+                          border: 'none',
+                          padding: 0,
+                          fontFamily: FONT,
+                          fontSize: 11,
+                          fontWeight: 300,
+                          letterSpacing: '0.08em',
+                          textTransform: 'uppercase',
+                          color: '#080706',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        ← Back
+                      </button>
+                    </div>
+
                     {/* 타이틀 세트 — 고정 높이 슬롯. AWARDS 시작 y를 전 프로젝트 동일화 */}
                     <div style={{ minHeight: TITLE_SET_MIN_H, marginBottom: 20 }}>
                       {/* 프로젝트 코드 — ProjectCard와 동일한 3자리 zero-pad 규약 */}
@@ -1172,34 +1208,7 @@ export function GridContentArea({ project, mode, enterRect, onBack }: GridConten
             )}
           </div>
 
-          {/* ── Back + 타이틀 — 좌상단 오버레이 (트랙 위, 배경 투명) ── */}
-          <div style={{
-            position: 'absolute',
-            top: 32,
-            left: 24,
-            zIndex: 6,
-            fontFamily: FONT,
-            color: '#080706',
-          }}>
-            <button
-              onClick={onBack}
-              style={{
-                display: 'block',
-                background: 'none',
-                border: 'none',
-                padding: 0,
-                fontFamily: FONT,
-                fontSize: 11,
-                fontWeight: 300,
-                letterSpacing: '0.08em',
-                textTransform: 'uppercase',
-                color: '#080706',
-                cursor: 'pointer',
-              }}
-            >
-              ← Back
-            </button>
-          </div>
+          {/* Back 버튼은 좌상단 오버레이(로고와 충돌)에서 정보 슬라이드 최상단으로 이동했다 (§3) */}
         </>
       )}
 

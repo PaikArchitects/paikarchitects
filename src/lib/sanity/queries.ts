@@ -8,6 +8,7 @@ const PROJECTS_QUERY = `*[_type == "project" && published != false] | order(care
   subTypes, status, "awards": awards[]{ title, visible }, featured,
   "coverImage": coverImage.asset->url,
   "coverHotspot": coverImage.hotspot{ x, y },
+  coverCaption,
   coverColor, location, client, size, role,
   "slides": slides[]{
     _type == "imageSlide" => {
@@ -60,6 +61,7 @@ interface RawProject {
   featured: boolean
   coverImage: string | null
   coverHotspot: { x: number; y: number } | null
+  coverCaption: LocaleString | null
   coverColor: string | null
   location: string | null
   client: string | null
@@ -83,6 +85,7 @@ export async function getProjects(): Promise<Project[]> {
     featured: r.featured,
     coverImage: r.coverImage ?? undefined,
     coverHotspot: r.coverHotspot ?? undefined,
+    coverCaption: r.coverCaption ?? undefined,
     coverColor: r.coverColor ?? undefined,
     location: r.location ?? undefined,
     client: r.client ?? undefined,
