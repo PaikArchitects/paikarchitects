@@ -48,9 +48,11 @@ interface MorphRect {
   height: number
 }
 
-// 커버 = 첫 슬라이드 (GRID_CONTENT_v2 §2). 커버를 항상 첫 image 슬라이드로 prepend하고
+// 커버 = 첫 슬라이드 (GRID_CONTENT_v3 §3). 커버를 항상 첫 image 슬라이드로 prepend하고
 // 실제 slides를 이어붙인다 — 모프 출발(커버 썸네일)과 도착(첫 슬라이드)이 같은 이미지가 된다.
-// 캡션은 project.coverCaption. 없으면 캡션 없이 이미지만.
+// 캡션은 project.coverCaption, 비율은 project.coverRatio(Sanity metadata 원본 aspect).
+// ratio가 rects 폭 계산에 그대로 흘러 커버가 원본 비율로 선다 — 4/3 고정 금지.
+// ⚠ GridContentArea.tsx의 동명 함수와 동일 로직. 한쪽만 바꾸지 말 것.
 function getSlides(project: Project): ProjectSlide[] {
   const rest = project.slides ?? []
   if (!project.coverImage) return rest
@@ -58,6 +60,7 @@ function getSlides(project: Project): ProjectSlide[] {
     kind: 'image',
     src: project.coverImage,
     ...(project.coverCaption ? { caption: project.coverCaption } : {}),
+    ...(project.coverRatio && project.coverRatio > 0 ? { ratio: project.coverRatio } : {}),
   }
   return [cover, ...rest]
 }
@@ -689,9 +692,11 @@ export function ContentArea({ project, mode, isBlacking, visible, onBack }: Cont
       setAnimated(false)
       const rw = rootRef.current.clientWidth
       const rh = rootRef.current.clientHeight
-      const img = idleImgEl.current
-      const aspect = img && img.naturalWidth > 0 && img.naturalHeight > 0
-        ? img.naturalWidth / img.naturalHeight
+      // 도착 aspect = Sanity metadata 원본 비율 (GRID_CONTENT_v3 §2-1).
+      // idleImg의 naturalWidth는 crop된 렌더 URL 기준이라 원본을 보증하지 못한다 — 폐기.
+      // rects의 커버 폭(getSlides가 주입한 ratio)과 동일 소스여야 모프 종료 시 튀지 않는다.
+      const aspect = project.coverRatio && project.coverRatio > 0
+        ? project.coverRatio
         : FALLBACK_RATIO
       const th = rh * SLIDE_H_RATIO
       const tw = th * aspect

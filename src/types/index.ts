@@ -66,6 +66,9 @@ export interface Project {
   role?: string           // Career 엑셀 Role 원문. "직위 (업무1, 업무2)" 형식
   coverHotspot?: { x: number; y: number }   // 커버 크롭 초점 (Studio hotspot)
   coverCaption?: LocaleString   // 커버 슬라이드 하단 캡션 (BIG 형식 "LABEL — description")
+  /** 커버 원본 w/h — Sanity metadata.dimensions.aspectRatio 공급 (GRID_CONTENT_v3 §4-4).
+   *  crop·hotspot과 무관한 원본 비율이다. 콘텐츠 커버 폭·morph 도착 폭의 유일한 소스 */
+  coverRatio?: number
 }
 
 // ── 프로젝트 상세 슬라이드 ──

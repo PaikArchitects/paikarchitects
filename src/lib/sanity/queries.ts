@@ -8,6 +8,7 @@ const PROJECTS_QUERY = `*[_type == "project" && published != false] | order(care
   subTypes, status, "awards": awards[]{ title, visible }, featured,
   "coverImage": coverImage.asset->url,
   "coverHotspot": coverImage.hotspot{ x, y },
+  "coverRatio": coverImage.asset->metadata.dimensions.aspectRatio,
   coverCaption,
   coverColor, location, client, size, role,
   "slides": slides[]{
@@ -61,6 +62,7 @@ interface RawProject {
   featured: boolean
   coverImage: string | null
   coverHotspot: { x: number; y: number } | null
+  coverRatio: number | null
   coverCaption: LocaleString | null
   coverColor: string | null
   location: string | null
@@ -85,6 +87,8 @@ export async function getProjects(): Promise<Project[]> {
     featured: r.featured,
     coverImage: r.coverImage ?? undefined,
     coverHotspot: r.coverHotspot ?? undefined,
+    // 0·null은 비율로 쓸 수 없다 — undefined로 떨궈 FALLBACK_RATIO 폴백에 맡긴다
+    coverRatio: r.coverRatio && r.coverRatio > 0 ? r.coverRatio : undefined,
     coverCaption: r.coverCaption ?? undefined,
     coverColor: r.coverColor ?? undefined,
     location: r.location ?? undefined,

@@ -34,7 +34,6 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 // Link는 뷰토글 "Ring"(/work) 링크가 계속 쓴다 — 카드만 <div role="button">로 바뀐다
 import Link from 'next/link'
 import { TYPOLOGY_ORDER, type Project, type ProjectType } from '@/types'
-import { sanityThumb } from '@/lib/imageUrl'
 import { GridContentArea } from './GridContentArea'
 
 const FONT = "'Pretendard Variable', Pretendard, -apple-system, BlinkMacSystemFont, sans-serif"
@@ -70,6 +69,20 @@ const SUM_MT = 5                // 타이틀 ↔ 요약 (§5: 4~6px)
 const SUM_LH = 1.5
 
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v))
+
+/**
+ * 썸네일 = Sanity 4:3 크롭 URL (GRID_CONTENT_v3 §4-2).
+ * hotspot이 있으면 초점 크롭(fp), 없으면 중앙 크롭. CSS object-fit으로 이중 크롭하지 않는다.
+ * imageUrl.ts는 폭 전용(sanityThumb)·3:2(sanityCard)만 제공하고 이번 수정 범위가 아니므로
+ * 4:3 변환은 이 라우트에 국한한다. 콘텐츠(GridContentArea) 커버는 이 변환을 쓰지 않고
+ * 원본 URL 그대로 — 원본 비율 morph의 소스이기 때문이다 (§4-3).
+ */
+function gridThumb43(src: string, width: number, hotspot?: { x: number; y: number }): string {
+  if (!src.includes('cdn.sanity.io')) return src
+  const h = Math.round((width * 3) / 4)
+  const fp = hotspot ? `&crop=focalpoint&fp-x=${hotspot.x}&fp-y=${hotspot.y}` : ''
+  return `${src}?w=${width}&h=${h}&fit=crop${fp}&q=75&auto=format`
+}
 
 const titlePx = (w: number) => clamp(w * 0.030, 10, 13)
 const sumPx = (w: number) => clamp(w * 0.024, 8.5, 11)
@@ -263,6 +276,8 @@ export function GridExperience({ projects }: GridExperienceProps) {
   // ── 카드 클릭 → 콘텐츠 오버레이 (딥링크 대신 SPA morph) (§3-1 (c)) ──
   const openProject = useCallback((project: Project, el: HTMLElement) => {
     const r = el.getBoundingClientRect()
+    // 카드 rect만 넘긴다 = morph 출발 rect(4:3). 도착 rect의 원본 aspect는 img가 아니라
+    // Sanity metadata(project.coverRatio)에서 온다 — 썸네일은 크롭되어 원본비를 모른다 (§5·§4-4)
     enterRectRef.current = { top: r.top, left: r.left, width: r.width, height: r.height }
     setSelected(project)
     setContentMode('idle')
@@ -503,8 +518,8 @@ export function GridExperience({ projects }: GridExperienceProps) {
           const project = projects[projIdx]
           if (!project) return null
           const award = project.awards?.find(a => a.visible !== false)?.title
+          // hotspot은 CSS objectPosition이 아니라 Sanity 크롭 URL로 전달한다 (§4-2 — 이중 크롭 방지)
           const hotspot = project.coverHotspot
-          const objectPosition = hotspot ? `${hotspot.x * 100}% ${hotspot.y * 100}%` : 'center'
           return (
             <div
               key={project.id}
@@ -529,16 +544,17 @@ export function GridExperience({ projects }: GridExperienceProps) {
                 }
               }}
             >
-              {/* 이미지 — 항상 4:3. 원본 비율은 폭에 반영하지 않고 cover + hotspot으로 크롭 */}
+              {/* 이미지 — 항상 4:3. 원본 비율은 폭에 반영하지 않고 Sanity 크롭(hotspot 반영)으로 잘라낸다.
+                  원본 비율이 필요한 곳은 콘텐츠 커버뿐이며, 그 소스는 img가 아니라
+                  Sanity metadata(project.coverRatio)다 (§4-4) */}
               <div className="gm-frame" style={{ background: project.coverColor ?? COVER_FALLBACK }}>
                 {project.coverImage && (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img
-                    src={sanityThumb(project.coverImage, 800)}
+                    src={gridThumb43(project.coverImage, 800, hotspot)}
                     alt={project.title.en}
                     loading="lazy"
                     decoding="async"
-                    style={{ objectPosition }}
                   />
                 )}
               </div>

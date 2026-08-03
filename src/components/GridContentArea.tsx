@@ -66,8 +66,9 @@ interface MorphRect {
   height: number
 }
 
-// 커버 = 첫 슬라이드 (GRID_CONTENT_v2 §2). ContentArea.tsx와 동일 로직 — 한쪽만 바꾸지 말 것.
-// 커버를 항상 첫 image 슬라이드로 prepend하고 실제 slides를 이어붙인다. 캡션은 project.coverCaption.
+// 커버 = 첫 슬라이드 (GRID_CONTENT_v3 §3). ContentArea.tsx와 동일 로직 — 한쪽만 바꾸지 말 것.
+// 커버를 항상 첫 image 슬라이드로 prepend하고 실제 slides를 이어붙인다. 캡션은 project.coverCaption,
+// 비율은 project.coverRatio(Sanity metadata 원본 aspect) — rects 폭이 원본비가 된다(4/3 고정 금지).
 function getSlides(project: Project): ProjectSlide[] {
   const rest = project.slides ?? []
   if (!project.coverImage) return rest
@@ -75,6 +76,7 @@ function getSlides(project: Project): ProjectSlide[] {
     kind: 'image',
     src: project.coverImage,
     ...(project.coverCaption ? { caption: project.coverCaption } : {}),
+    ...(project.coverRatio && project.coverRatio > 0 ? { ratio: project.coverRatio } : {}),
   }
   return [cover, ...rest]
 }
@@ -724,19 +726,22 @@ export function GridContentArea({ project, mode, enterRect, onBack }: GridConten
       const rw = rootRef.current.clientWidth
       const rh = rootRef.current.clientHeight
 
-      // 카드 프레임은 항상 4:3이고 히어로도 FALLBACK_RATIO 기준이므로 왜곡 없이 확대된다
-      const aspect = FALLBACK_RATIO
+      // 도착 aspect = Sanity metadata 원본 비율 (GRID_CONTENT_v3 §2-1). 출발은 4:3 카드 rect이므로
+      // 모프 중 종횡비가 4:3 → 원본비로 변하며 확대된다. 4/3은 metadata 부재 시 폴백일 뿐이다.
+      const aspect = project.coverRatio && project.coverRatio > 0
+        ? project.coverRatio
+        : FALLBACK_RATIO
       const th = rh * SLIDE_H_RATIO
-      const tw = th * aspect
 
-      // 초기 scrollPos — 히어로(트랙 인덱스 1) 중심을 화면 정중앙에 두는 단일 기준값 (§1)
-      // 히어로 중심의 화면 좌표 = TRACK_INSET(뷰포트 좌측 오프셋) + 트랙 내 x + w/2
-      // 슬라이드 0개 엣지 케이스 대비: rects가 2개 미만이면 링월과 동일한 좌측 상주로 폴백
+      // 슬라이드 0개 엣지 케이스 대비: rects가 2개 미만이면 링월과 동일한 좌측 상주로 폴백 (§2-5)
       const hasHero = rc.length >= 2
-      const heroCenterInTrack = hasHero ? TRACK_INSET + rc[1].x + rc[1].w / 2 : 0
+      // 도착 폭은 트랙이 예약한 rects[1].w 그대로 — getSlides가 주입한 coverRatio로 계산된 값이라
+      // aspect 기반 재계산과 같지만, 1px도 어긋나지 않도록 동일 소스를 쓴다
+      const tw = hasHero ? rc[1].w : th * aspect
+      // 초기 scrollPos = centers[1] - viewportW/2 (§2-4) — goToSlide·리사이즈 재중앙과 동일 공식.
       // clamp를 먼저 적용하고 그 결과에서 heroScreenLeft를 파생한다 — morph 도착 left와
       // 정착 후 히어로 화면 left가 동일 픽셀이어야 모프 종료 시 이미지가 튀지 않는다 (전부 px 정수)
-      const initScroll = hasHero ? Math.round(cs(heroCenterInTrack - vpSize.w / 2)) : 0
+      const initScroll = hasHero ? Math.round(cs(rc[1].x + rc[1].w / 2 - vpSize.w / 2)) : 0
       const heroScreenLeft = hasHero
         ? Math.round(TRACK_INSET + rc[1].x - initScroll)
         : TRACK_INSET + INFO_SLIDE_W + SLIDE_GAP_PX
@@ -785,9 +790,12 @@ export function GridContentArea({ project, mode, enterRect, onBack }: GridConten
         const { rects: rc, scrollPos: sp } = geomRef.current
         const rh = rootRef.current.clientHeight
         const th = rh * SLIDE_H_RATIO
-        const tw = th * FALLBACK_RATIO
+        // 출발 rect는 지금 화면에 선 히어로 그대로 — 진입 도착 rect와 동일 소스(원본비 rects[1].w)
+        const tw = rc.length >= 2
+          ? rc[1].w
+          : th * (project.coverRatio && project.coverRatio > 0 ? project.coverRatio : FALLBACK_RATIO)
         const heroScreenLeft = rc.length >= 2
-          ? TRACK_INSET + rc[1].x - sp
+          ? Math.round(TRACK_INSET + rc[1].x - sp)
           : TRACK_INSET + INFO_SLIDE_W + SLIDE_GAP_PX
 
         setMorphVisible(true)
@@ -940,6 +948,153 @@ export function GridContentArea({ project, mode, enterRect, onBack }: GridConten
   // 카운터: 정보 슬라이드 제외 — 콘텐츠 슬라이드 번호(1..) 기준
   const displayIdx = Math.min(Math.max(nearest, 1), total)
 
+  // ── §7 가로 극장방비 폴백 — 히어로가 뷰포트를 다 먹어 메타가 설 자리가 없는 경우 ──
+  // 판정은 순수 계산: [정보 슬라이드][gap][히어로] 가 뷰포트 폭을 넘는가.
+  // 참이면 정보 슬라이드 내용을 화면 최좌측 고정 오버레이로 옮긴다(트랙 자식은 폭만 예약해
+  // 트랙 좌표계·중앙정렬 계산을 그대로 유지한다). 거짓이면 §2-3 정상 — 트랙 인덱스 0.
+  const heroW = rects[1]?.w ?? 0
+  const metaOverlay = viewportW > 0 && heroW > 0 &&
+    (INFO_SLIDE_W + SLIDE_GAP_PX + heroW) > viewportW
+
+  // 정보 슬라이드 본문 — 트랙 자식 0 또는 §7 오버레이 중 한 곳에만 렌더된다
+  const infoContent = (
+    <>
+      {/* ── Back — 정보 슬라이드 최상단(careerNo 위). 좌상단 로고와 겹치지 않도록
+          오버레이가 아니라 트랙 안에 둔다 (v2 §3). 링월 ContentArea의 버튼 스타일 동일 ── */}
+      <div>
+        <button
+          onClick={onBack}
+          onPointerDown={(e) => e.stopPropagation()}
+          onPointerUp={(e) => e.stopPropagation()}
+          style={{
+            display: 'block',
+            background: 'none',
+            border: 'none',
+            padding: 0,
+            fontFamily: FONT,
+            fontSize: 11,
+            fontWeight: 300,
+            letterSpacing: '0.08em',
+            textTransform: 'uppercase',
+            color: '#080706',
+            cursor: 'pointer',
+          }}
+        >
+          ← Back
+        </button>
+      </div>
+
+      {/* 타이틀 세트 — 고정 높이 슬롯. AWARDS 시작 y를 전 프로젝트 동일화 */}
+      <div style={{ minHeight: TITLE_SET_MIN_H, marginBottom: 20 }}>
+        {/* 프로젝트 코드 — ProjectCard와 동일한 3자리 zero-pad 규약 */}
+        <div style={{
+          fontSize: 9,
+          fontWeight: 300,
+          letterSpacing: '0.15em',
+          opacity: 0.35,
+          marginBottom: 6,
+        }}>
+          {String(project.careerNo).padStart(3, '0')}
+        </div>
+        <BilingualText
+          value={project.title}
+          order="en-first"
+          primaryStyle={{ fontSize: 16, fontWeight: 500, lineHeight: 1.35, letterSpacing: '-0.01em', wordBreak: 'keep-all' }}
+          secondaryStyle={{ fontSize: 12, fontWeight: 400, lineHeight: 1.3, opacity: 0.6, wordBreak: 'keep-all' }}
+          gap={2}
+        />
+        {project.subtitle && (
+          <div style={{ marginTop: 8 }}>
+            <BilingualText
+              value={project.subtitle}
+              order="en-first"
+              primaryStyle={{ fontSize: 11, fontWeight: 300, lineHeight: 1.4, opacity: 0.75, wordBreak: 'keep-all' }}
+              secondaryStyle={{ fontSize: 10, fontWeight: 300, lineHeight: 1.4, opacity: 0.5, wordBreak: 'keep-all' }}
+              gap={1}
+            />
+          </div>
+        )}
+      </div>
+
+      {/* AWARDS — 타이틀 세트 고정 슬롯 직후. 시작 y좌표가 전 프로젝트에서 동일하다.
+          아래 CLIENT 이하는 수상 개수에 따라 자연히 밀린다 */}
+      {(() => {
+        const shown = project.awards?.filter(a => a.visible !== false) ?? []
+        if (shown.length === 0) return null
+        return (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            {shown.map((a, i) => (
+              <div key={i} style={{
+                fontSize: 15,
+                fontWeight: 400,
+                color: '#b89773',
+                letterSpacing: '0.01em',
+                lineHeight: 1.35,
+                wordBreak: 'keep-all',
+              }}>
+                {a.title}
+              </div>
+            ))}
+          </div>
+        )
+      })()}
+
+      {/* CLIENT + LOCATION — 하나의 논리 블록 (2블록과 동일 내부 간격) */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+        <MetaField label="CLIENT" value={project.client} />
+        <MetaField label="LOCATION" value={project.location} />
+      </div>
+
+      {/* 2블록 — TYPOLOGY / SIZE / STATUS / YEAR 세로 스택 */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+        <MetaField label="TYPOLOGY" value={project.type} />
+        <MetaField
+          label={project.size ? sizeLabel(project.size) : 'SIZE'}
+          value={project.size ? sizeValue(project.size) : undefined}
+        />
+        <MetaField label="STATUS" value={project.status} />
+        <MetaField label="YEAR" value={String(project.year)} />
+      </div>
+
+      {/* 3블록 — ROLE. 직위 + 업무 2단 */}
+      <div>
+        <div style={{ fontSize: 9, fontWeight: 300, letterSpacing: '0.1em', opacity: 0.45 }}>
+          ROLE
+        </div>
+        {project.role ? (() => {
+          const { position, tasks } = splitRole(project.role)
+          return (
+            <>
+              <div style={{
+                fontSize: 11,
+                fontWeight: 400,
+                letterSpacing: '0.04em',
+                textTransform: 'uppercase',
+                marginTop: 3,
+              }}>
+                {position}
+              </div>
+              {tasks && (
+                <div style={{
+                  fontSize: 9,
+                  fontWeight: 300,
+                  lineHeight: 1.6,
+                  opacity: 0.5,
+                  marginTop: 4,
+                  wordBreak: 'keep-all',
+                }}>
+                  {tasks}
+                </div>
+              )}
+            </>
+          )
+        })() : (
+          <div style={{ fontSize: 11, fontWeight: 400, marginTop: 3, opacity: 0.25 }}>—</div>
+        )}
+      </div>
+    </>
+  )
+
   return (
     // 개조 5 — 그리드 전체를 덮는 fixed 오버레이. idle(진입 전·역모프 중)에는 배경을 비워
     // 뒤의 그리드가 비치게 한다
@@ -994,7 +1149,9 @@ export function GridContentArea({ project, mode, enterRect, onBack }: GridConten
                     willChange: 'transform',
                   }}
                 >
-                  {/* 트랙 첫 자식 — 정보 슬라이드. 타이틀 세트 + AWARDS + 메타 블록 */}
+                  {/* 트랙 첫 자식 — 정보 슬라이드 (§2-3). 히어로 좌측에 트랙 좌표계로 자동 부착된다.
+                      §7 폴백(metaOverlay)일 때만 내용을 화면 좌측 고정 오버레이로 옮기고,
+                      이 자식은 폭 INFO_SLIDE_W만 예약해 rects·중앙정렬 계산을 그대로 보존한다 */}
                   <div style={{
                     width: INFO_SLIDE_W,
                     flexShrink: 0,
@@ -1005,144 +1162,12 @@ export function GridContentArea({ project, mode, enterRect, onBack }: GridConten
                     gap: 24,
                     fontFamily: FONT,
                     color: '#080706',
-                    opacity: infoIn ? 1 : 0,
+                    opacity: infoIn && !metaOverlay ? 1 : 0,
                     transition: 'opacity 400ms ease',
                     boxSizing: 'border-box',
                     overflowY: 'auto',
                   }}>
-                    {/* ── Back — 정보 슬라이드 최상단(careerNo 위). 좌상단 로고와 겹치지 않도록
-                        오버레이가 아니라 트랙 안에 둔다 (§3). 링월 ContentArea의 버튼 스타일 동일 ── */}
-                    <div>
-                      <button
-                        onClick={onBack}
-                        onPointerDown={(e) => e.stopPropagation()}
-                        onPointerUp={(e) => e.stopPropagation()}
-                        style={{
-                          display: 'block',
-                          background: 'none',
-                          border: 'none',
-                          padding: 0,
-                          fontFamily: FONT,
-                          fontSize: 11,
-                          fontWeight: 300,
-                          letterSpacing: '0.08em',
-                          textTransform: 'uppercase',
-                          color: '#080706',
-                          cursor: 'pointer',
-                        }}
-                      >
-                        ← Back
-                      </button>
-                    </div>
-
-                    {/* 타이틀 세트 — 고정 높이 슬롯. AWARDS 시작 y를 전 프로젝트 동일화 */}
-                    <div style={{ minHeight: TITLE_SET_MIN_H, marginBottom: 20 }}>
-                      {/* 프로젝트 코드 — ProjectCard와 동일한 3자리 zero-pad 규약 */}
-                      <div style={{
-                        fontSize: 9,
-                        fontWeight: 300,
-                        letterSpacing: '0.15em',
-                        opacity: 0.35,
-                        marginBottom: 6,
-                      }}>
-                        {String(project.careerNo).padStart(3, '0')}
-                      </div>
-                      <BilingualText
-                        value={project.title}
-                        order="en-first"
-                        primaryStyle={{ fontSize: 16, fontWeight: 500, lineHeight: 1.35, letterSpacing: '-0.01em', wordBreak: 'keep-all' }}
-                        secondaryStyle={{ fontSize: 12, fontWeight: 400, lineHeight: 1.3, opacity: 0.6, wordBreak: 'keep-all' }}
-                        gap={2}
-                      />
-                      {project.subtitle && (
-                        <div style={{ marginTop: 8 }}>
-                          <BilingualText
-                            value={project.subtitle}
-                            order="en-first"
-                            primaryStyle={{ fontSize: 11, fontWeight: 300, lineHeight: 1.4, opacity: 0.75, wordBreak: 'keep-all' }}
-                            secondaryStyle={{ fontSize: 10, fontWeight: 300, lineHeight: 1.4, opacity: 0.5, wordBreak: 'keep-all' }}
-                            gap={1}
-                          />
-                        </div>
-                      )}
-                    </div>
-
-                    {/* AWARDS — 타이틀 세트 고정 슬롯 직후. 시작 y좌표가 전 프로젝트에서 동일하다.
-                        아래 CLIENT 이하는 수상 개수에 따라 자연히 밀린다 */}
-                    {(() => {
-                      const shown = project.awards?.filter(a => a.visible !== false) ?? []
-                      if (shown.length === 0) return null
-                      return (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                          {shown.map((a, i) => (
-                            <div key={i} style={{
-                              fontSize: 15,
-                              fontWeight: 400,
-                              color: '#b89773',
-                              letterSpacing: '0.01em',
-                              lineHeight: 1.35,
-                              wordBreak: 'keep-all',
-                            }}>
-                              {a.title}
-                            </div>
-                          ))}
-                        </div>
-                      )
-                    })()}
-
-                    {/* CLIENT + LOCATION — 하나의 논리 블록 (2블록과 동일 내부 간격) */}
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-                      <MetaField label="CLIENT" value={project.client} />
-                      <MetaField label="LOCATION" value={project.location} />
-                    </div>
-
-                    {/* 2블록 — TYPOLOGY / SIZE / STATUS / YEAR 세로 스택 */}
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-                      <MetaField label="TYPOLOGY" value={project.type} />
-                      <MetaField
-                        label={project.size ? sizeLabel(project.size) : 'SIZE'}
-                        value={project.size ? sizeValue(project.size) : undefined}
-                      />
-                      <MetaField label="STATUS" value={project.status} />
-                      <MetaField label="YEAR" value={String(project.year)} />
-                    </div>
-
-                    {/* 3블록 — ROLE. 직위 + 업무 2단 */}
-                    <div>
-                      <div style={{ fontSize: 9, fontWeight: 300, letterSpacing: '0.1em', opacity: 0.45 }}>
-                        ROLE
-                      </div>
-                      {project.role ? (() => {
-                        const { position, tasks } = splitRole(project.role)
-                        return (
-                          <>
-                            <div style={{
-                              fontSize: 11,
-                              fontWeight: 400,
-                              letterSpacing: '0.04em',
-                              textTransform: 'uppercase',
-                              marginTop: 3,
-                            }}>
-                              {position}
-                            </div>
-                            {tasks && (
-                              <div style={{
-                                fontSize: 9,
-                                fontWeight: 300,
-                                lineHeight: 1.6,
-                                opacity: 0.5,
-                                marginTop: 4,
-                                wordBreak: 'keep-all',
-                              }}>
-                                {tasks}
-                              </div>
-                            )}
-                          </>
-                        )
-                      })() : (
-                        <div style={{ fontSize: 11, fontWeight: 400, marginTop: 3, opacity: 0.25 }}>—</div>
-                      )}
-                    </div>
+                    {!metaOverlay && infoContent}
                   </div>
 
                   {slides.length > 0 ? slides.map((slide, idx) => (
@@ -1208,7 +1233,39 @@ export function GridContentArea({ project, mode, enterRect, onBack }: GridConten
             )}
           </div>
 
-          {/* Back 버튼은 좌상단 오버레이(로고와 충돌)에서 정보 슬라이드 최상단으로 이동했다 (§3) */}
+          {/* ── §7 가로 극장방비 폴백 — 메타를 화면 최좌측에 고정하고 이미지 위에 반투명으로 얹는다.
+              본문 텍스트가 #080706(어두움)이므로 스크림도 밝은 쪽(흰색)이어야 가독이 선다.
+              1차 구현: 판정·스타일만. 실물 극장방비 이미지 확인 후 투명도·블러를 조정한다.
+              좌표는 전부 px 정수 — transform 퍼센트 정렬 없음 ── */}
+          {metaOverlay && (
+            <div style={{
+              position: 'absolute',
+              left: 0,
+              top: Math.round((vpSize.h - slideH) / 2),
+              width: TRACK_INSET + INFO_SLIDE_W + 16,
+              height: Math.round(slideH),
+              paddingLeft: TRACK_INSET,
+              paddingRight: 16,
+              boxSizing: 'border-box',
+              display: 'flex',
+              flexDirection: 'column',
+              justifyContent: 'flex-start',
+              gap: 24,
+              fontFamily: FONT,
+              color: '#080706',
+              background: 'rgba(255,255,255,0.72)',
+              backdropFilter: 'blur(12px)',
+              WebkitBackdropFilter: 'blur(12px)',
+              opacity: infoIn ? 1 : 0,
+              transition: 'opacity 400ms ease',
+              overflowY: 'auto',
+              zIndex: 7,
+            }}>
+              {infoContent}
+            </div>
+          )}
+
+          {/* Back 버튼은 좌상단 오버레이(로고와 충돌)에서 정보 슬라이드 최상단으로 이동했다 (v2 §3) */}
         </>
       )}
 
