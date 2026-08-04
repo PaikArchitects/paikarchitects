@@ -593,7 +593,9 @@ export function GridContentArea({ project, mode, enterRect, onBack }: GridConten
   const timersRef = useRef<ReturnType<typeof setTimeout>[]>([])
 
   // ── 연속 트랙 (픽셀 스크롤 모델) ──
-  // scrollPos 0 = 트랙 좌측 끝 = 뷰포트 좌측 끝 ([정보 슬라이드][히어로]가 좌측부터 보임)
+  // scrollPos 0 = 트랙 좌측 끝 = 뷰포트 좌측 끝 ([정보 슬라이드][히어로]가 좌측부터 보임).
+  // 하한은 0이 아니라 minScroll이다 — 좁은 히어로를 정중앙에 세우려면 트랙이 0보다 우측으로
+  // 밀려야 하므로 음수를 허용한다 (GRID_CONTENT_center_fix §1-1)
   const [scrollPos, setScrollPos] = useState(0)
   const [vpSize, setVpSize] = useState({ w: 0, h: 0 })   // viewportRef의 clientWidth/Height — 유일한 관찰 대상
   const [dragging, setDragging] = useState(false)
@@ -673,21 +675,40 @@ export function GridContentArea({ project, mode, enterRect, onBack }: GridConten
   const contentEnd = rects.length > 0
     ? rects[rects.length - 1].x + rects[rects.length - 1].w
     : 0
-  const maxScroll = centers.length > 0
+  // 히어로(트랙 자식 1)의 실제 폭 — 원본비가 반영된 rects 값. §7 메타 폴백 판정과 공용
+  const heroW = rects[1]?.w ?? 0
+
+  // ── 중앙정렬 산식 (GRID_CONTENT_center_fix §1-1) ──
+  // 트랙 자식 i의 화면 좌측 = TRACK_INSET + rects[i].x - scrollPos.
+  // 이를 (viewportW - rects[i].w)/2 (= 정중앙)에 맞추는 scrollPos가 중앙정렬 값이다.
+  // ⚠ centers[i](슬롯 중심) 기준 역산은 실제 이미지 폭을 반영하지 못한다 — 폐기.
+  //   초기 진입·화살표·리사이즈 재중앙 전부 이 한 함수를 쓴다(경로 간 24px 어긋남 방지).
+  //   반환값 px 정수. transform 퍼센트 정렬은 쓰지 않는다(Safari).
+  const centerScroll = (i: number) =>
+    i >= 0 && i < rects.length
+      ? Math.round((TRACK_INSET + rects[i].x) - (viewportW / 2 - rects[i].w / 2))
+      : 0
+
+  // 스크롤 하한 — 히어로 중앙정렬 지점이 음수(= 히어로가 좁아 트랙이 우측으로 밀려야 함)면
+  // 하한을 그 지점까지 연다. 하한을 0으로 묶으면 좁은 히어로가 그 지점에 도달하지 못해
+  // 좌측에 붙는다(대부분 프로젝트에서 관찰된 결함의 실제 원인). 넓은 히어로면 종전대로 0.
+  const minScroll = rects.length >= 2 ? Math.min(0, centerScroll(1)) : 0
+  const maxScroll = rects.length > 0
     ? Math.max(
-        0,
-        centers[centers.length - 1] - viewportW / 2,   // 마지막 슬라이드 중앙 정렬 지점 (좁은 슬라이드용)
-        contentEnd + TRACK_INSET - viewportW,          // 마지막 슬라이드 우측 에지 + 우측 여백 24 (넓은 슬라이드용)
+        minScroll,
+        centerScroll(rects.length - 1),        // 마지막 슬라이드 중앙 정렬 지점 (좁은 슬라이드용)
+        contentEnd + TRACK_INSET - viewportW,  // 마지막 슬라이드 우측 에지 + 우측 여백 24 (넓은 슬라이드용)
       )
     : 0
 
-  const viewportCenter = scrollPos + viewportW / 2
+  // 뷰포트 중심을 트랙 좌표계로 환산 — 트랙은 TRACK_INSET만큼 우측에서 시작한다
+  const viewportCenter = scrollPos - TRACK_INSET + viewportW / 2
   let nearest = 0
   for (let i = 1; i < centers.length; i++) {
     if (Math.abs(centers[i] - viewportCenter) < Math.abs(centers[nearest] - viewportCenter)) nearest = i
   }
 
-  const clampScroll = (v: number) => Math.min(maxScroll, Math.max(0, v))
+  const clampScroll = (v: number) => Math.min(maxScroll, Math.max(minScroll, v))
 
   // 다이어그램 화살표 우선순위 — 슬라이드 중앙이 뷰포트 중앙 ±20% 이내일 때만 활성
   const isNearCenter = (trackIdx: number) =>
@@ -695,8 +716,8 @@ export function GridContentArea({ project, mode, enterRect, onBack }: GridConten
     Math.abs(centers[trackIdx] - viewportCenter) < viewportW * 0.2
 
   // 모프 effect가 최신 기하를 읽는 통로 — effect deps(mode·vpSize)만으로는 scrollPos가 stale해진다
-  const geomRef = useRef({ rects, centers, scrollPos, clampScroll })
-  geomRef.current = { rects, centers, scrollPos, clampScroll }
+  const geomRef = useRef({ rects, centers, scrollPos, clampScroll, centerScroll })
+  geomRef.current = { rects, centers, scrollPos, clampScroll, centerScroll }
 
   // ── 리사이즈 재중앙 — 변경 직전 nearest를 새 rects 기준으로 무애니메이션 재정렬. 드래그 중 생략 ──
   const nearestRef = useRef(0)
@@ -707,7 +728,7 @@ export function GridContentArea({ project, mode, enterRect, onBack }: GridConten
     const idx = Math.min(nearestRef.current, centers.length - 1)
     if (idx < 0) return
     setAnimated(false)
-    setScrollPos(clampScroll(centers[idx] - vpSize.w / 2))
+    setScrollPos(clampScroll(centerScroll(idx)))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [vpSize.w, vpSize.h])
 
@@ -729,14 +750,15 @@ export function GridContentArea({ project, mode, enterRect, onBack }: GridConten
       morphStartedRef.current = true
       setFadingOut(false)
 
-      const { rects: rc, clampScroll: cs } = geomRef.current
+      const { rects: rc, clampScroll: cs, centerScroll: ccs } = geomRef.current
       const rh = rootRef.current.clientHeight
 
       // 슬라이드 0개 엣지 케이스 대비: rects가 2개 미만이면 링월과 동일한 좌측 상주로 폴백 (§2-5)
       const hasHero = rc.length >= 2
-      // 초기 scrollPos = centers[1] - viewportW/2 (§2-4) — goToSlide·리사이즈 재중앙과 동일 공식.
+      // 초기 scrollPos = 히어로 실제 폭(rects[1].width) 기준 중앙정렬 역산
+      // (GRID_CONTENT_center_fix §1-1). goToSlide·리사이즈 재중앙과 동일 함수를 쓴다.
       // 직접 진입·클릭 진입 공통이다: 양쪽 모두 히어로 중앙에 정착한다 (GRID_URL_split §3-1)
-      const initScroll = hasHero ? Math.round(cs(rc[1].x + rc[1].w / 2 - vpSize.w / 2)) : 0
+      const initScroll = hasHero ? Math.round(cs(ccs(1))) : 0
 
       setScrollPos(initScroll)
       setAnimated(false)
@@ -763,11 +785,13 @@ export function GridContentArea({ project, mode, enterRect, onBack }: GridConten
       // 도착 폭은 트랙이 예약한 rects[1].w 그대로 — getSlides가 주입한 coverRatio로 계산된 값이라
       // aspect 기반 재계산과 같지만, 1px도 어긋나지 않도록 동일 소스를 쓴다
       const tw = hasHero ? rc[1].w : th * aspect
-      // morph 도착 left와 정착 후 히어로 화면 left가 동일 픽셀이어야 모프 종료 시 이미지가
-      // 튀지 않는다 — clamp된 initScroll에서 파생한다 (전부 px 정수)
+      // morph 도착 left = 정중앙 vpSize.w/2 - heroW/2 (GRID_CONTENT_center_fix §1-2).
+      // 단 clamp된 initScroll에서 파생시킨다 — 정착 scrollPos와 morph 도착이 항상 동일
+      // 픽셀을 가리켜야 모프 종료 시 이미지가 튀지 않는다. clamp가 걸리지 않는 한(=평시)
+      // 이 값은 vpSize.w/2 - tw/2 와 정확히 같다. 좌측 고정 잔재는 제거했다 (전부 px 정수)
       const heroScreenLeft = hasHero
         ? Math.round(TRACK_INSET + rc[1].x - initScroll)
-        : TRACK_INSET + INFO_SLIDE_W + SLIDE_GAP_PX
+        : Math.round(vpSize.w / 2 - tw / 2)
 
       setMorphing(true)
       setMorphVisible(true)
@@ -814,9 +838,10 @@ export function GridContentArea({ project, mode, enterRect, onBack }: GridConten
         const tw = rc.length >= 2
           ? rc[1].w
           : th * (project.coverRatio && project.coverRatio > 0 ? project.coverRatio : FALLBACK_RATIO)
+        // 출발 left도 진입 도착과 동일 산식 — 지금 화면에 선 히어로 위치(중앙정렬 지점)
         const heroScreenLeft = rc.length >= 2
           ? Math.round(TRACK_INSET + rc[1].x - sp)
-          : TRACK_INSET + INFO_SLIDE_W + SLIDE_GAP_PX
+          : Math.round(vpSize.w / 2 - tw / 2)
 
         setMorphVisible(true)
         setMorphRect({ top: (rh - th) / 2, left: heroScreenLeft, width: tw, height: th })
@@ -893,7 +918,7 @@ export function GridContentArea({ project, mode, enterRect, onBack }: GridConten
     if (centers.length === 0) return
     const i = Math.max(0, Math.min(centers.length - 1, idx))
     setAnimated(true)
-    setScrollPos(clampScroll(centers[i] - viewportW / 2))
+    setScrollPos(clampScroll(centerScroll(i)))
   }
   const goNext = () => goToSlide(nearest + 1)
   const goPrev = () => goToSlide(nearest - 1)
@@ -971,18 +996,20 @@ export function GridContentArea({ project, mode, enterRect, onBack }: GridConten
     cursor && viewportW > 0 ? (cursor.x > viewportW / 2 ? 'right' : 'left') : null
   const showGlyph = finePointer && !morphing && cursor !== null && !dragging && !diagramHover &&
     glyphSide !== null &&
-    (glyphSide === 'right' ? scrollPos < maxScroll - 1 : scrollPos > 1)
+    // 좌측 글리프는 하한(minScroll — 히어로 중앙정렬 지점, 음수일 수 있다) 위에서만
+    (glyphSide === 'right' ? scrollPos < maxScroll - 1 : scrollPos > minScroll + 1)
 
   // 카운터: 정보 슬라이드 제외 — 콘텐츠 슬라이드 번호(1..) 기준
   const displayIdx = Math.min(Math.max(nearest, 1), total)
 
   // ── §7 가로 극장방비 폴백 — 히어로가 뷰포트를 다 먹어 메타가 설 자리가 없는 경우 ──
-  // 판정은 순수 계산: [정보 슬라이드][gap][히어로] 가 뷰포트 폭을 넘는가.
+  // 판정은 순수 계산 (GRID_CONTENT_center_fix §1-3): 중앙정렬된 히어로의 화면 좌측 앞에
+  // [정보 슬라이드][gap]이 들어갈 자리가 남는가. 히어로 실제 폭 기준이라 정확하다.
   // 참이면 정보 슬라이드 내용을 화면 최좌측 고정 오버레이로 옮긴다(트랙 자식은 폭만 예약해
   // 트랙 좌표계·중앙정렬 계산을 그대로 유지한다). 거짓이면 §2-3 정상 — 트랙 인덱스 0.
-  const heroW = rects[1]?.w ?? 0
+  const heroLeftScreen = viewportW / 2 - heroW / 2
   const metaOverlay = viewportW > 0 && heroW > 0 &&
-    (INFO_SLIDE_W + SLIDE_GAP_PX + heroW) > viewportW
+    (heroLeftScreen - SLIDE_GAP_PX - INFO_SLIDE_W) < 0
 
   // 정보 슬라이드 본문 — 트랙 자식 0 또는 §7 오버레이 중 한 곳에만 렌더된다
   const infoContent = (
