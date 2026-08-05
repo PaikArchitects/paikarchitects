@@ -23,11 +23,12 @@ import { sizeLabel, sizeValue, splitRole } from '@/lib/projectMeta'
 
 const FONT = "'Pretendard Variable', Pretendard, -apple-system, BlinkMacSystemFont, sans-serif"
 
-const INFO_SLIDE_W = 240     // 세로 스택 — 수평 4열 폐기 (260714-B). 260721 200→240 (120%)
-// 타이틀 세트 고정 슬롯 높이 — AWARDS 시작 y를 전 프로젝트 동일화. INFO_SLIDE_W(240) 기준
+const INFO_SLIDE_W = 270     // 세로 스택 — 수평 4열 폐기 (260714-B). 260721 200→240. 260804 240→270
+// 타이틀 세트 고정 슬롯 높이 — AWARDS 시작 y를 전 프로젝트 동일화. INFO_SLIDE_W(270) 기준
 // 결정론적 산출(영문타이틀 3줄+한글 2줄+서브 영3/한2, 260720 명세): 합 181.2 → 182
 // 260721: 폭 200→240 확대에 따른 재산출. 기존 197 → 175 (비례 164 + 여유 11)
-const TITLE_SET_MIN_H = 175
+// 260804: 폭 240→270 확대에 따른 재산출. 기존 175 → 160 (비례 146 + 여유 14)
+const TITLE_SET_MIN_H = 160
 const CREDITS_SLIDE_W = 420
 const TEXT_SLIDE_W = 560     // 서술문 — 한글 본문 가독 폭
 const QUOTE_SLIDE_W = 460    // 인용문 — 본문보다 좁게 하여 위계 부여
@@ -1218,8 +1219,8 @@ export function GridContentArea({ project, mode, enterRect, onBack }: GridConten
                     flexDirection: 'column',
                     justifyContent: 'flex-start',
                     gap: META_GAP,
-                    paddingLeft: 4,
-                    paddingRight: 16,
+                    paddingLeft: 0,   // 260804: 텍스트 실폭 = INFO_SLIDE_W(270). 좌여백은 META_MARGIN/SLIDE_GAP_PX가 담당
+                    paddingRight: 0,
                     paddingTop: META_TOP_PAD,
                     fontFamily: FONT,
                     color: '#080706',
