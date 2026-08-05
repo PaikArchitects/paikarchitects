@@ -48,6 +48,7 @@ const DIAGRAM_H_RATIO = 0.48   // diagramSet·단일 다이어그램 이미지 �
 const META_BLEED = 2
 const META_TOP_PAD = 28   // BACK 위 상단 여백 — 오버레이 상단 붙음 완화 (28 상한)
 const META_GAP = 18       // 오버레이 세로 스택 gap (기존 24 → 18, 하단 압축)
+const META_MARGIN = 24    // sticky 최좌측 고정선 — 뷰포트 좌측 여백 (TRACK_INSET과 동일값)
 
 // 역-morph 여유 — 부모(GridExperience)의 언마운트 타이머가 이 값 이상이어야 한다
 export const REVERSE_MORPH_TAIL_MS = 60
@@ -1275,11 +1276,11 @@ export function GridContentArea({ project, mode, enterRect, onBack }: GridConten
               스크림은 밝은 쪽(흰색). 좌표는 전부 px 정수 — transform 퍼센트 정렬 없음 ── */}
           <div style={{
             position: 'absolute',
-            left: TRACK_INSET + Math.max(0, -scrollPos),   // sticky x (작업 ①)
+            left: Math.max(META_MARGIN, TRACK_INSET - scrollPos),   // sticky x — 연속 (fix 결함 1)
             top: Math.round((vpSize.h - slideH) / 2) - META_BLEED,
             width: INFO_SLIDE_W + 16,
             height: Math.round(slideH) + META_BLEED * 2,
-            paddingLeft: 0,
+            paddingLeft: 4,    // 텍스트 좌측 미세 여백 (fix 결함 2)
             paddingRight: 16,
             paddingTop: META_TOP_PAD,
             boxSizing: 'border-box',
@@ -1289,9 +1290,7 @@ export function GridContentArea({ project, mode, enterRect, onBack }: GridConten
             gap: META_GAP,
             fontFamily: FONT,
             color: '#080706',
-            background: 'rgba(255,255,255,0.66)',
-            backdropFilter: 'blur(12px)',
-            WebkitBackdropFilter: 'blur(12px)',
+            background: 'rgba(255,255,255,0.66)',   // 순수 반투명만 — blur 없음 (fix 결함 3)
             opacity: infoIn ? 1 : 0,
             transition: 'opacity 400ms ease',
             overflowY: 'auto',
