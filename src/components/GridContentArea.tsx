@@ -24,6 +24,12 @@ import { sizeLabel, sizeValue, splitRole } from '@/lib/projectMeta'
 const FONT = "'Pretendard Variable', Pretendard, -apple-system, BlinkMacSystemFont, sans-serif"
 
 const INFO_SLIDE_W = 270     // 세로 스택 — 수평 4열 폐기 (260714-B). 260721 200→240. 260804 240→270
+// 260804: 메타 좌우 내부 여백. 폭 예약을 INFO_SLIDE_W + META_PAD_X*2로 확장하여
+// border-box 기준 텍스트 실폭은 INFO_SLIDE_W(270)로 유지된다 (스크롤 재발 없음)
+const META_PAD_X = 16
+// 폭 예약(rects widths[0])·트랙 자식 0 width의 공통 단일 소유값 = 302.
+// 두 지점이 어긋나면 중앙정렬·morph 계산이 깨지므로 반드시 이 상수를 함께 참조한다
+const META_SLOT_W = INFO_SLIDE_W + META_PAD_X * 2
 // 타이틀 세트 고정 슬롯 높이 — AWARDS 시작 y를 전 프로젝트 동일화. INFO_SLIDE_W(270) 기준
 // 결정론적 산출(영문타이틀 3줄+한글 2줄+서브 영3/한2, 260720 명세): 합 181.2 → 182
 // 260721: 폭 200→240 확대에 따른 재산출. 기존 197 → 175 (비례 164 + 여유 11)
@@ -655,7 +661,7 @@ export function GridContentArea({ project, mode, enterRect, onBack }: GridConten
   const diagramH = vpSize.h * DIAGRAM_H_RATIO
 
   const rects = useMemo(() => {
-    const widths: number[] = [INFO_SLIDE_W]   // 트랙 자식 0 = 정보 슬라이드
+    const widths: number[] = [META_SLOT_W]   // 트랙 자식 0 = 정보 슬라이드 (패딩 포함 슬롯 폭)
     if (slides.length > 0) {
       slides.forEach((slide, i) => {
         const ratio = ratios?.[i] ?? FALLBACK_RATIO
@@ -1204,10 +1210,11 @@ export function GridContentArea({ project, mode, enterRect, onBack }: GridConten
                   {/* 트랙 첫 자식 = 메타 본문. 트랙의 translateX/transition을 물려받아 슬라이드와 완전 동기화된다.
                       sticky 클램프는 transform translateX(shift)로 처리하며, shift에도 트랙과 동일한 600ms
                       transition을 걸어 전 구간 동일 곡선을 탄다(GRID_CONTENT_meta_sticky_v2 작업 ①).
-                      폭 INFO_SLIDE_W 예약은 rects 인덱싱(0=정보, 1..=콘텐츠)·중앙정렬이 의존하므로 필수 유지.
+                      폭 META_SLOT_W 예약은 rects 인덱싱(0=정보, 1..=콘텐츠)·중앙정렬이 의존하므로 필수 유지
+                      (rects widths[0]와 반드시 동일한 상수를 참조할 것).
                       transform은 레이아웃 폭에 영향을 주지 않으므로 rects는 그대로 유효하다 */}
                   <div style={{
-                    width: INFO_SLIDE_W,
+                    width: META_SLOT_W,
                     flexShrink: 0,
                     height: slideH,
                     boxSizing: 'border-box',
@@ -1219,8 +1226,8 @@ export function GridContentArea({ project, mode, enterRect, onBack }: GridConten
                     flexDirection: 'column',
                     justifyContent: 'flex-start',
                     gap: META_GAP,
-                    paddingLeft: 0,   // 260804: 텍스트 실폭 = INFO_SLIDE_W(270). 좌여백은 META_MARGIN/SLIDE_GAP_PX가 담당
-                    paddingRight: 0,
+                    paddingLeft: META_PAD_X,   // 260804: 302 - 16 - 16 = 텍스트 실폭 INFO_SLIDE_W(270) 유지
+                    paddingRight: META_PAD_X,
                     paddingTop: META_TOP_PAD,
                     fontFamily: FONT,
                     color: '#080706',
