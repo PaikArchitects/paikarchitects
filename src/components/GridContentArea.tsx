@@ -42,12 +42,11 @@ const MORPH_FADE_MS = 250    // 모프 레이어 페이드아웃
 const SLIDE_H_RATIO = 0.72     // image·credits·info 슬라이드 높이 (뷰포트 대비)
 const DIAGRAM_H_RATIO = 0.48   // diagramSet·단일 다이어그램 이미지 영역 높이 (뷰포트 대비)
 
-// ── 메타 sticky 오버레이 (GRID_CONTENT_meta_sticky_260804) ──
-// 오버레이 배경 높이 Math.round(slideH)와 이미지 슬라이드 높이 slideH가 각각 독립 반올림되어
-// 1px 실선 틈이 생긴다. 배경을 상하로 이만큼 초과 확장해 반올림 오차를 흡수한다
-const META_BLEED = 2
-const META_TOP_PAD = 28   // BACK 위 상단 여백 — 오버레이 상단 붙음 완화 (28 상한)
-const META_GAP = 18       // 오버레이 세로 스택 gap (기존 24 → 18, 하단 압축)
+// ── 메타 sticky (GRID_CONTENT_meta_sticky_v2_260804) ──
+// 메타 본문은 트랙 자식 0으로 렌더된다 — 트랙의 translateX/transition을 물려받아 동기화.
+// 트랙이 높이를 맞추므로 bleed 보정(구 META_BLEED)은 구조적으로 불필요해졌다.
+const META_TOP_PAD = 28   // BACK 위 상단 여백 — 상단 붙음 완화 (28 상한)
+const META_GAP = 18       // 메타 세로 스택 gap (기존 24 → 18, 하단 압축)
 const META_MARGIN = 24    // sticky 최좌측 고정선 — 뷰포트 좌측 여백 (TRACK_INSET과 동일값)
 
 // 역-morph 여유 — 부모(GridExperience)의 언마운트 타이머가 이 값 이상이어야 한다
@@ -710,6 +709,10 @@ export function GridContentArea({ project, mode, enterRect, onBack }: GridConten
 
   const clampScroll = (v: number) => Math.min(maxScroll, Math.max(minScroll, v))
 
+  // 메타 sticky — 자연 위치(TRACK_INSET - scrollPos)가 여백선보다 왼쪽이면 그만큼 우측 보정.
+  // 트랙과 같은 transition을 타므로 클램프 구간에서도 점프 없이 연속으로 붙는다 (v2 작업 ①)
+  const metaShift = Math.max(0, META_MARGIN - (TRACK_INSET - scrollPos))
+
   // 다이어그램 화살표 우선순위 — 슬라이드 중앙이 뷰포트 중앙 ±20% 이내일 때만 활성
   const isNearCenter = (trackIdx: number) =>
     viewportW > 0 && trackIdx < centers.length &&
@@ -1197,16 +1200,37 @@ export function GridContentArea({ project, mode, enterRect, onBack }: GridConten
                     willChange: 'transform',
                   }}
                 >
-                  {/* 트랙 첫 자식 — 폭 예약 전용 빈 자리. 메타 본문은 항상 sticky 오버레이에만
-                      렌더된다(작업 ①). 이 자식을 삭제하면 rects 인덱싱(0=정보, 1..=콘텐츠)과
-                      중앙정렬 계산이 어긋나므로 폭 INFO_SLIDE_W 예약은 필수 유지한다 */}
+                  {/* 트랙 첫 자식 = 메타 본문. 트랙의 translateX/transition을 물려받아 슬라이드와 완전 동기화된다.
+                      sticky 클램프는 transform translateX(shift)로 처리하며, shift에도 트랙과 동일한 600ms
+                      transition을 걸어 전 구간 동일 곡선을 탄다(GRID_CONTENT_meta_sticky_v2 작업 ①).
+                      폭 INFO_SLIDE_W 예약은 rects 인덱싱(0=정보, 1..=콘텐츠)·중앙정렬이 의존하므로 필수 유지.
+                      transform은 레이아웃 폭에 영향을 주지 않으므로 rects는 그대로 유효하다 */}
                   <div style={{
                     width: INFO_SLIDE_W,
                     flexShrink: 0,
                     height: slideH,
-                    opacity: 0,
                     boxSizing: 'border-box',
-                  }} />
+                    position: 'relative',
+                    zIndex: 7,                        // 이웃 슬라이드 위에 얹히도록 (겹칠 때 메타가 위)
+                    transform: `translateX(${metaShift}px)`,                      // sticky 클램프
+                    transition: animated && !dragging ? `transform 600ms ${EASE}` : 'none',  // 트랙과 동일
+                    display: 'flex',
+                    flexDirection: 'column',
+                    justifyContent: 'flex-start',
+                    gap: META_GAP,
+                    paddingLeft: 4,
+                    paddingRight: 16,
+                    paddingTop: META_TOP_PAD,
+                    fontFamily: FONT,
+                    color: '#080706',
+                    background: 'rgba(255,255,255,0.82)',       // 작업 ② — blur와 함께 사용
+                    backdropFilter: 'blur(10px)',               // 작업 ② — 뿌옇게 유지
+                    WebkitBackdropFilter: 'blur(10px)',
+                    opacity: infoIn ? 1 : 0,
+                    overflowY: 'auto',
+                  }}>
+                    {infoContent}
+                  </div>
 
                   {slides.length > 0 ? slides.map((slide, idx) => (
                     <div
@@ -1269,34 +1293,6 @@ export function GridContentArea({ project, mode, enterRect, onBack }: GridConten
                 {glyphSide === 'right' ? '›' : '‹'}
               </span>
             )}
-          </div>
-
-          {/* ── 메타 sticky 오버레이 — 항상 렌더. 자연 위치(트랙 좌표 0 = 화면 TRACK_INSET - scrollPos)와
-              좌측 경계 고정을 metaX 단일 산식이 처리한다. 본문 텍스트가 #080706(어두움)이므로
-              스크림은 밝은 쪽(흰색). 좌표는 전부 px 정수 — transform 퍼센트 정렬 없음 ── */}
-          <div style={{
-            position: 'absolute',
-            left: Math.max(META_MARGIN, TRACK_INSET - scrollPos),   // sticky x — 연속 (fix 결함 1)
-            top: Math.round((vpSize.h - slideH) / 2) - META_BLEED,
-            width: INFO_SLIDE_W + 16,
-            height: Math.round(slideH) + META_BLEED * 2,
-            paddingLeft: 4,    // 텍스트 좌측 미세 여백 (fix 결함 2)
-            paddingRight: 16,
-            paddingTop: META_TOP_PAD,
-            boxSizing: 'border-box',
-            display: 'flex',
-            flexDirection: 'column',
-            justifyContent: 'flex-start',
-            gap: META_GAP,
-            fontFamily: FONT,
-            color: '#080706',
-            background: 'rgba(255,255,255,0.66)',   // 순수 반투명만 — blur 없음 (fix 결함 3)
-            opacity: infoIn ? 1 : 0,
-            transition: 'opacity 400ms ease',
-            overflowY: 'auto',
-            zIndex: 7,
-          }}>
-            {infoContent}
           </div>
 
           {/* Back 버튼은 좌상단 오버레이(로고와 충돌)에서 정보 슬라이드 최상단으로 이동했다 (v2 §3) */}
