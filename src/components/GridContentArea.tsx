@@ -42,6 +42,13 @@ const MORPH_FADE_MS = 250    // 모프 레이어 페이드아웃
 const SLIDE_H_RATIO = 0.72     // image·credits·info 슬라이드 높이 (뷰포트 대비)
 const DIAGRAM_H_RATIO = 0.48   // diagramSet·단일 다이어그램 이미지 영역 높이 (뷰포트 대비)
 
+// ── 메타 sticky 오버레이 (GRID_CONTENT_meta_sticky_260804) ──
+// 오버레이 배경 높이 Math.round(slideH)와 이미지 슬라이드 높이 slideH가 각각 독립 반올림되어
+// 1px 실선 틈이 생긴다. 배경을 상하로 이만큼 초과 확장해 반올림 오차를 흡수한다
+const META_BLEED = 2
+const META_TOP_PAD = 28   // BACK 위 상단 여백 — 오버레이 상단 붙음 완화 (28 상한)
+const META_GAP = 18       // 오버레이 세로 스택 gap (기존 24 → 18, 하단 압축)
+
 // 역-morph 여유 — 부모(GridExperience)의 언마운트 타이머가 이 값 이상이어야 한다
 export const REVERSE_MORPH_TAIL_MS = 60
 // 직접 진입 닫기 — 역-morph 대신 콘텐츠 페이드아웃 (트랙 페이드 400ms와 동일 지속)
@@ -672,11 +679,6 @@ export function GridContentArea({ project, mode, enterRect, onBack }: GridConten
 
   // 트랙 자식 인덱스 공간: 0 = 정보 슬라이드, 1.. = 콘텐츠 슬라이드
   const centers = rects.map(r => r.x + r.w / 2)
-  const contentEnd = rects.length > 0
-    ? rects[rects.length - 1].x + rects[rects.length - 1].w
-    : 0
-  // 히어로(트랙 자식 1)의 실제 폭 — 원본비가 반영된 rects 값. §7 메타 폴백 판정과 공용
-  const heroW = rects[1]?.w ?? 0
 
   // ── 중앙정렬 산식 (GRID_CONTENT_center_fix §1-1) ──
   // 트랙 자식 i의 화면 좌측 = TRACK_INSET + rects[i].x - scrollPos.
@@ -689,17 +691,14 @@ export function GridContentArea({ project, mode, enterRect, onBack }: GridConten
       ? Math.round((TRACK_INSET + rects[i].x) - (viewportW / 2 - rects[i].w / 2))
       : 0
 
-  // 스크롤 하한 — 히어로 중앙정렬 지점이 음수(= 히어로가 좁아 트랙이 우측으로 밀려야 함)면
-  // 하한을 그 지점까지 연다. 하한을 0으로 묶으면 좁은 히어로가 그 지점에 도달하지 못해
-  // 좌측에 붙는다(대부분 프로젝트에서 관찰된 결함의 실제 원인). 넓은 히어로면 종전대로 0.
-  const minScroll = rects.length >= 2 ? Math.min(0, centerScroll(1)) : 0
-  const maxScroll = rects.length > 0
-    ? Math.max(
-        minScroll,
-        centerScroll(rects.length - 1),        // 마지막 슬라이드 중앙 정렬 지점 (좁은 슬라이드용)
-        contentEnd + TRACK_INSET - viewportW,  // 마지막 슬라이드 우측 에지 + 우측 여백 24 (넓은 슬라이드용)
-      )
-    : 0
+  // 모든 슬라이드를 뷰포트 정중앙에 스냅 가능하게 — 콘텐츠 슬라이드(인덱스 1..)의
+  // centerScroll 최소/최대를 경계로 삼는다. 양 끝 슬라이드에서 반대편 여백은 허용한다.
+  // (인덱스 0 = 정보 슬라이드는 스냅 대상이 아니므로 제외)
+  const contentCenterScrolls = rects.length >= 2
+    ? Array.from({ length: rects.length - 1 }, (_, k) => centerScroll(k + 1))
+    : [0]
+  const minScroll = Math.min(...contentCenterScrolls)
+  const maxScroll = Math.max(...contentCenterScrolls)
 
   // 뷰포트 중심을 트랙 좌표계로 환산 — 트랙은 TRACK_INSET만큼 우측에서 시작한다
   const viewportCenter = scrollPos - TRACK_INSET + viewportW / 2
@@ -1002,16 +1001,8 @@ export function GridContentArea({ project, mode, enterRect, onBack }: GridConten
   // 카운터: 정보 슬라이드 제외 — 콘텐츠 슬라이드 번호(1..) 기준
   const displayIdx = Math.min(Math.max(nearest, 1), total)
 
-  // ── §7 가로 극장방비 폴백 — 히어로가 뷰포트를 다 먹어 메타가 설 자리가 없는 경우 ──
-  // 판정은 순수 계산 (GRID_CONTENT_center_fix §1-3): 중앙정렬된 히어로의 화면 좌측 앞에
-  // [정보 슬라이드][gap]이 들어갈 자리가 남는가. 히어로 실제 폭 기준이라 정확하다.
-  // 참이면 정보 슬라이드 내용을 화면 최좌측 고정 오버레이로 옮긴다(트랙 자식은 폭만 예약해
-  // 트랙 좌표계·중앙정렬 계산을 그대로 유지한다). 거짓이면 §2-3 정상 — 트랙 인덱스 0.
-  const heroLeftScreen = viewportW / 2 - heroW / 2
-  const metaOverlay = viewportW > 0 && heroW > 0 &&
-    (heroLeftScreen - SLIDE_GAP_PX - INFO_SLIDE_W) < 0
-
-  // 정보 슬라이드 본문 — 트랙 자식 0 또는 §7 오버레이 중 한 곳에만 렌더된다
+  // 정보 슬라이드 본문 — 항상 sticky 오버레이 한 곳에만 렌더된다
+  // (GRID_CONTENT_meta_sticky_260804 작업 ①. 트랙 자식 0은 폭 예약 전용 빈 자리)
   const infoContent = (
     <>
       {/* ── Back — 정보 슬라이드 최상단(careerNo 위). 좌상단 로고와 겹치지 않도록
@@ -1040,7 +1031,7 @@ export function GridContentArea({ project, mode, enterRect, onBack }: GridConten
       </div>
 
       {/* 타이틀 세트 — 고정 높이 슬롯. AWARDS 시작 y를 전 프로젝트 동일화 */}
-      <div style={{ minHeight: TITLE_SET_MIN_H, marginBottom: 20 }}>
+      <div style={{ minHeight: TITLE_SET_MIN_H, marginBottom: 14 }}>
         {/* 프로젝트 코드 — ProjectCard와 동일한 3자리 zero-pad 규약 */}
         <div style={{
           fontSize: 9,
@@ -1095,13 +1086,13 @@ export function GridContentArea({ project, mode, enterRect, onBack }: GridConten
       })()}
 
       {/* CLIENT + LOCATION — 하나의 논리 블록 (2블록과 동일 내부 간격) */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
         <MetaField label="CLIENT" value={project.client} />
         <MetaField label="LOCATION" value={project.location} />
       </div>
 
       {/* 2블록 — TYPOLOGY / SIZE / STATUS / YEAR 세로 스택 */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
         <MetaField label="TYPOLOGY" value={project.type} />
         <MetaField
           label={project.size ? sizeLabel(project.size) : 'SIZE'}
@@ -1205,26 +1196,16 @@ export function GridContentArea({ project, mode, enterRect, onBack }: GridConten
                     willChange: 'transform',
                   }}
                 >
-                  {/* 트랙 첫 자식 — 정보 슬라이드 (§2-3). 히어로 좌측에 트랙 좌표계로 자동 부착된다.
-                      §7 폴백(metaOverlay)일 때만 내용을 화면 좌측 고정 오버레이로 옮기고,
-                      이 자식은 폭 INFO_SLIDE_W만 예약해 rects·중앙정렬 계산을 그대로 보존한다 */}
+                  {/* 트랙 첫 자식 — 폭 예약 전용 빈 자리. 메타 본문은 항상 sticky 오버레이에만
+                      렌더된다(작업 ①). 이 자식을 삭제하면 rects 인덱싱(0=정보, 1..=콘텐츠)과
+                      중앙정렬 계산이 어긋나므로 폭 INFO_SLIDE_W 예약은 필수 유지한다 */}
                   <div style={{
                     width: INFO_SLIDE_W,
                     flexShrink: 0,
                     height: slideH,
-                    display: 'flex',
-                    flexDirection: 'column',
-                    justifyContent: 'flex-start',
-                    gap: 24,
-                    fontFamily: FONT,
-                    color: '#080706',
-                    opacity: infoIn && !metaOverlay ? 1 : 0,
-                    transition: 'opacity 400ms ease',
+                    opacity: 0,
                     boxSizing: 'border-box',
-                    overflowY: 'auto',
-                  }}>
-                    {!metaOverlay && infoContent}
-                  </div>
+                  }} />
 
                   {slides.length > 0 ? slides.map((slide, idx) => (
                     <div
@@ -1289,37 +1270,35 @@ export function GridContentArea({ project, mode, enterRect, onBack }: GridConten
             )}
           </div>
 
-          {/* ── §7 가로 극장방비 폴백 — 메타를 화면 최좌측에 고정하고 이미지 위에 반투명으로 얹는다.
-              본문 텍스트가 #080706(어두움)이므로 스크림도 밝은 쪽(흰색)이어야 가독이 선다.
-              1차 구현: 판정·스타일만. 실물 극장방비 이미지 확인 후 투명도·블러를 조정한다.
-              좌표는 전부 px 정수 — transform 퍼센트 정렬 없음 ── */}
-          {metaOverlay && (
-            <div style={{
-              position: 'absolute',
-              left: 0,
-              top: Math.round((vpSize.h - slideH) / 2),
-              width: TRACK_INSET + INFO_SLIDE_W + 16,
-              height: Math.round(slideH),
-              paddingLeft: TRACK_INSET,
-              paddingRight: 16,
-              boxSizing: 'border-box',
-              display: 'flex',
-              flexDirection: 'column',
-              justifyContent: 'flex-start',
-              gap: 24,
-              fontFamily: FONT,
-              color: '#080706',
-              background: 'rgba(255,255,255,0.72)',
-              backdropFilter: 'blur(12px)',
-              WebkitBackdropFilter: 'blur(12px)',
-              opacity: infoIn ? 1 : 0,
-              transition: 'opacity 400ms ease',
-              overflowY: 'auto',
-              zIndex: 7,
-            }}>
-              {infoContent}
-            </div>
-          )}
+          {/* ── 메타 sticky 오버레이 — 항상 렌더. 자연 위치(트랙 좌표 0 = 화면 TRACK_INSET - scrollPos)와
+              좌측 경계 고정을 metaX 단일 산식이 처리한다. 본문 텍스트가 #080706(어두움)이므로
+              스크림은 밝은 쪽(흰색). 좌표는 전부 px 정수 — transform 퍼센트 정렬 없음 ── */}
+          <div style={{
+            position: 'absolute',
+            left: TRACK_INSET + Math.max(0, -scrollPos),   // sticky x (작업 ①)
+            top: Math.round((vpSize.h - slideH) / 2) - META_BLEED,
+            width: INFO_SLIDE_W + 16,
+            height: Math.round(slideH) + META_BLEED * 2,
+            paddingLeft: 0,
+            paddingRight: 16,
+            paddingTop: META_TOP_PAD,
+            boxSizing: 'border-box',
+            display: 'flex',
+            flexDirection: 'column',
+            justifyContent: 'flex-start',
+            gap: META_GAP,
+            fontFamily: FONT,
+            color: '#080706',
+            background: 'rgba(255,255,255,0.66)',
+            backdropFilter: 'blur(12px)',
+            WebkitBackdropFilter: 'blur(12px)',
+            opacity: infoIn ? 1 : 0,
+            transition: 'opacity 400ms ease',
+            overflowY: 'auto',
+            zIndex: 7,
+          }}>
+            {infoContent}
+          </div>
 
           {/* Back 버튼은 좌상단 오버레이(로고와 충돌)에서 정보 슬라이드 최상단으로 이동했다 (v2 §3) */}
         </>
