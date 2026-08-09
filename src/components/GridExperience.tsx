@@ -35,6 +35,8 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import Link from 'next/link'
 import { TYPOLOGY_ORDER, type Project, type ProjectType } from '@/types'
 import { GridContentArea } from './GridContentArea'
+// 4:3 크롭은 GridContentArea의 morph 하위 레이어와 공유한다 — 동일 URL이어야 캐시가 맞는다
+import { gridThumb43 } from '@/lib/imageUrl'
 
 const FONT = "'Pretendard Variable', Pretendard, -apple-system, BlinkMacSystemFont, sans-serif"
 
@@ -70,19 +72,9 @@ const SUM_LH = 1.5
 
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v))
 
-/**
- * 썸네일 = Sanity 4:3 크롭 URL (GRID_CONTENT_v3 §4-2).
- * hotspot이 있으면 초점 크롭(fp), 없으면 중앙 크롭. CSS object-fit으로 이중 크롭하지 않는다.
- * imageUrl.ts는 폭 전용(sanityThumb)·3:2(sanityCard)만 제공하고 이번 수정 범위가 아니므로
- * 4:3 변환은 이 라우트에 국한한다. 콘텐츠(GridContentArea) 커버는 이 변환을 쓰지 않고
- * 원본 URL 그대로 — 원본 비율 morph의 소스이기 때문이다 (§4-3).
- */
-function gridThumb43(src: string, width: number, hotspot?: { x: number; y: number }): string {
-  if (!src.includes('cdn.sanity.io')) return src
-  const h = Math.round((width * 3) / 4)
-  const fp = hotspot ? `&crop=focalpoint&fp-x=${hotspot.x}&fp-y=${hotspot.y}` : ''
-  return `${src}?w=${width}&h=${h}&fit=crop${fp}&q=75&auto=format`
-}
+// 썸네일 4:3 크롭(gridThumb43)은 imageUrl.ts로 이동했다 — GridContentArea의 morph 하위
+// 레이어가 같은 함수·같은 인자를 써야 캐시가 맞기 때문이다 (GRID_MORPH_fix 작업 ①).
+// 콘텐츠 morph의 **도착** 이미지는 여전히 원본 URL이다 — 원본 비율 morph의 소스 (§4-3).
 
 const titlePx = (w: number) => clamp(w * 0.030, 10, 13)
 const sumPx = (w: number) => clamp(w * 0.024, 8.5, 11)
@@ -302,6 +294,19 @@ export function GridExperience({ projects, initialSlug }: GridExperienceProps) {
   }, [])
 
   const closeProject = useCallback(() => {
+    // 복귀 도착 rect를 카드의 **현재** 위치로 갱신 — 열려 있는 동안 밀도 변경(film movement)·
+    // 리사이즈로 클릭 당시 rect와 달라졌을 수 있다. ref 변경은 setContentMode보다 먼저 해야
+    // idle 렌더가 갱신된 enterRect를 받는다 (GRID_MORPH_fix 작업 ④).
+    // 직접 진입(enterRectRef.current === null)은 **갱신하지 않는다** — 그리드 카드는 오버레이
+    // 아래에 그대로 마운트돼 있어 el은 존재한다. 여기서 채우면 null 신호가 사라져 페이드아웃
+    // 경로가 역-morph로 바뀌므로, null일 때는 건드리지 않는다 (GRID_URL_split §3-2 유지).
+    if (selected && enterRectRef.current) {
+      const el = cardEls.current.get(selected.id)
+      if (el) {
+        const r = el.getBoundingClientRect()
+        enterRectRef.current = { top: r.top, left: r.left, width: r.width, height: r.height }
+      }
+    }
     setContentMode('idle')
     // 역-morph 재생이 끝난 뒤 언마운트
     setTimeout(() => setSelected(null), CONTENT_EXIT_MS)
@@ -309,7 +314,7 @@ export function GridExperience({ projects, initialSlug }: GridExperienceProps) {
     if (window.location.pathname !== '/work-grid') {
       window.history.replaceState({}, '', '/work-grid')
     }
-  }, [])
+  }, [selected])
 
   // 브라우저 뒤로가기 → 닫기
   useEffect(() => {

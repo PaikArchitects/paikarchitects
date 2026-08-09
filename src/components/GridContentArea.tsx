@@ -20,6 +20,9 @@ import type { CreditsSlide, DiagramSetSlide, ImageSlide, PortableTextBlock, Proj
 import { useFinePointer } from '@/hooks/useFinePointer'
 import { BilingualText } from '@/lib/bilingual'
 import { sizeLabel, sizeValue, splitRole } from '@/lib/projectMeta'
+// 그리드 카드와 **동일한** 4:3 크롭 URL — morph 하위 레이어가 캐시 히트로 즉시 그려지려면
+// 함수·인자(800·coverHotspot)가 카드 쪽과 정확히 같아야 한다 (GRID_MORPH_fix 작업 ①)
+import { gridThumb43 } from '@/lib/imageUrl'
 
 const FONT = "'Pretendard Variable', Pretendard, -apple-system, BlinkMacSystemFont, sans-serif"
 
@@ -46,6 +49,11 @@ const EASE = 'cubic-bezier(0.7, 0, 0.3, 1)'
 export const MORPH_MS = 700
 const MORPH_HOLD_MS = 400    // 모프 완료 후 모프 레이어 유지 — 트랙 페이드인(400ms)을 덮는다
 const MORPH_FADE_MS = 250    // 모프 레이어 페이드아웃
+// 배경 페이드 지속. 역-morph 동안 배경을 유지하다 도착 시점에 맞춰 걷는다 (작업 ②).
+// 해제 시점 = MORPH_MS - BACKDROP_FADE_MS → 페이드 완료가 morph 도착과 일치한다
+const BACKDROP_FADE_MS = 300
+// 역-morph 도착 직전 상위 레이어(카드 썸네일)로 크로스페이드하는 리드 타임 (작업 ③)
+const MORPH_SWAP_LEAD_MS = 200
 const SLIDE_H_RATIO = 0.72     // image·credits·info 슬라이드 높이 (뷰포트 대비)
 const DIAGRAM_H_RATIO = 0.48   // diagramSet·단일 다이어그램 이미지 영역 높이 (뷰포트 대비)
 
@@ -590,6 +598,13 @@ function SlideContent({ slide, nearCenter, finePointer, onDiagramHover }: {
 export function GridContentArea({ project, mode, enterRect, onBack }: GridContentAreaProps) {
   const slides = useMemo(() => getSlides(project), [project])
   const total = Math.max(slides.length, 1)
+  // 카드와 1:1로 같은 URL — GridExperience 카드 <img>의 호출부와 인자를 일치시킨다
+  // (gridThumb43(project.coverImage, 800, project.coverHotspot)). 어느 한쪽만 바뀌면
+  // 캐시가 어긋나 진입 깜빡임이 되돌아온다 (작업 ①)
+  const coverThumb = useMemo(
+    () => (project.coverImage ? gridThumb43(project.coverImage, 800, project.coverHotspot) : ''),
+    [project.coverImage, project.coverHotspot],
+  )
   const finePointer = useFinePointer()
 
   const rootRef = useRef<HTMLDivElement>(null)
@@ -600,6 +615,13 @@ export function GridContentArea({ project, mode, enterRect, onBack }: GridConten
   const [morphing, setMorphing] = useState(false)
   const [morphRect, setMorphRect] = useState<MorphRect | null>(null)
   const [morphVisible, setMorphVisible] = useState(false)   // 모프 레이어 표시 — morphing과 분리 (크로스페이드)
+  // 모프 레이어 상위(원본/카드 썸네일) 표시 여부. 진입에서는 원본 onLoad가, 역-morph에서는
+  // 도착 직전 타이머가 켠다. 하위 레이어가 그 전까지 화면을 채워 깜빡임을 막는다 (작업 ①·③)
+  const [morphFullLoaded, setMorphFullLoaded] = useState(false)
+  // 역-morph 출발 이미지 = 지금 보고 있던 슬라이드. 진입 시에는 null(= 커버 썸네일에서 출발)
+  const [morphFromSrc, setMorphFromSrc] = useState<string | null>(null)
+  // 역-morph 동안 흰 배경을 유지해 그리드 조기 노출을 막는다 — 진입의 역재생 대칭 (작업 ②)
+  const [holdBackdrop, setHoldBackdrop] = useState(false)
   const prevModeRef = useRef(mode)
   // 진입 모프는 vpSize가 잡힌 렌더에서 1회만 발동한다 (리사이즈로 effect가 재실행돼도 재발동 금지)
   const morphStartedRef = useRef(false)
@@ -759,6 +781,11 @@ export function GridContentArea({ project, mode, enterRect, onBack }: GridConten
     if (mode === 'active' && !morphStartedRef.current && vpSize.w > 0 && rootRef.current) {
       morphStartedRef.current = true
       setFadingOut(false)
+      // 이전 세션(역-morph)의 잔존 차단 — 배경 유지·출발 이미지·상위 레이어를 초기화한다.
+      // 특히 holdBackdrop이 남으면 다음 닫기에서 배경이 걷히지 않는다 (작업 ② 정리)
+      setHoldBackdrop(false)
+      setMorphFromSrc(null)
+      setMorphFullLoaded(false)
 
       const { rects: rc, clampScroll: cs, centerScroll: ccs } = geomRef.current
       const rh = rootRef.current.clientHeight
@@ -780,6 +807,7 @@ export function GridContentArea({ project, mode, enterRect, onBack }: GridConten
         setMorphing(false)
         setMorphVisible(false)
         setMorphRect(null)
+        setMorphFullLoaded(false)
         setTrackIn(true)
         setInfoIn(true)
         return
@@ -825,7 +853,11 @@ export function GridContentArea({ project, mode, enterRect, onBack }: GridConten
       timersRef.current.push(
         setTimeout(() => { if (!cancelled) setMorphing(false) }, MORPH_MS),
         setTimeout(() => { if (!cancelled) setMorphVisible(false) }, MORPH_MS + MORPH_HOLD_MS),
-        setTimeout(() => { if (!cancelled) setMorphRect(null) }, MORPH_MS + MORPH_HOLD_MS + MORPH_FADE_MS),
+        setTimeout(() => {
+          if (cancelled) return
+          setMorphRect(null)
+          setMorphFullLoaded(false)   // 다음 morph가 상위 레이어를 물려받지 않도록 초기화
+        }, MORPH_MS + MORPH_HOLD_MS + MORPH_FADE_MS),
       )
 
       return () => { cancelled = true }
@@ -843,16 +875,39 @@ export function GridContentArea({ project, mode, enterRect, onBack }: GridConten
       if (enterRect && rootRef.current) {
         const { rects: rc, scrollPos: sp } = geomRef.current
         const rh = rootRef.current.clientHeight
-        const th = rh * SLIDE_H_RATIO
-        // 출발 rect는 지금 화면에 선 히어로 그대로 — 진입 도착 rect와 동일 소스(원본비 rects[1].w)
-        const tw = rc.length >= 2
-          ? rc[1].w
+        const hasHero = rc.length >= 2
+
+        // 작업 ③ — 출발은 커버(rc[1]) 고정이 아니라 **지금 보고 있는 슬라이드**다.
+        // 커버 고정은 슬라이드를 넘긴 뒤(sp가 커진 뒤) 화면 밖 좌측 좌표가 되어 "날아오는"
+        // 모습을 만든다. nearest(= centers와 viewportCenter의 최근접 트랙 자식, 매 렌더 갱신)를
+        // 그대로 쓴다 — 중앙 최근접 산출이 이미 이 값이므로 별도 계산은 중복이다.
+        // 0은 메타 슬라이드라 스냅 대상이 아니므로 콘텐츠 인덱스 1.. 로 클램프한다.
+        const curIdx = hasHero
+          ? Math.min(Math.max(1, nearestRef.current), rc.length - 1)
+          : 1
+        // 슬라이드마다 높이가 다르다 — rects에는 폭(x·w)만 있고 높이는 트랙 렌더와 동일한
+        // 규칙(isDiagram ? DIAGRAM_H_RATIO : SLIDE_H_RATIO)으로 재현한다.
+        // 트랙은 alignItems:center이므로 세로 중앙 정렬은 두 높이 모두 (rh - th)/2로 같다.
+        const curSlide = hasHero ? slides[curIdx - 1] : undefined
+        const th = rh * (curSlide && isDiagram(curSlide) ? DIAGRAM_H_RATIO : SLIDE_H_RATIO)
+        const tw = hasHero
+          ? rc[curIdx].w
           : th * (project.coverRatio && project.coverRatio > 0 ? project.coverRatio : FALLBACK_RATIO)
-        // 출발 left도 진입 도착과 동일 산식 — 지금 화면에 선 히어로 위치(중앙정렬 지점)
-        const heroScreenLeft = rc.length >= 2
-          ? Math.round(TRACK_INSET + rc[1].x - sp)
+        // 출발 left = 그 슬라이드가 지금 화면에서 서 있는 자리 (트랙 좌표 → 화면 좌표)
+        const heroScreenLeft = hasHero
+          ? Math.round(TRACK_INSET + rc[curIdx].x - sp)
           : Math.round(vpSize.w / 2 - tw / 2)
 
+        // 출발 이미지도 그 슬라이드여야 자연스럽다. image 슬라이드가 아니면(텍스트·인용·
+        // 크레딧·다이어그램셋) null로 두어 커버 썸네일에서 출발한다 — rect만 현재 자리를 쓴다
+        const fromSrc = curSlide && curSlide.kind === 'image' ? curSlide.src : null
+        setMorphFromSrc(fromSrc)
+        // 상위(카드 썸네일)는 도착 직전에 올린다. 여기서는 반드시 내려둔 채 시작
+        setMorphFullLoaded(false)
+
+        // 작업 ② — 배경을 morph 도착까지 유지한다. 300ms에 걷히던 기존 동작은 역-morph
+        // 700ms의 남은 400ms를 허공에서 재생시켜 "다른 카드 위에서 축소"처럼 보이게 했다
+        setHoldBackdrop(true)
         setMorphVisible(true)
         setMorphRect({ top: (rh - th) / 2, left: heroScreenLeft, width: tw, height: th })
 
@@ -862,11 +917,26 @@ export function GridContentArea({ project, mode, enterRect, onBack }: GridConten
           setMorphRect(enterRect)   // 카드 rect로 축소
         }))
 
-        timersRef.current.push(setTimeout(() => {
-          if (cancelled) return
-          setMorphVisible(false)
-          setMorphRect(null)
-        }, MORPH_MS + REVERSE_MORPH_TAIL_MS))
+        timersRef.current.push(
+          // 도착 직전 — 슬라이드 이미지 → 카드 썸네일 크로스페이드. 도착 프레임에서 카드와
+          // 완전히 같은 URL·같은 크롭이 되어 그리드로 이음매 없이 넘어간다
+          setTimeout(() => {
+            if (cancelled) return
+            setMorphFullLoaded(true)
+          }, Math.max(0, MORPH_MS - MORPH_SWAP_LEAD_MS)),
+          // 배경은 도착과 함께 걷히도록 페이드 지속만큼 앞당겨 해제한다
+          setTimeout(() => {
+            if (cancelled) return
+            setHoldBackdrop(false)
+          }, Math.max(0, MORPH_MS - BACKDROP_FADE_MS)),
+          setTimeout(() => {
+            if (cancelled) return
+            setMorphVisible(false)
+            setMorphRect(null)
+            setMorphFullLoaded(false)
+            setMorphFromSrc(null)
+          }, MORPH_MS + REVERSE_MORPH_TAIL_MS),
+        )
 
         return () => { cancelled = true }
       }
@@ -876,8 +946,11 @@ export function GridContentArea({ project, mode, enterRect, onBack }: GridConten
       //    위에서 trackIn·infoIn을 이미 false로 내렸으므로 fadingOut이 그 페이드가 재생될
       //    동안 콘텐츠 블록을 마운트 상태로 유지한다. scrollPos 리셋은 페이드 후로 미룬다
       //    — 보이는 중에 트랙이 좌측 끝으로 튀지 않게 한다.
+      // holdBackdrop은 켜지 않는다 — 이 경로는 기존 페이드아웃 동작 그대로다 (작업 ② 단서)
       setMorphVisible(false)
       setMorphRect(null)
+      setMorphFullLoaded(false)
+      setMorphFromSrc(null)
       setFadingOut(true)
       timersRef.current.push(setTimeout(() => {
         setFadingOut(false)
@@ -1163,8 +1236,10 @@ export function GridContentArea({ project, mode, enterRect, onBack }: GridConten
         zIndex: 100,
         height: '100%',
         overflow: 'hidden',
-        background: mode === 'active' ? '#FFFFFF' : 'transparent',
-        transition: 'background-color 0.3s ease-out',
+        // holdBackdrop — 역-morph가 카드 자리에 도착할 때까지 배경을 유지한다. idle 즉시
+        // 걷히던 기존 동작은 morph 700ms의 나머지를 그리드 위에서 재생시켰다 (작업 ②)
+        background: (mode === 'active' || holdBackdrop) ? '#FFFFFF' : 'transparent',
+        transition: `background-color ${BACKDROP_FADE_MS}ms ease-out`,
       }}
     >
       {/* fadingOut = 직접 진입 닫기 페이드 창 (§3-2). 클릭 진입은 항상 false라 기존과 동일 */}
@@ -1307,27 +1382,56 @@ export function GridContentArea({ project, mode, enterRect, onBack }: GridConten
         </>
       )}
 
-      {/* ── 모프 레이어: 카드 rect ↔ 트랙 index 1(히어로) rect ── */}
+      {/* ── 모프 레이어: 카드 rect ↔ 현재 슬라이드 rect ──
+          2겹이다. 두 겹은 **동일한 rect·objectFit**을 공유해야 교체 순간 어긋나지 않는다.
+            하위 = 즉시 그려져야 하는 쪽. 진입에서는 카드와 같은 썸네일(캐시 히트 → 흰 깜빡임
+                   차단, 작업 ①), 역-morph에서는 보고 있던 슬라이드 원본(morphFromSrc).
+            상위 = 목적지 이미지. 진입에서는 원본(onLoad 시), 역-morph에서는 카드 썸네일
+                   (도착 직전 타이머). 둘 다 morphFullLoaded 하나로 켠다. */}
       {morphRect && (
         project.coverImage ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={project.coverImage}
-            alt=""
-            draggable={false}
-            style={{
-              position: 'absolute',
-              top: morphRect.top,
-              left: morphRect.left,
-              width: morphRect.width,
-              height: morphRect.height,
-              objectFit: 'cover',
-              opacity: morphVisible ? 1 : 0,
-              transition: `all ${MORPH_MS}ms ${EASE}, opacity ${MORPH_FADE_MS}ms ease-out`,
-              pointerEvents: 'none',
-              zIndex: 6,
-            }}
-          />
+          <>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={morphFromSrc ?? coverThumb}
+              alt=""
+              draggable={false}
+              style={{
+                position: 'absolute',
+                top: morphRect.top,
+                left: morphRect.left,
+                width: morphRect.width,
+                height: morphRect.height,
+                objectFit: 'cover',
+                opacity: morphVisible ? 1 : 0,
+                transition: `all ${MORPH_MS}ms ${EASE}, opacity ${MORPH_FADE_MS}ms ease-out`,
+                pointerEvents: 'none',
+                zIndex: 6,
+              }}
+            />
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={morphFromSrc ? coverThumb : project.coverImage}
+              alt=""
+              draggable={false}
+              // 역-morph(morphFromSrc 있음)에서는 onLoad로 켜지 않는다 — 카드 썸네일은 이미
+              // 캐시돼 즉시 load되므로, 켜면 출발 프레임에서 곧바로 커버로 튄다. 그 경로는
+              // 도착 직전 타이머가 켠다
+              onLoad={() => { if (!morphFromSrc) setMorphFullLoaded(true) }}
+              style={{
+                position: 'absolute',
+                top: morphRect.top,
+                left: morphRect.left,
+                width: morphRect.width,
+                height: morphRect.height,
+                objectFit: 'cover',
+                opacity: morphVisible && morphFullLoaded ? 1 : 0,
+                transition: `all ${MORPH_MS}ms ${EASE}, opacity ${MORPH_SWAP_LEAD_MS}ms ease-out`,
+                pointerEvents: 'none',
+                zIndex: 7,
+              }}
+            />
+          </>
         ) : (
           <div style={{
             position: 'absolute',
