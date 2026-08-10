@@ -21,8 +21,10 @@ const FONT = "'Pretendard Variable', Pretendard, -apple-system, BlinkMacSystemFo
 
 // 티어 중심과의 거리(d) 기반 3단 이미지 높이 — D1/D2 공통
 const TIER_IMG_HEIGHTS: Record<0 | 1 | 2, number> = { 0: 150, 1: 120, 2: 96 }
-// D2 전용 — 이미지 하단 텍스트 행 (프로젝트명 + 용도 상하 배열)
-const BELOW_TEXT_H = 44
+// D2 전용 — 이미지 하단 텍스트 행 (프로젝트명 + 한글 병기 + 용도 상하 배열)
+// 260804: 한글 타이틀 1줄(11px × 1.3 + marginTop 1 ≈ 15px)이 추가되어 44 → 58.
+// getSlotHeight의 extra가 이 상수를 그대로 읽으므로 링 물리(슬롯 높이)에 자동 반영된다.
+const BELOW_TEXT_H = 58
 const GAP = 16
 // D1/D2 경계 — globals.css의 1439px 미디어쿼리와 반드시 동일
 const D2_MAX_WIDTH = 1439
@@ -130,6 +132,27 @@ function WallCardText({ project, opacity, below, width }: {
       }}>
         {project.title.en}
       </div>
+      {/* 한글 병기 — en-first(영문 위/한글 아래) 전역 규약. ko가 없으면 렌더하지 않는다 */}
+      {project.title.ko && (
+        <div style={{
+          fontFamily: FONT,
+          fontSize: 11,
+          fontWeight: 350,
+          color: '#080706',
+          opacity: 0.55,
+          lineHeight: 1.3,
+          marginTop: 1,
+          wordBreak: 'keep-all' as const,
+          width: '100%',
+          ...(below ? {
+            whiteSpace: 'nowrap' as const,
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+          } : {}),
+        }}>
+          {project.title.ko}
+        </div>
+      )}
       {/* 용도 — D2는 1줄 클램프 (D1은 기존 2줄 유지) */}
       <div style={{
         fontFamily: FONT,

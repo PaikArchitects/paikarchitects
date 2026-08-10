@@ -35,6 +35,8 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import Link from 'next/link'
 import { TYPOLOGY_ORDER, type Project, type ProjectType } from '@/types'
 import { GridContentArea } from './GridContentArea'
+// 모바일(<1024) 콘텐츠는 가로 트랙이 아니라 세로 스크롤이다 (GRID_MOBILE §2)
+import { MobileGridContent } from './MobileGridContent'
 // 4:3 크롭은 GridContentArea의 morph 하위 레이어와 공유한다 — 동일 URL이어야 캐시가 맞는다
 import { gridThumb43 } from '@/lib/imageUrl'
 
@@ -66,7 +68,8 @@ const CONTENT_EXIT_MS = 760
 // 타이틀은 1행만 예약한다 — 2행 예약이 요약을 타이틀에서 멀리 밀어내던 결함(§0-2)의 원인.
 const META_PT = 10              // 이미지 ↔ 타이틀
 const TITLE_LH = 1.35
-const TITLE_LINES = 1
+const TITLE_LINES = 1           // 영문 타이틀 예약 줄 수
+const KO_SCALE = 0.82           // 카드 한글 타이틀 크기 비 — 영문 대비 위계를 낮춘다 (260804)
 const SUM_MT = 5                // 타이틀 ↔ 요약 (§5: 4~6px)
 const SUM_LH = 1.5
 
@@ -78,13 +81,17 @@ const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v
 
 const titlePx = (w: number) => clamp(w * 0.030, 10, 13)
 const sumPx = (w: number) => clamp(w * 0.024, 8.5, 11)
+/** 타이틀 블록 예약 높이 — 영문 TITLE_LINES줄 + 한글 1줄. .gm-title의 CSS height와 동일 식이어야
+ *  격자 배치(paint의 hPx)와 실제 DOM 높이가 어긋나지 않는다. 한글 유무와 무관하게 항상 예약한다 */
+const titleBlockH = (w: number) =>
+  titlePx(w) * TITLE_LH * TITLE_LINES + titlePx(w) * KO_SCALE * TITLE_LH
 /** 카드 하단 텍스트 블록 높이 — 폭의 연속 함수 */
 const metaH = (w: number) =>
-  META_PT + titlePx(w) * TITLE_LH * TITLE_LINES + SUM_MT + sumPx(w) * SUM_LH
+  META_PT + titleBlockH(w) + SUM_MT + sumPx(w) * SUM_LH
 
 /** 뷰포트 종횡비 → 열 상한 (§6) */
 function maxColsForAspect(r: number): number {
-  if (r < 0.85) return 2        // portrait
+  if (r < 0.85) return 3        // portrait — 260804: 2→3 (모바일 밀도 상한 상향)
   if (r < 1.25) return 4        // ~square
   return 6                      // landscape
 }
@@ -151,6 +158,20 @@ export function GridExperience({ projects, initialSlug }: GridExperienceProps) {
   }, [])
   const ready = vp.w > 0 && vp.h > 0
   const maxCols = ready ? maxColsForAspect(vp.w / vp.h) : MAX_COLS
+
+  // ── 모바일 판정 — 링월(LandingExperience 74행)과 동일 경계 1024 (GRID_MOBILE §2-3) ──
+  // vp.w에서 파생하지 않는다: vp는 resize 이벤트만 따르고 matchMedia는 초기값도 정확하다.
+  // 초기값 false + useLayoutEffect: SSR/하이드레이션 출력은 false로 일치시키되 판정은 페인트
+  // 전에 끝낸다 — 직접 진입(initialSlug)이 열린 상태로 마운트되므로, useEffect였다면 모바일에서
+  // GridContentArea(가로 트랙)가 한 프레임 그려진 뒤 교체되는 깜빡임이 생긴다.
+  const [isMobile, setIsMobile] = useState(false)
+  useLayoutEffect(() => {
+    const mq = window.matchMedia('(max-width: 1023px)')
+    const fn = () => setIsMobile(mq.matches)
+    fn()
+    mq.addEventListener('change', fn)
+    return () => mq.removeEventListener('change', fn)
+  }, [])
 
   // ── 밀도 상태 ──
   // cols(분수)는 매 프레임 갱신되므로 ref가 정본이다. React state는 라벨(nLabel)처럼
@@ -308,13 +329,15 @@ export function GridExperience({ projects, initialSlug }: GridExperienceProps) {
       }
     }
     setContentMode('idle')
-    // 역-morph 재생이 끝난 뒤 언마운트
-    setTimeout(() => setSelected(null), CONTENT_EXIT_MS)
+    // 역-morph 재생이 끝난 뒤 언마운트. 모바일은 morph 자체가 없으므로 대기 없이 즉시 닫는다
+    // — 760ms 잔류는 재생할 애니메이션이 없는 순수 지연이다 (GRID_MOBILE §2-4)
+    if (isMobile) setSelected(null)
+    else setTimeout(() => setSelected(null), CONTENT_EXIT_MS)
     // URL 원복 — pushState 되돌림 없이 replaceState로 그리드 URL 복원
     if (window.location.pathname !== '/work-grid') {
       window.history.replaceState({}, '', '/work-grid')
     }
-  }, [selected])
+  }, [selected, isMobile])
 
   // 브라우저 뒤로가기 → 닫기
   useEffect(() => {
@@ -421,7 +444,13 @@ export function GridExperience({ projects, initialSlug }: GridExperienceProps) {
           display: block;
         }
         .gm-meta { padding-top: ${META_PT}px; }
+        /* 타이틀 — 영문 위/한글 아래(en-first). 높이는 한글 유무와 무관하게 2줄분을 예약한다.
+           metaH의 titleBlockH와 동일 식이어야 격자 피치와 DOM 높이가 어긋나지 않는다 (260804) */
         .gm-title {
+          height: calc(var(--ts, 13px) * ${TITLE_LH * TITLE_LINES} + var(--ts, 13px) * ${KO_SCALE * TITLE_LH});
+        }
+        .gm-title-en {
+          display: block;
           font-size: var(--ts, 13px);
           font-weight: 450;
           line-height: ${TITLE_LH};
@@ -429,7 +458,17 @@ export function GridExperience({ projects, initialSlug }: GridExperienceProps) {
           white-space: nowrap;
           overflow: hidden;
           text-overflow: ellipsis;
-          height: calc(var(--ts, 13px) * ${TITLE_LH * TITLE_LINES});
+        }
+        .gm-title-ko {
+          display: block;
+          font-size: calc(var(--ts, 13px) * ${KO_SCALE});
+          font-weight: 350;
+          line-height: ${TITLE_LH};
+          opacity: 0.55;
+          word-break: keep-all;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
         }
         /* 요약은 타이틀 바로 아래(${SUM_MT}px). 높이를 예약해 호버 시 reflow가 없다 (§5) */
         .gm-sum {
@@ -580,7 +619,10 @@ export function GridExperience({ projects, initialSlug }: GridExperienceProps) {
 
               {/* 하단 텍스트 — 타이틀 상시, 요약은 호버 시 타이틀 바로 아래에 페이드인 */}
               <div className="gm-meta">
-                <div className="gm-title">{project.title.en}</div>
+                <div className="gm-title">
+                  <span className="gm-title-en">{project.title.en}</span>
+                  {project.title.ko && <span className="gm-title-ko">{project.title.ko}</span>}
+                </div>
                 <div className="gm-sum">
                   <span style={{ color: '#080706', opacity: 0.6 }}>{project.type}</span>
                   {award && (
@@ -719,12 +761,18 @@ export function GridExperience({ projects, initialSlug }: GridExperienceProps) {
 
       {/* ── 콘텐츠 오버레이 — fixed inset:0, z-index 100으로 그리드 전체를 덮는다 (§3-1 (f)) ── */}
       {selected && (
-        <GridContentArea
-          project={selected}
-          mode={contentMode}
-          enterRect={enterRectRef.current}
-          onBack={closeProject}
-        />
+        // 모바일은 morph 없이 세로 스크롤로 즉시 표시한다 — contentMode·enterRect를 넘기지 않는다
+        // (가로 트랙 morph는 세로 스택 진입에 성립하지 않는다, GRID_MOBILE §2-3)
+        isMobile ? (
+          <MobileGridContent project={selected} onBack={closeProject} />
+        ) : (
+          <GridContentArea
+            project={selected}
+            mode={contentMode}
+            enterRect={enterRectRef.current}
+            onBack={closeProject}
+          />
+        )
       )}
     </div>
   )

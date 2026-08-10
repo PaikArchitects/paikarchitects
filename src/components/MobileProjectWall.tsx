@@ -380,7 +380,7 @@ function MobileCreditsSlide({ slide }: { slide: CreditsSlide }) {
 }
 
 // ── 정보 — 히어로 바로 아래 고정. 폭 100%, 높이 자연 결정 ──
-function MobileInfoSlide({ project }: { project: Project }) {
+export function MobileInfoSlide({ project }: { project: Project }) {
   const roleParts = project.role ? splitRole(project.role) : null
   return (
     <div style={{
@@ -518,7 +518,7 @@ function MobileMetaField({ label, value }: { label: string; value?: string }) {
   )
 }
 
-function MobileSlide({ slide }: { slide: ProjectSlide }) {
+export function MobileSlide({ slide }: { slide: ProjectSlide }) {
   switch (slide.kind) {
     case 'image':
       return <MobileImageSlide slide={slide} />
