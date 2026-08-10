@@ -20,9 +20,10 @@ import type { CreditsSlide, DiagramSetSlide, ImageSlide, PortableTextBlock, Proj
 import { useFinePointer } from '@/hooks/useFinePointer'
 import { BilingualText } from '@/lib/bilingual'
 import { sizeLabel, sizeValue, splitRole } from '@/lib/projectMeta'
-// 그리드 카드와 **동일한** 4:3 크롭 URL — morph 하위 레이어가 캐시 히트로 즉시 그려지려면
-// 함수·인자(800·coverHotspot)가 카드 쪽과 정확히 같아야 한다 (GRID_MORPH_fix 작업 ①)
-import { gridThumb43 } from '@/lib/imageUrl'
+// gridThumb43: 그리드 카드와 **동일한** 4:3 크롭 URL — 역-morph 상위(도착=카드)가 카드와
+// 같은 화각으로 안착하려면 함수·인자(800·coverHotspot)가 카드 쪽과 정확히 같아야 한다.
+// sanityThumb: 폭 전용(크롭 없음) — 진입 morph 하위 레이어용 (GRID_MORPH_crop_match §2)
+import { gridThumb43, sanityThumb } from '@/lib/imageUrl'
 
 const FONT = "'Pretendard Variable', Pretendard, -apple-system, BlinkMacSystemFont, sans-serif"
 
@@ -601,11 +602,19 @@ export function GridContentArea({ project, mode, enterRect, onBack }: GridConten
   const slides = useMemo(() => getSlides(project), [project])
   const total = Math.max(slides.length, 1)
   // 카드와 1:1로 같은 URL — GridExperience 카드 <img>의 호출부와 인자를 일치시킨다
-  // (gridThumb43(project.coverImage, 800, project.coverHotspot)). 어느 한쪽만 바뀌면
-  // 캐시가 어긋나 진입 깜빡임이 되돌아온다 (작업 ①)
+  // (gridThumb43(project.coverImage, 800, project.coverHotspot)). 역-morph 상위 레이어(도착
+  // 지점이 카드)는 이 URL을 그대로 써야 카드와 화각이 어긋나지 않는다 (작업 ①)
   const coverThumb = useMemo(
     () => (project.coverImage ? gridThumb43(project.coverImage, 800, project.coverHotspot) : ''),
     [project.coverImage, project.coverHotspot],
+  )
+  // 진입 morph 하위 레이어 — 상위(원본)와 동일 화각이어야 교체 시 배율이 튀지 않는다.
+  // gridThumb43(4:3 크롭)은 원본에서 이미 잘려나간 상태라 같은 컨테이너에 cover로 채워도
+  // 피사체가 더 크게 잡힌다 → 상위 원본이 올라오는 순간 화각이 튄다. 폭 전용 썸네일을 써서
+  // 두 레이어가 같은 범위를 보여주고 해상도만 달라지게 한다 (GRID_MORPH_crop_match §2-2)
+  const morphThumbSrc = useMemo(
+    () => (project.coverImage ? sanityThumb(project.coverImage, 800) : ''),
+    [project.coverImage],
   )
   const finePointer = useFinePointer()
 
@@ -1391,8 +1400,9 @@ export function GridContentArea({ project, mode, enterRect, onBack }: GridConten
 
       {/* ── 모프 레이어: 카드 rect ↔ 현재 슬라이드 rect ──
           2겹이다. 두 겹은 **동일한 rect·objectFit**을 공유해야 교체 순간 어긋나지 않는다.
-            하위 = 즉시 그려져야 하는 쪽. 진입에서는 카드와 같은 썸네일(캐시 히트 → 흰 깜빡임
-                   차단, 작업 ①), 역-morph에서는 보고 있던 슬라이드 원본(morphFromSrc).
+            하위 = 즉시 그려져야 하는 쪽. 진입에서는 폭 전용 저해상 썸네일(morphThumbSrc —
+                   상위 원본과 화각 동일, crop_match §2-2), 역-morph에서는 보고 있던 슬라이드
+                   원본(morphFromSrc).
             상위 = 목적지 이미지. 진입에서는 원본(onLoad 시), 역-morph에서는 카드 썸네일
                    (도착 직전 타이머). 둘 다 morphFullLoaded 하나로 켠다. */}
       {morphRect && (
@@ -1400,7 +1410,7 @@ export function GridContentArea({ project, mode, enterRect, onBack }: GridConten
           <>
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
-              src={morphFromSrc ?? coverThumb}
+              src={morphFromSrc ?? morphThumbSrc}
               alt=""
               draggable={false}
               style={{
