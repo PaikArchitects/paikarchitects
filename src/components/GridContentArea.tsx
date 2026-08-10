@@ -54,6 +54,8 @@ const MORPH_FADE_MS = 250    // 모프 레이어 페이드아웃
 const BACKDROP_FADE_MS = 300
 // 역-morph 도착 직전 상위 레이어(카드 썸네일)로 크로스페이드하는 리드 타임 (작업 ③)
 const MORPH_SWAP_LEAD_MS = 200
+// 원본 교체 페이드 — 짧을수록 두 크롭(4:3 썸네일 / 원본 비율)이 겹쳐 보이는 구간이 줄어 덜 튄다
+const FULL_FADE_MS = 120
 const SLIDE_H_RATIO = 0.72     // image·credits·info 슬라이드 높이 (뷰포트 대비)
 const DIAGRAM_H_RATIO = 0.48   // diagramSet·단일 다이어그램 이미지 영역 높이 (뷰포트 대비)
 
@@ -1426,7 +1428,7 @@ export function GridContentArea({ project, mode, enterRect, onBack }: GridConten
                 height: morphRect.height,
                 objectFit: 'cover',
                 opacity: morphVisible && morphFullLoaded ? 1 : 0,
-                transition: `all ${MORPH_MS}ms ${EASE}, opacity ${MORPH_SWAP_LEAD_MS}ms ease-out`,
+                transition: `all ${MORPH_MS}ms ${EASE}, opacity ${FULL_FADE_MS}ms ease-out`,
                 pointerEvents: 'none',
                 zIndex: 7,
               }}
