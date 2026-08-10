@@ -821,7 +821,10 @@ export function GridContentArea({ project, mode, enterRect, onBack }: GridConten
       const aspect = project.coverRatio && project.coverRatio > 0
         ? project.coverRatio
         : FALLBACK_RATIO
-      const th = rh * SLIDE_H_RATIO
+      // 도착 높이는 트랙 슬라이드와 **동일한 기준**이어야 한다 — 폭(rc[1].w)은 slideH 기준으로
+      // 계산된 값이므로 높이를 루트 컨테이너(rh) 기준으로 잡으면 종횡비가 어긋나
+      // objectFit:'cover'가 확대 크롭한다(= 모프 종료 찰나의 "큰 이미지"). slideH로 통일한다.
+      const th = slideH
       // 도착 폭은 트랙이 예약한 rects[1].w 그대로 — getSlides가 주입한 coverRatio로 계산된 값이라
       // aspect 기반 재계산과 같지만, 1px도 어긋나지 않도록 동일 소스를 쓴다
       const tw = hasHero ? rc[1].w : th * aspect
@@ -888,10 +891,12 @@ export function GridContentArea({ project, mode, enterRect, onBack }: GridConten
           ? Math.min(Math.max(1, nearestRef.current), rc.length - 1)
           : 1
         // 슬라이드마다 높이가 다르다 — rects에는 폭(x·w)만 있고 높이는 트랙 렌더와 동일한
-        // 규칙(isDiagram ? DIAGRAM_H_RATIO : SLIDE_H_RATIO)으로 재현한다.
+        // 값(isDiagram ? diagramH : slideH)을 그대로 쓴다. 진입 morph와 같은 이유로 rh 기준
+        // 재계산은 폭(rc[curIdx].w)과 기준이 어긋나 종횡비가 깨진다 — 트랙 높이를 직접 참조한다.
         // 트랙은 alignItems:center이므로 세로 중앙 정렬은 두 높이 모두 (rh - th)/2로 같다.
         const curSlide = hasHero ? slides[curIdx - 1] : undefined
-        const th = rh * (curSlide && isDiagram(curSlide) ? DIAGRAM_H_RATIO : SLIDE_H_RATIO)
+        const curSlideH = curSlide && isDiagram(curSlide) ? diagramH : slideH
+        const th = curSlideH
         const tw = hasHero
           ? rc[curIdx].w
           : th * (project.coverRatio && project.coverRatio > 0 ? project.coverRatio : FALLBACK_RATIO)
