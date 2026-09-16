@@ -5,6 +5,7 @@
 // 위치·간격·타이포가 구조적으로 일치한다. 높이는 상수 CONTROL_BAR_H로 고정한다 —
 // 링월은 이 값으로 본문 시작점을 파생한다(측정 반응형 금지).
 // 오버플로 감지(scrollLeft/scrollWidth)는 레이아웃 치수가 아니라 페이드 표시 전용이다.
+// 모바일 칩 숨김은 mobileFilters=false + CSS 미디어쿼리(첫 페인트 적용). filtersVisible은 JS 상태 기반 페이드 전용.
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { ViewToggle, type ViewMode } from './ViewToggle'
@@ -25,9 +26,12 @@ interface ControlBarProps {
   onSelect: (t: string) => void
   view: ViewMode
   filtersVisible?: boolean   // 링월 idle 랜딩(/)에서는 필터만 숨긴다. 토글은 상시
+  // false면 모바일(<1024)에서 칩 영역을 CSS로 즉시 숨긴다(전환 없음, 첫 페인트부터).
+  // JS 판정(isMobile) 의존 시 초기값 false로 인한 깜빡임이 생긴다 (P1_4 §0)
+  mobileFilters?: boolean
 }
 
-export function ControlBar({ types, active, onSelect, view, filtersVisible = true }: ControlBarProps) {
+export function ControlBar({ types, active, onSelect, view, filtersVisible = true, mobileFilters = true }: ControlBarProps) {
   const scrollRef = useRef<HTMLDivElement>(null)
   const [fade, setFade] = useState({ left: false, right: false })
 
@@ -90,7 +94,21 @@ export function ControlBar({ types, active, onSelect, view, filtersVisible = tru
       gap: 24,
       fontFamily: FONT,
     }}>
-      <div style={{
+      {!mobileFilters && (
+        <style>{`
+          @media (max-width: 1023px) {
+            .cb-filters-nomobile {
+              visibility: hidden !important;
+              opacity: 0 !important;
+              transition: none !important;
+              pointer-events: none !important;
+            }
+          }
+        `}</style>
+      )}
+      <div
+        className={mobileFilters ? undefined : 'cb-filters-nomobile'}
+        style={{
         position: 'relative',
         flex: 1,
         minWidth: 0,

@@ -405,12 +405,11 @@ export function GridExperience({ projects, initialSlug }: GridExperienceProps) {
   const snapCols = Array.from({ length: maxCols - minCols + 1 }, (_, i) => minCols + i)
 
   return (
-    <div style={{
+    <div className="gx-root" style={{
       fontFamily: FONT,
       background: '#FFFFFF',
       color: '#080706',
       minHeight: '100vh',
-      paddingTop: isMobile ? MOBILE_HEADER_H : HEADER_H,
       paddingBottom: BAR_RESERVE,
     }}>
       {/*
@@ -418,6 +417,15 @@ export function GridExperience({ projects, initialSlug }: GridExperienceProps) {
         변하지 않는 규칙(4:3 프레임·호버 요약·타이포 변수)만 담는다.
       */}
       <style>{`
+        .gx-root { padding-top: ${HEADER_H}px; }
+        @media (max-width: 1023px) {
+          .gx-root { padding-top: ${MOBILE_HEADER_H}px; }
+          /* .gx-desktop-only — 후속 차수 예약(데스크톱 전용 표시 요소용) */
+          .gx-desktop-only { display: none !important; }
+        }
+        @media (min-width: 1024px) {
+          .gx-mobile-only { display: none !important; }
+        }
         /* 전환 중 새 열 카드는 콘텐츠 우측 밖에서 대기한다 — 잘라내되 가로 스크롤은 금지 (§1-2) */
         html, body { overflow-x: hidden; }
         .gm-stage { overflow-x: clip; }
@@ -509,18 +517,18 @@ export function GridExperience({ projects, initialSlug }: GridExperienceProps) {
         active={activeFilter}
         onSelect={selectFilter}
         view="grid"
-        filtersVisible={!isMobile}
+        mobileFilters={false}
       />
 
-      {/* ── 모바일 필터 — 링월과 동일한 헤더 우상단 글리프 + 우측 패널 (P1_3 §3) ──
+      {/* ── 모바일 필터 — 링월과 동일한 헤더 우상단 글리프 + 우측 패널 (P1_3 §3) / 표시 게이트는 CSS(.gx-mobile-only, P1_4 §3-3) ──
            콘텐츠 오버레이(zIndex 100)가 열리면 글리프(95)는 그 아래로 덮인다 */}
-      {isMobile && (
+      <div className="gx-mobile-only">
         <MobileFilterPanel
           types={FILTER_TYPES}
           active={activeFilter}
           onSelect={selectFilter}
         />
-      )}
+      </div>
 
       {/* ── GRID — 절대좌표. height는 paint가 행우선 maxRow에 맞춰 갱신 ── */}
       <div
