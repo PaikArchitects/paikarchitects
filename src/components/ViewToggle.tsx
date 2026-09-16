@@ -30,7 +30,8 @@ export function ViewToggle({ current }: { current: ViewMode }) {
     <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>
       {VIEWS.map((v, i) => (
         <span key={v.mode} style={{ display: 'contents' }}>
-          {i > 0 && <span style={{ opacity: 0.25, fontSize: 11 }}>|</span>}
+          {/* 구분선 색은 명시한다 — 조상 color 상속 시 링월(흰 셸)에서 보이지 않던 결함 (260916) */}
+          {i > 0 && <span style={{ opacity: 0.25, fontSize: 11, color: '#080706' }}>|</span>}
           {v.mode === current ? (
             <span style={{ ...BASE, fontWeight: 500 }} aria-current="page">{v.label}</span>
           ) : (
