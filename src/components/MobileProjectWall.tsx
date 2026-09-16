@@ -18,7 +18,7 @@ import { sizeLabel, sizeValue, splitRole } from '@/lib/projectMeta'
 
 const FONT = "'Pretendard Variable', Pretendard, -apple-system, BlinkMacSystemFont, sans-serif"
 
-const HEADER_H = 56          // 모바일 헤더 바 높이 (SiteHeader .mobile-header-bar와 일치)
+const HEADER_H = 97          // 모바일 헤더 바(56) + 컨트롤 바(41, ControlBar CONTROL_BAR_H) — 260916 동결 예외 승인. 두 값 변경 시 동기화 필수
 const EASE = 'cubic-bezier(0.7, 0, 0.3, 1)'
 const MORPH_MS = 500         // FLIP 모프 + 레이어 교대 페이드
 const BACK_ROW_H = 36        // 확장 블록 BACK 행 높이

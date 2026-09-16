@@ -53,6 +53,7 @@ const DEFAULT_COLS = 3
 const COVER_FALLBACK = '#1E1C18'
 const AWARD_GOLD = '#b89773'
 const HEADER_H = 80             // 전역 헤더(워드마크·nav) 존 회피 상단 여백
+const MOBILE_HEADER_H = 56      // 모바일(<1024) 전역 헤더 바 높이 — globals.css .mobile-header-bar와 동일값 (P1_2)
 const BAR_RESERVE = 120         // 하단 플로팅 밀도바 회피 여백
 const TWEEN_MS = 420            // 릴리스 후 정수 정착 트윈 (§1-4)
 const DIM_OPACITY = 0.15        // 필터 비해당 카드 (§4)
@@ -403,7 +404,7 @@ export function GridExperience({ projects, initialSlug }: GridExperienceProps) {
       background: '#FFFFFF',
       color: '#080706',
       minHeight: '100vh',
-      paddingTop: HEADER_H,
+      paddingTop: isMobile ? MOBILE_HEADER_H : HEADER_H,
       paddingBottom: BAR_RESERVE,
     }}>
       {/*

@@ -12,6 +12,7 @@ import { shuffle } from '@/lib/shuffle'
 const FONT = "'Pretendard Variable', Pretendard, -apple-system, BlinkMacSystemFont, sans-serif"
 
 const HEADER_H = 80   // 데스크톱 전역 헤더 존(워드마크·nav). 컨트롤 바는 그 아래 CONTROL_BAR_H만큼 별도
+const MOBILE_HEADER_H = 56   // 모바일 전역 헤더 바 높이 — MobileProjectWall은 이 아래 CONTROL_BAR_H만큼 더 내려 시작 (P1_2)
 
 interface LandingExperienceProps {
   projects: Project[]         // Sanity에서 careerNo 내림차순 정렬 상태로 도착 — 재정렬 불요
@@ -250,6 +251,32 @@ export function LandingExperience({ projects, initialSlug, initialShowFilters = 
             onSelect={handleFilter}
             view="ring"
             filtersVisible={showFilters}
+          />
+        </div>
+      )}
+
+      {/* ── CONTROL BAR (모바일) — 헤더 바 아래 한 줄. 그리드 모바일과 동일 컴포넌트·동일 위치 (P1_2 §3) ──
+           필터는 우상단 필터 글리프 패널이 담당하므로 칩은 숨기고 토글만 노출.
+           열람 중(activeProject)에는 그리드 모바일(오버레이가 바를 덮음)과 같게 숨긴다 */}
+      {mobile && (
+        <div style={{
+          position: 'fixed',
+          top: MOBILE_HEADER_H,
+          left: 0,
+          right: 0,
+          height: CONTROL_BAR_H,
+          background: '#FFFFFF',
+          zIndex: 50,
+          opacity: layoutVisible && !activeProject ? 1 : 0,
+          pointerEvents: layoutVisible && !activeProject ? 'auto' : 'none',
+          transition: 'opacity 300ms ease-out',
+        }}>
+          <ControlBar
+            types={FILTER_TYPES}
+            active={activeFilter}
+            onSelect={handleFilter}
+            view="ring"
+            filtersVisible={false}
           />
         </div>
       )}
