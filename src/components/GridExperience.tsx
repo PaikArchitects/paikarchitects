@@ -33,8 +33,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { TYPOLOGY_ORDER, type Project, type ProjectType } from '@/types'
 import { GridContentArea } from './GridContentArea'
-// 링월 ↔ 그리드 전환 토글 — 링월 측과 동일 컴포넌트 (LANDING_SWITCH_P1 §4)
-import { ViewToggle } from './ViewToggle'
+import { ControlBar } from './ControlBar'
 // 모바일(<1024) 콘텐츠는 가로 트랙이 아니라 세로 스크롤이다 (GRID_MOBILE §2)
 import { MobileGridContent } from './MobileGridContent'
 // 4:3 크롭은 GridContentArea의 morph 하위 레이어와 공유한다 — 동일 URL이어야 캐시가 맞는다
@@ -43,11 +42,12 @@ import { gridThumb43 } from '@/lib/imageUrl'
 const FONT = "'Pretendard Variable', Pretendard, -apple-system, BlinkMacSystemFont, sans-serif"
 
 // ── 단일 정의 상수 ──
-const UI_PAD = 34               // 헤더·컨트롤·그리드 공유 좌우 여백 (링월 헤더 기준)
+const UI_PAD = 34               // 헤더·컨트롤·그리드 공유 좌우 여백 (링월 헤더 기준) — ControlBar의 CONTROL_BAR_UI_PAD와 동일값 유지
 const GAP = 16                  // 카드 간격 (수평·수직 공통)
 const CARD_RATIO = 4 / 3        // 카드 프레임 비율 — 원본 비율과 무관하게 고정 (§2)
 const SLIDE_H_RATIO = 0.72      // ContentArea 히어로 높이 비율 — 1열 폭 공식 (§6)
-const MIN_COLS = 1              // 하한. 실물 판단 후 1→3 변경은 이 한 줄만 바꾼다 (§6)
+const MIN_COLS_DESKTOP = 3      // 데스크톱(≥1024) 하한 — 1·2열 제거 (260916)
+const MIN_COLS_MOBILE = 1       // 모바일(<1024) 하한 유지
 const MAX_COLS = 6              // 절대 상한 (뷰포트 종횡비가 실제 상한을 더 낮출 수 있다)
 const DEFAULT_COLS = 3
 const COVER_FALLBACK = '#1E1C18'
@@ -72,6 +72,7 @@ const TITLE_LINES = 1           // 영문 타이틀 예약 줄 수
 const KO_SCALE = 0.82           // 카드 한글 타이틀 크기 비 — 영문 대비 위계를 낮춘다 (260804)
 const SUM_MT = 5                // 타이틀 ↔ 요약 (§5: 4~6px)
 const SUM_LH = 1.5
+const META_MIN_W = 80           // 정수 열 기준 카드 폭이 이 미만이면 하단 텍스트 숨김 (260916)
 
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v))
 
@@ -91,7 +92,7 @@ const metaH = (w: number) =>
 
 /** 뷰포트 종횡비 → 열 상한 (§6) */
 function maxColsForAspect(r: number): number {
-  if (r < 0.85) return 3        // portrait — 260804: 2→3 (모바일 밀도 상한 상향)
+  if (r < 0.85) return 5        // portrait — 260916: 3→5 (모바일 밀도 상한 상향, 좁은 카드는 텍스트 숨김 §5-4)
   if (r < 1.25) return 4        // ~square
   return 6                      // landscape
 }
@@ -173,12 +174,15 @@ export function GridExperience({ projects, initialSlug }: GridExperienceProps) {
     return () => mq.removeEventListener('change', fn)
   }, [])
 
+  // 열 하한은 모드별 (P1_1 §5-2) — 데스크톱 3, 모바일 1
+  const minCols = isMobile ? MIN_COLS_MOBILE : MIN_COLS_DESKTOP
+
   // ── 밀도 상태 ──
   // cols(분수)는 매 프레임 갱신되므로 ref가 정본이다. React state는 라벨(nLabel)처럼
   // 프레임 단위로 바뀌지 않는 것만 보유한다 — 렌더는 order를 직접 map하므로 인스턴스
   // 목록이나 보간 구간(pair) 같은 파생 state가 없다.
-  const colsRef = useRef<number>(clamp(DEFAULT_COLS, MIN_COLS, MAX_COLS))
-  const [nLabel, setNLabel] = useState(clamp(DEFAULT_COLS, MIN_COLS, MAX_COLS))
+  const colsRef = useRef<number>(clamp(DEFAULT_COLS, minCols, MAX_COLS))
+  const [nLabel, setNLabel] = useState(clamp(DEFAULT_COLS, minCols, MAX_COLS))
   const nLabelRef = useRef(nLabel)
 
   // paint는 매 렌더 새로 만들어지므로 rAF·타이머·포인터 핸들러는 ref를 경유해 최신 것을 부른다.
@@ -202,17 +206,17 @@ export function GridExperience({ projects, initialSlug }: GridExperienceProps) {
   const knobRef = useRef<HTMLDivElement>(null)
   const trackRef = useRef<HTMLDivElement>(null)
 
-  const span = Math.max(1, maxCols - MIN_COLS)
+  const span = Math.max(1, maxCols - minCols)
   // knob·fill·스냅 아이콘이 공유하는 유일한 좌표 함수. 기준은 트랙의 레일 폭이다 (§6)
-  const colsToPos = useCallback((c: number) => clamp((c - MIN_COLS) / span, 0, 1), [span])
-  const posToCols = useCallback((pos: number) => MIN_COLS + clamp(pos, 0, 1) * span, [span])
+  const colsToPos = useCallback((c: number) => clamp((c - minCols) / span, 0, 1), [span, minCols])
+  const posToCols = useCallback((pos: number) => minCols + clamp(pos, 0, 1) * span, [span, minCols])
 
   // ── 매 프레임 페인트 — 절대좌표 px 정수 전용 (transform 퍼센트 금지, Safari 대비) (§1) ──
   // 격자 열 수는 정수 nr, 폭·stride·origin은 분수 열 c의 연속 함수다. 배치는 매번
   // order를 행우선으로 새로 계산한다 — 상태를 들고 있지 않으므로 항상 규칙과 일치한다.
   const paint = useCallback((cols: number) => {
-    const c = clamp(cols, MIN_COLS, maxCols)              // 연속(분수) 열 수 — 폭 보간용
-    const nr = clamp(Math.round(c), MIN_COLS, maxCols)    // 격자·라벨용 정수 열 수
+    const c = clamp(cols, minCols, maxCols)              // 연속(분수) 열 수 — 폭 보간용
+    const nr = clamp(Math.round(c), minCols, maxCols)    // 격자·라벨용 정수 열 수
     if (nr !== nLabelRef.current) {
       nLabelRef.current = nr
       setNLabel(nr)
@@ -230,7 +234,10 @@ export function GridExperience({ projects, initialSlug }: GridExperienceProps) {
     const heroW = Math.min(full, CARD_RATIO * vp.h * SLIDE_H_RATIO)   // 1열 = 히어로 폭 (§6)
     const cardW = c <= 1 ? heroW : Math.max(1, (full - GAP * (c - 1)) / c)
     const cardH = cardW / CARD_RATIO
-    const mH = metaH(cardW)
+    // 목표 정수열(nr)에서의 카드 폭으로 텍스트 표시를 판정 — 스냅 순간에만 바뀐다 (P1_1 §5-4)
+    const cardWAtNr = nr <= 1 ? heroW : Math.max(1, (full - GAP * (nr - 1)) / nr)
+    const showMeta = cardWAtNr >= META_MIN_W
+    const mH = showMeta ? metaH(cardW) : 0
     const pitch = cardH + mH + GAP
     const stride = cardW + GAP                    // 셀 하나의 수평 간격
     // 목표 정수열 nr 기준 중앙정렬 — 폭은 c(연속), 열 수는 nr(정수) (§1)
@@ -258,13 +265,14 @@ export function GridExperience({ projects, initialSlug }: GridExperienceProps) {
       el.style.opacity = `${dim ? DIM_OPACITY : 1}`
       el.style.setProperty('--ts', `${titlePx(cardW)}px`)
       el.style.setProperty('--ss', `${sumPx(cardW)}px`)
+      el.dataset.meta = showMeta ? '1' : '0'
     }
 
     if (gridRef.current) {
       // 말미 GAP은 pitch에 포함돼 있어 한 번 뺀다
       gridRef.current.style.height = `${Math.max(0, Math.round((maxRow + 1) * pitch - GAP))}px`
     }
-  }, [colsToPos, dimSet, maxCols, order, projects, ready, total, vp.w, vp.h])
+  }, [colsToPos, dimSet, maxCols, minCols, order, projects, ready, total, vp.w, vp.h])
 
   // 렌더 직후 즉시 페인트 — 필터 재정렬(order)·리사이즈(vp)·마운트가 전부 여기서 수렴한다
   useLayoutEffect(() => {
@@ -348,12 +356,12 @@ export function GridExperience({ projects, initialSlug }: GridExperienceProps) {
 
   // 상한 변경(리사이즈·회전) 시 현재 열 클램프
   useEffect(() => {
-    const c = clamp(colsRef.current, MIN_COLS, maxCols)
+    const c = clamp(colsRef.current, minCols, maxCols)
     if (Math.abs(c - colsRef.current) > 1e-4) {
       colsRef.current = Math.round(c)
       paintRef.current(colsRef.current)
     }
-  }, [maxCols])
+  }, [maxCols, minCols])
 
   // ── 드래그 ── 레일 좌표계(양단 ICON_W/2 인셋) = 스냅 아이콘 중심 좌표계
   const draggingRef = useRef(false)
@@ -384,10 +392,10 @@ export function GridExperience({ projects, initialSlug }: GridExperienceProps) {
   const onTrackUp = () => {
     if (!draggingRef.current) return
     draggingRef.current = false
-    animateTo(clamp(Math.round(colsRef.current), MIN_COLS, maxCols))
+    animateTo(clamp(Math.round(colsRef.current), minCols, maxCols))
   }
 
-  const snapCols = Array.from({ length: maxCols - MIN_COLS + 1 }, (_, i) => MIN_COLS + i)
+  const snapCols = Array.from({ length: maxCols - minCols + 1 }, (_, i) => minCols + i)
 
   return (
     <div style={{
@@ -442,6 +450,8 @@ export function GridExperience({ projects, initialSlug }: GridExperienceProps) {
           display: block;
         }
         .gm-meta { padding-top: ${META_PT}px; }
+        .gm-meta { transition: opacity ${FADE_MS}ms ease; }
+        .gm-card[data-meta="0"] .gm-meta { opacity: 0; pointer-events: none; }
         /* 타이틀 — 영문 위/한글 아래(en-first). 높이는 한글 유무와 무관하게 2줄분을 예약한다.
            metaH의 titleBlockH와 동일 식이어야 격자 피치와 DOM 높이가 어긋나지 않는다 (260804) */
         .gm-title {
@@ -486,52 +496,13 @@ export function GridExperience({ projects, initialSlug }: GridExperienceProps) {
         .gm-card:hover .gm-sum { opacity: 1; }
       `}</style>
 
-      {/* ── CONTROLS — 필터(좌) + 뷰토글 Ring|Grid(우) ── */}
-      <div style={{
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        gap: 24,
-        paddingLeft: UI_PAD,
-        paddingRight: UI_PAD,
-        paddingTop: 8,
-        paddingBottom: 20,
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 24, overflowX: 'auto', minWidth: 0 }}>
-          {FILTER_TYPES.map(t => (
-            <button
-              key={t}
-              onClick={() => { if (t !== activeFilter) { startFlow(); setActiveFilter(t) } }}
-              style={{
-                background: 'none',
-                border: 'none',
-                cursor: 'pointer',
-                fontFamily: FONT,
-                fontSize: 11,
-                fontWeight: t === activeFilter ? 500 : 300,
-                letterSpacing: '0.08em',
-                textTransform: 'uppercase',
-                color: '#080706',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 6,
-                whiteSpace: 'nowrap',
-                flexShrink: 0,
-              }}
-            >
-              <span style={{
-                fontSize: 7,
-                lineHeight: 1,
-                opacity: t === activeFilter ? 1 : 0,
-                transition: 'opacity 200ms',
-              }}>●</span>
-              {t}
-            </button>
-          ))}
-        </div>
-
-        <ViewToggle current="grid" />
-      </div>
+      {/* ── CONTROLS — 링월과 동일 컴포넌트 (LANDING_SWITCH_P1_1 §4) ── */}
+      <ControlBar
+        types={FILTER_TYPES}
+        active={activeFilter}
+        onSelect={t => { if (t !== activeFilter) { startFlow(); setActiveFilter(t) } }}
+        view="grid"
+      />
 
       {/* ── GRID — 절대좌표. height는 paint가 행우선 maxRow에 맞춰 갱신 ── */}
       <div
@@ -607,13 +578,13 @@ export function GridExperience({ projects, initialSlug }: GridExperienceProps) {
         })}
       </div>
 
-      {/* ── DENSITY BAR — 하단 전용 컴팩트 바. width: min(440px, 64vw) 고정 (§6) ── */}
+      {/* ── DENSITY BAR — 하단 전용 컴팩트 바. width: min(440px, 64vw) 고정 (§6) / 모바일은 폭 확장·라벨 숨김(5아이콘 수용, P1_1 §5-5) ── */}
       <div style={{
         position: 'fixed',
         bottom: 24,
         left: '50%',
         transform: 'translateX(-50%)',
-        width: 'min(440px, 64vw)',
+        width: isMobile ? 'calc(100vw - 48px)' : 'min(440px, 64vw)',
         height: 56,
         background: '#080706',
         display: 'flex',
@@ -630,6 +601,7 @@ export function GridExperience({ projects, initialSlug }: GridExperienceProps) {
           textTransform: 'uppercase',
           color: 'rgba(255,255,255,0.5)',
           flexShrink: 0,
+          display: isMobile ? 'none' : undefined,
         }}>
           Density
         </span>

@@ -6,17 +6,12 @@ import { ProjectWall } from '@/components/ProjectWall'
 import { ContentArea } from '@/components/ContentArea'
 import { MobileProjectWall } from '@/components/MobileProjectWall'
 import { useSiteChrome } from '@/components/SiteChromeContext'
-import { ViewToggle } from './ViewToggle'
+import { ControlBar, CONTROL_BAR_H } from './ControlBar'
 import { shuffle } from '@/lib/shuffle'
 
 const FONT = "'Pretendard Variable', Pretendard, -apple-system, BlinkMacSystemFont, sans-serif"
 
-const HEADER_H = 80   // 데스크톱 헤더 존. 필터 행 포함 여유치
-
-// 뷰 토글(우상단) 예약 폭 — 필터 바가 토글과 겹치지 않도록 좌우 대칭으로 비운다 (LANDING_SWITCH_P1 §6)
-// 토글 실폭 약 100px + 우측 여백 34px + 간격 → 160
-const VIEW_TOGGLE_RESERVE = 160
-const VIEW_TOGGLE_RIGHT = 34
+const HEADER_H = 80   // 데스크톱 전역 헤더 존(워드마크·nav). 컨트롤 바는 그 아래 CONTROL_BAR_H만큼 별도
 
 interface LandingExperienceProps {
   projects: Project[]         // Sanity에서 careerNo 내림차순 정렬 상태로 도착 — 재정렬 불요
@@ -59,10 +54,6 @@ export function LandingExperience({ projects, initialSlug, initialShowFilters = 
   // 새로 마운트되는 렌더러의 초기값으로 주입한다 (§1). 렌더 유발 불요이므로 ref
   const lastHighlightRef = useRef<string | null>(null)
 
-  // 데스크톱 필터 바 가로 오버플로 어포던스 (768~1439 좁은 폭에서 칩이 한 줄을 넘을 때)
-  const filterScrollRef = useRef<HTMLDivElement>(null)
-  const [filterFade, setFilterFade] = useState({ left: false, right: false })
-
   useEffect(() => {
     shuffleQueueRef.current = shuffleQueue
   }, [shuffleQueue])
@@ -85,30 +76,6 @@ export function LandingExperience({ projects, initialSlug, initialShowFilters = 
     window.addEventListener('resize', fn)
     return () => window.removeEventListener('resize', fn)
   }, [])
-
-  // 데스크톱 필터 바 오버플로 페이드 갱신 — scrollLeft 기반 좌/우 스크롤 가능 여부 감지
-  const updateFilterFade = () => {
-    const el = filterScrollRef.current
-    if (!el) return
-    setFilterFade({
-      left: el.scrollLeft > 1,
-      right: el.scrollLeft < el.scrollWidth - el.clientWidth - 1,
-    })
-  }
-  useEffect(() => {
-    updateFilterFade()
-    window.addEventListener('resize', updateFilterFade)
-    return () => window.removeEventListener('resize', updateFilterFade)
-  }, [mobile, showFilters])
-
-  // 휠 세로 스크롤 → 필터 바 가로 스크롤 (혼용 환경)
-  const handleFilterWheel = (e: React.WheelEvent) => {
-    const el = filterScrollRef.current
-    if (!el || el.scrollWidth <= el.clientWidth) return
-    if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
-      el.scrollLeft += e.deltaY
-    }
-  }
 
   // 셔플 — blackout fade, 끝에 도달하면 재셔플 (필터 기준). 데스크톱 전용
   const advanceShuffle = useCallback(() => {
@@ -264,127 +231,26 @@ export function LandingExperience({ projects, initialSlug, initialShowFilters = 
       position: 'relative',
     }}>
 
-      {/* ── FILTER BAR — 데스크톱 분기(>=768) 공용, 헤더 존 내 가운데 가로 1열. 좁은 폭은 가로 스크롤 + 어포던스. 모바일(<768)은 월 칩 행이 전담 ── */}
+      {/* ── CONTROL BAR — 필터(좌) + 뷰토글(우). 그리드와 동일 컴포넌트·동일 위치 (LANDING_SWITCH_P1_1 §3) ──
+           필터는 필터 브라우징 상태(showFilters)에서만, 토글은 레이아웃 공개 후 상시 */}
       {!mobile && (
         <div style={{
           position: 'absolute',
-          top: 50,
-          left: VIEW_TOGGLE_RESERVE,
-          right: VIEW_TOGGLE_RESERVE,
-          height: 24,
-          opacity: showFilters ? 1 : 0,
-          pointerEvents: showFilters ? 'auto' : 'none',
-          transition: 'opacity 300ms ease-out',
-          zIndex: 50,
-        }}>
-          {/* 스크롤 컨테이너 — 넓은 폭: 내부 행이 margin auto로 가운데(현행 동일). 좁은 폭: 가로 스크롤 */}
-          <div
-            ref={filterScrollRef}
-            className="mpw-chips"
-            onScroll={updateFilterFade}
-            onWheel={handleFilterWheel}
-            style={{
-              height: '100%',
-              display: 'flex',
-              overflowX: 'auto',
-              overflowY: 'hidden',
-              touchAction: 'pan-x',
-            }}
-          >
-            <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 28,
-              margin: '0 auto',
-              flexShrink: 0,
-            }}>
-              {FILTER_TYPES.map(t => (
-                <button
-                  key={t}
-                  onClick={() => handleFilter(t)}
-                  style={{
-                    background: 'none',
-                    border: 'none',
-                    cursor: 'pointer',
-                    fontFamily: FONT,
-                    fontSize: 11,
-                    fontWeight: t === activeFilter ? 500 : 300,
-                    letterSpacing: '0.08em',
-                    textTransform: 'uppercase',
-                    color: '#080706',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 6,
-                    whiteSpace: 'nowrap',
-                    flexShrink: 0,
-                  }}
-                >
-                  {/* 불릿 — 선택된 항목 앞에만 */}
-                  <span style={{
-                    fontSize: 7,
-                    lineHeight: 1,
-                    opacity: t === activeFilter ? 1 : 0,
-                    transition: 'opacity 200ms',
-                  }}>●</span>
-                  {t}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* 오버플로 어포던스 — 스크롤 가능 방향에만 그라데이션 + 화살표 글리프 표시 */}
-          <div style={{
-            position: 'absolute',
-            left: 0,
-            top: 0,
-            bottom: 0,
-            width: 32,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'flex-start',
-            paddingLeft: 4,
-            background: 'linear-gradient(to right, #FFFFFF, rgba(255,255,255,0))',
-            color: '#080706',
-            fontSize: 13,
-            opacity: filterFade.left ? 1 : 0,
-            transition: 'opacity 200ms ease',
-            pointerEvents: 'none',
-          }}>‹</div>
-          <div style={{
-            position: 'absolute',
-            right: 0,
-            top: 0,
-            bottom: 0,
-            width: 32,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'flex-end',
-            paddingRight: 4,
-            background: 'linear-gradient(to left, #FFFFFF, rgba(255,255,255,0))',
-            color: '#080706',
-            fontSize: 13,
-            opacity: filterFade.right ? 1 : 0,
-            transition: 'opacity 200ms ease',
-            pointerEvents: 'none',
-          }}>›</div>
-        </div>
-      )}
-
-      {/* ── VIEW TOGGLE — 링월 ↔ 그리드 (데스크톱). 필터 표시 여부와 무관하게 레이아웃 공개 후 상시 노출 ── */}
-      {!mobile && (
-        <div style={{
-          position: 'absolute',
-          top: 50,
-          right: VIEW_TOGGLE_RIGHT,
-          height: 24,
-          display: 'flex',
-          alignItems: 'center',
+          top: HEADER_H,
+          left: 0,
+          right: 0,
           zIndex: 50,
           opacity: layoutVisible ? 1 : 0,
           pointerEvents: layoutVisible ? 'auto' : 'none',
-          transition: 'opacity 300ms ease-out',
+          transition: 'opacity 400ms ease-out',
         }}>
-          <ViewToggle current="ring" />
+          <ControlBar
+            types={FILTER_TYPES}
+            active={activeFilter}
+            onSelect={handleFilter}
+            view="ring"
+            filtersVisible={showFilters}
+          />
         </div>
       )}
 
@@ -392,7 +258,7 @@ export function LandingExperience({ projects, initialSlug, initialShowFilters = 
       {!mobile && (
         <div style={{
           position: 'absolute',
-          top: HEADER_H,
+          top: HEADER_H + CONTROL_BAR_H,
           left: 0,
           right: 0,
           bottom: 0,
