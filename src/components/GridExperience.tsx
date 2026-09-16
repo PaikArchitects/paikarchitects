@@ -31,10 +31,10 @@
 // 반영하지 않고 object-fit:cover + coverHotspot으로 크롭한다(§2).
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-// Link는 뷰토글 "Ring"(/work) 링크가 계속 쓴다 — 카드만 <div role="button">로 바뀐다
-import Link from 'next/link'
 import { TYPOLOGY_ORDER, type Project, type ProjectType } from '@/types'
 import { GridContentArea } from './GridContentArea'
+// 링월 ↔ 그리드 전환 토글 — 링월 측과 동일 컴포넌트 (LANDING_SWITCH_P1 §4)
+import { ViewToggle } from './ViewToggle'
 // 모바일(<1024) 콘텐츠는 가로 트랙이 아니라 세로 스크롤이다 (GRID_MOBILE §2)
 import { MobileGridContent } from './MobileGridContent'
 // 4:3 크롭은 GridContentArea의 morph 하위 레이어와 공유한다 — 동일 URL이어야 캐시가 맞는다
@@ -401,8 +401,6 @@ export function GridExperience({ projects, initialSlug }: GridExperienceProps) {
       {/*
         이 라우트 전용 CSS. 카드 지오메트리는 JS가 매 프레임 인라인으로 쓰고, 이 시트는
         변하지 않는 규칙(4:3 프레임·호버 요약·타이포 변수)만 담는다.
-        전역 헤더는 /work-grid를 light 경로로 모르므로(SiteHeader의 STATIC_LIGHT_PATHS 미포함,
-        해당 파일은 수정 금지 대상) 흰 배경 위에서 흰 글자가 된다. 이 라우트에서만 색을 덮는다.
       */}
       <style>{`
         /* 전환 중 새 열 카드는 콘텐츠 우측 밖에서 대기한다 — 잘라내되 가로 스크롤은 금지 (§1-2) */
@@ -486,8 +484,6 @@ export function GridExperience({ projects, initialSlug }: GridExperienceProps) {
           transition: opacity 200ms ease;
         }
         .gm-card:hover .gm-sum { opacity: 1; }
-        .wordmark-intro { color: #080706 !important; }
-        .site-nav-link { color: #0a0908 !important; }
       `}</style>
 
       {/* ── CONTROLS — 필터(좌) + 뷰토글 Ring|Grid(우) ── */}
@@ -534,34 +530,7 @@ export function GridExperience({ projects, initialSlug }: GridExperienceProps) {
           ))}
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>
-          <Link
-            href="/work"
-            style={{
-              fontFamily: FONT,
-              fontSize: 11,
-              fontWeight: 300,
-              letterSpacing: '0.12em',
-              textTransform: 'uppercase',
-              color: '#080706',
-              opacity: 0.5,
-              textDecoration: 'none',
-            }}
-          >
-            Ring
-          </Link>
-          <span style={{ opacity: 0.25, fontSize: 11 }}>|</span>
-          <span style={{
-            fontFamily: FONT,
-            fontSize: 11,
-            fontWeight: 500,
-            letterSpacing: '0.12em',
-            textTransform: 'uppercase',
-            color: '#080706',
-          }}>
-            Grid
-          </span>
-        </div>
+        <ViewToggle current="grid" />
       </div>
 
       {/* ── GRID — 절대좌표. height는 paint가 행우선 maxRow에 맞춰 갱신 ── */}

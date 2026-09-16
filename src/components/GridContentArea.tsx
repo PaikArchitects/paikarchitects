@@ -830,9 +830,10 @@ export function GridContentArea({ project, mode, enterRect, onBack }: GridConten
       const aspect = project.coverRatio && project.coverRatio > 0
         ? project.coverRatio
         : FALLBACK_RATIO
-      // 도착 높이는 트랙 슬라이드와 **동일한 기준**이어야 한다 — 폭(rc[1].w)은 slideH 기준으로
-      // 계산된 값이므로 높이를 루트 컨테이너(rh) 기준으로 잡으면 종횡비가 어긋나
-      // objectFit:'cover'가 확대 크롭한다(= 모프 종료 찰나의 "큰 이미지"). slideH로 통일한다.
+      // 도착 높이는 트랙 히어로 높이(slideH)를 직접 참조한다 — 폭(rc[1].w)과 같은 소스를 쓰는
+      // 단일 소스 원칙. 주의: 모프 종료 찰나의 "확대 튐"은 높이 기준 문제가 아니었다
+      // (영상 실측상 컨테이너 크기 불변). 원인은 두 모프 레이어의 크롭 화각 차이였고
+      // GRID_MORPH_crop_match_260804에서 해결됐다. rect_height_fix의 원인 서술은 폐기됨.
       const th = slideH
       // 도착 폭은 트랙이 예약한 rects[1].w 그대로 — getSlides가 주입한 coverRatio로 계산된 값이라
       // aspect 기반 재계산과 같지만, 1px도 어긋나지 않도록 동일 소스를 쓴다
@@ -900,8 +901,8 @@ export function GridContentArea({ project, mode, enterRect, onBack }: GridConten
           ? Math.min(Math.max(1, nearestRef.current), rc.length - 1)
           : 1
         // 슬라이드마다 높이가 다르다 — rects에는 폭(x·w)만 있고 높이는 트랙 렌더와 동일한
-        // 값(isDiagram ? diagramH : slideH)을 그대로 쓴다. 진입 morph와 같은 이유로 rh 기준
-        // 재계산은 폭(rc[curIdx].w)과 기준이 어긋나 종횡비가 깨진다 — 트랙 높이를 직접 참조한다.
+        // 값(isDiagram ? diagramH : slideH)을 그대로 쓴다 — 트랙 렌더와 같은 소스를 직접 참조하는
+        // 단일 소스 원칙(진입 morph 주석 참고. 종횡비 붕괴 진단은 폐기됨).
         // 트랙은 alignItems:center이므로 세로 중앙 정렬은 두 높이 모두 (rh - th)/2로 같다.
         const curSlide = hasHero ? slides[curIdx - 1] : undefined
         const curSlideH = curSlide && isDiagram(curSlide) ? diagramH : slideH
@@ -1132,7 +1133,7 @@ export function GridContentArea({ project, mode, enterRect, onBack }: GridConten
 
       {/* 타이틀 세트 — 고정 높이 슬롯. AWARDS 시작 y를 전 프로젝트 동일화 */}
       <div style={{ minHeight: TITLE_SET_MIN_H, marginBottom: 14 }}>
-        {/* 프로젝트 코드 — ProjectCard와 동일한 3자리 zero-pad 규약 */}
+        {/* 프로젝트 코드 — careerNo 3자리 zero-pad 규약 (ContentArea와 동일) */}
         <div style={{
           fontSize: 9,
           fontWeight: 300,

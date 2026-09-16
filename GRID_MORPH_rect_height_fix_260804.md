@@ -1,3 +1,7 @@
+> ⚠ **폐기된 명세 (2026-09-16 표기)** — 원인 진단(rh vs slideH 종횡비 불일치)은 영상 실측으로
+> 부정됐다. 실제 원인은 모프 레이어 크롭 화각 차이이며 `GRID_MORPH_crop_match_260804.md`에서 해결.
+> 본 명세의 코드 변경은 단일 소스 참조로서 유지되나, 원인 서술은 신뢰하지 말 것.
+
 # GRID_MORPH_rect_height_fix_260804 — morph 도착 rect 높이 기준 통일
 
 대상: `src/components/GridContentArea.tsx` 단일 파일.

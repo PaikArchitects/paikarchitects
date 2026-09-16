@@ -6,11 +6,17 @@ import { ProjectWall } from '@/components/ProjectWall'
 import { ContentArea } from '@/components/ContentArea'
 import { MobileProjectWall } from '@/components/MobileProjectWall'
 import { useSiteChrome } from '@/components/SiteChromeContext'
+import { ViewToggle } from './ViewToggle'
 import { shuffle } from '@/lib/shuffle'
 
 const FONT = "'Pretendard Variable', Pretendard, -apple-system, BlinkMacSystemFont, sans-serif"
 
 const HEADER_H = 80   // 데스크톱 헤더 존. 필터 행 포함 여유치
+
+// 뷰 토글(우상단) 예약 폭 — 필터 바가 토글과 겹치지 않도록 좌우 대칭으로 비운다 (LANDING_SWITCH_P1 §6)
+// 토글 실폭 약 100px + 우측 여백 34px + 간격 → 160
+const VIEW_TOGGLE_RESERVE = 160
+const VIEW_TOGGLE_RIGHT = 34
 
 interface LandingExperienceProps {
   projects: Project[]         // Sanity에서 careerNo 내림차순 정렬 상태로 도착 — 재정렬 불요
@@ -263,8 +269,8 @@ export function LandingExperience({ projects, initialSlug, initialShowFilters = 
         <div style={{
           position: 'absolute',
           top: 50,
-          left: 0,
-          right: 0,
+          left: VIEW_TOGGLE_RESERVE,
+          right: VIEW_TOGGLE_RESERVE,
           height: 24,
           opacity: showFilters ? 1 : 0,
           pointerEvents: showFilters ? 'auto' : 'none',
@@ -361,6 +367,24 @@ export function LandingExperience({ projects, initialSlug, initialShowFilters = 
             transition: 'opacity 200ms ease',
             pointerEvents: 'none',
           }}>›</div>
+        </div>
+      )}
+
+      {/* ── VIEW TOGGLE — 링월 ↔ 그리드 (데스크톱). 필터 표시 여부와 무관하게 레이아웃 공개 후 상시 노출 ── */}
+      {!mobile && (
+        <div style={{
+          position: 'absolute',
+          top: 50,
+          right: VIEW_TOGGLE_RIGHT,
+          height: 24,
+          display: 'flex',
+          alignItems: 'center',
+          zIndex: 50,
+          opacity: layoutVisible ? 1 : 0,
+          pointerEvents: layoutVisible ? 'auto' : 'none',
+          transition: 'opacity 300ms ease-out',
+        }}>
+          <ViewToggle current="ring" />
         </div>
       )}
 
