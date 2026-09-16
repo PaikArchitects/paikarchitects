@@ -34,6 +34,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { TYPOLOGY_ORDER, type Project, type ProjectType } from '@/types'
 import { GridContentArea } from './GridContentArea'
 import { ControlBar } from './ControlBar'
+import { MobileFilterPanel } from './MobileFilterPanel'
 // 모바일(<1024) 콘텐츠는 가로 트랙이 아니라 세로 스크롤이다 (GRID_MOBILE §2)
 import { MobileGridContent } from './MobileGridContent'
 // 4:3 크롭은 GridContentArea의 morph 하위 레이어와 공유한다 — 동일 URL이어야 캐시가 맞는다
@@ -199,6 +200,11 @@ export function GridExperience({ projects, initialSlug }: GridExperienceProps) {
     flowTimer.current = setTimeout(() => setFlow(false), FLOW_MS)
   }, [])
   useEffect(() => () => { if (flowTimer.current) clearTimeout(flowTimer.current) }, [])
+
+  // 필터 선택 — 컨트롤 바(데스크톱 칩)와 모바일 필터 패널이 공유한다 (P1_3 §3-4)
+  const selectFilter = useCallback((t: string) => {
+    if (t !== activeFilter) { startFlow(); setActiveFilter(t) }
+  }, [activeFilter, startFlow])
 
   // ── DOM 참조 ──
   const cardEls = useRef(new Map<string, HTMLElement>())
@@ -501,9 +507,20 @@ export function GridExperience({ projects, initialSlug }: GridExperienceProps) {
       <ControlBar
         types={FILTER_TYPES}
         active={activeFilter}
-        onSelect={t => { if (t !== activeFilter) { startFlow(); setActiveFilter(t) } }}
+        onSelect={selectFilter}
         view="grid"
+        filtersVisible={!isMobile}
       />
+
+      {/* ── 모바일 필터 — 링월과 동일한 헤더 우상단 글리프 + 우측 패널 (P1_3 §3) ──
+           콘텐츠 오버레이(zIndex 100)가 열리면 글리프(95)는 그 아래로 덮인다 */}
+      {isMobile && (
+        <MobileFilterPanel
+          types={FILTER_TYPES}
+          active={activeFilter}
+          onSelect={selectFilter}
+        />
+      )}
 
       {/* ── GRID — 절대좌표. height는 paint가 행우선 maxRow에 맞춰 갱신 ── */}
       <div
