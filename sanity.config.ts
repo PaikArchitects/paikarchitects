@@ -5,6 +5,8 @@ import { structureTool } from 'sanity/structure'
 import { visionTool } from '@sanity/vision'
 import { projectId, dataset } from './sanity/env'
 import { schemaTypes } from './sanity/schemaTypes'
+import { BarChartIcon } from '@sanity/icons/BarChart'
+import AnalyticsTool from './sanity/AnalyticsTool'
 
 // 싱글턴 — 고정 ID 문서 1개만 존재해야 한다. 신규 생성·복제·삭제 경로를 모두 막는다
 const SINGLETON_TYPES = new Set(['siteSettings', 'about', 'contact'])
@@ -81,6 +83,7 @@ export default defineConfig({
     }),
     visionTool(),
   ],
+  tools: [{ name: 'analytics', title: 'ANALYTICS', icon: BarChartIcon, component: AnalyticsTool }],
   schema: { types: schemaTypes },
   document: {
     // 전역 "새 문서" 메뉴에서 싱글턴 템플릿 제외

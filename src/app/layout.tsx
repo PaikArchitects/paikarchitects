@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import './globals.css'
 import { SiteChromeProvider } from '@/components/SiteChromeContext'
 import { SiteHeader } from '@/components/SiteHeader'
+import UmamiScript from '@/components/UmamiScript'
 import { SITE_URL, SITE_NAME, SITE_DESCRIPTION, DEFAULT_OG_IMAGE } from '@/lib/seo'
 
 export const metadata: Metadata = {
@@ -26,6 +27,7 @@ export default function RootLayout({
           <SiteHeader />
           {children}
         </SiteChromeProvider>
+        <UmamiScript />
       </body>
     </html>
   )
