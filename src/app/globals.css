@@ -104,6 +104,16 @@
     font-size 1600ms cubic-bezier(0.7, 0, 0.3, 1);
 }
 
+/* instant(재진입·직접 진입) — 위치 이동 트랜지션 제거. 색상 전환만 유지 */
+.wordmark-intro.instant {
+  transition: color 0.3s ease-out;
+}
+
+/* instant + 컨텐츠 페이지 — 색상도 즉시 */
+.wordmark-intro.instant.no-color-transition {
+  transition: none;
+}
+
 .wordmark-intro .word {
   display: inline-flex;
   align-items: baseline;
