@@ -7,7 +7,7 @@ import { projectId, dataset } from './sanity/env'
 import { schemaTypes } from './sanity/schemaTypes'
 
 // 싱글턴 — 고정 ID 문서 1개만 존재해야 한다. 신규 생성·복제·삭제 경로를 모두 막는다
-const SINGLETON_TYPES = new Set(['about', 'contact'])
+const SINGLETON_TYPES = new Set(['siteSettings', 'about', 'contact'])
 
 export default defineConfig({
   name: 'paikarchitects',
@@ -21,6 +21,16 @@ export default defineConfig({
         S.list()
           .title('Content')
           .items([
+            S.listItem()
+              .title('SITE SETTINGS')
+              .id('siteSettings')
+              .child(
+                S.document()
+                  .schemaType('siteSettings')
+                  .documentId('siteSettings')
+                  .title('SITE SETTINGS')
+              ),
+            S.divider(),
             S.listItem()
               .title('ABOUT')
               .id('about')

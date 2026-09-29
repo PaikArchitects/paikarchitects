@@ -210,3 +210,16 @@ export async function getEssay(slug: string): Promise<Essay | null> {
 export async function getEssaySlugs(): Promise<string[]> {
   return sanityClient.fetch<string[]>(ESSAY_SLUGS_QUERY)
 }
+
+export type LandingMode = 'ring' | 'grid' | 'random'
+
+const LANDING_MODES: readonly LandingMode[] = ['ring', 'grid', 'random']
+
+const SITE_SETTINGS_QUERY = `*[_type == "siteSettings" && _id == "siteSettings"][0]{ landingMode }`
+
+/** 첫 화면(/) 모드. 문서가 없거나 값이 세 값 중 하나가 아니면 'ring'(현행 유지) */
+export async function getLandingMode(): Promise<LandingMode> {
+  const settings = await sanityClient.fetch<{ landingMode?: string | null } | null>(SITE_SETTINGS_QUERY)
+  const mode = settings?.landingMode
+  return LANDING_MODES.includes(mode as LandingMode) ? (mode as LandingMode) : 'ring'
+}

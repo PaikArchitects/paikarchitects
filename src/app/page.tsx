@@ -1,12 +1,13 @@
-import { getProjects } from '@/lib/sanity/queries'
-import { LandingExperience } from '@/components/LandingExperience'
+import { getLandingMode, getProjects } from '@/lib/sanity/queries'
+import { LandingSwitch } from '@/components/LandingSwitch'
 import { pageMetadata } from '@/lib/seo'
 
-export const dynamic = 'force-static'
+// Studio SITE SETTINGS의 landingMode를 재배포 없이 60초 내 반영 (about과 같은 방식)
+export const revalidate = 60
 
 export const metadata = pageMetadata({ path: '/' })
 
 export default async function HomePage() {
-  const projects = await getProjects()
-  return <LandingExperience projects={projects} />
+  const [projects, mode] = await Promise.all([getProjects(), getLandingMode()])
+  return <LandingSwitch projects={projects} mode={mode} />
 }

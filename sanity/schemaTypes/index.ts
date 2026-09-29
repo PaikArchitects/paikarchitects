@@ -4,8 +4,10 @@ import { imageSlide, diagramSetSlide, creditsSlide, textSlide, quoteSlide, video
 import about, { cvSimpleEntry, cvProjectEntry, cvEmployment, cvRankedEntry, cvVenueEntry } from './about'
 import contact from './contact'
 import essay from './essay'
+import siteSettings from './siteSettings'
 
 export const schemaTypes = [
+  siteSettings,
   localeString, localeText, localePortableText,
   project,
   imageSlide, diagramSetSlide, creditsSlide, textSlide, quoteSlide, videoSlide,
