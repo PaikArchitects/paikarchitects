@@ -10,6 +10,11 @@ const nextConfig: NextConfig = {
       },
     ],
   },
+  async redirects() {
+    return [
+      { source: '/ig', destination: '/?utm_source=instagram&utm_medium=bio', permanent: false },
+    ];
+  },
 };
 
 export default nextConfig;
