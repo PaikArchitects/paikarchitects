@@ -63,6 +63,8 @@ function RandomLanding({ projects }: { projects: Project[] }) {
  *    첫 페인트 전(useLayoutEffect)에 설정 — 흰 배경 위 흰 글씨 프레임 방지.
  * 2) 인트로 동안 숨김: introPhase가 done이 되면 LandingExperience와 같은 곡선으로 공개.
  *    인트로 스킵 시에는 처음부터 보이며 트랜지션 없음.
+ *    흰 셸(바깥)은 항상 표시하고 페이드는 안쪽에만 — body 배경(#080706)이 인트로 동안 드러나지 않도록.
+ *    LandingExperience도 루트 흰 배경은 상시, opacity 게이트는 내부 요소에만 건다.
  * 래퍼에 transform·filter·will-change 금지 — 내부 fixed 요소의 기준 박스가 바뀌지 않도록.
  */
 function LandingGrid({ projects }: { projects: Project[] }) {
@@ -76,11 +78,14 @@ function LandingGrid({ projects }: { projects: Project[] }) {
   const visible = introPhase === 'done'
 
   return (
-    <div style={{
-      opacity: visible ? 1 : 0,
-      transition: introSkipped ? 'none' : 'opacity 400ms ease-out',
-    }}>
-      <GridExperience projects={projects} />
+    // 그리드는 문서 스크롤이므로 LandingExperience의 height 100vh + overflow hidden 대신 minHeight만 준다
+    <div style={{ background: '#FFFFFF', minHeight: '100vh' }}>
+      <div style={{
+        opacity: visible ? 1 : 0,
+        transition: introSkipped ? 'none' : 'opacity 400ms ease-out',
+      }}>
+        <GridExperience projects={projects} />
+      </div>
     </div>
   )
 }
