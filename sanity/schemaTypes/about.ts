@@ -55,16 +55,6 @@ export default defineType({
       type: 'array',
       of: [{ type: 'cvVenueEntry' }],
     }),
-    defineField({
-      name: 'contact',
-      title: 'CONTACT',
-      type: 'object',
-      fields: [
-        defineField({ name: 'location', title: 'LOCATION', type: 'string' }),
-        defineField({ name: 'email', title: 'EMAIL', type: 'string' }),
-        defineField({ name: 'phone', title: 'PHONE', type: 'string' }),
-      ],
-    }),
   ],
   preview: {
     prepare: () => ({ title: 'ABOUT' }),

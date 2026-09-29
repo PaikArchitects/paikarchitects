@@ -1,26 +1,34 @@
+import { ContactLine } from '@/components/ContactLine'
+import { getContact } from '@/lib/sanity/queries'
 import { pageMetadata } from '@/lib/seo'
 
-export const metadata = pageMetadata({ title: 'Contacts', path: '/contact', noindex: true })
+const FONT = "'Pretendard Variable', Pretendard, -apple-system, BlinkMacSystemFont, sans-serif"
 
-export default function ContactPage() {
+export const revalidate = 60
+
+export const metadata = pageMetadata({ title: 'Contacts', path: '/contact' })
+
+// About 본문 컨테이너(.about-page / .about-inner / .about-row)를 그대로 재사용 — 여백·오프셋·반응형 동일
+export default async function ContactPage() {
+  const contact = await getContact()
+
   return (
-    <main style={{
-      minHeight: '100vh',
-      backgroundColor: '#FFFFFF',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-    }}>
-      <p style={{
-        color: '#080706',
-        fontFamily: 'sans-serif',
-        fontSize: '14px',
-        fontWeight: 300,
-        letterSpacing: '0.1em',
-        opacity: 0.4,
-      }}>
-        Contact — Coming Soon
-      </p>
-    </main>
-  );
+    <div className="about-page" style={{ fontFamily: FONT }}>
+      <div className="about-header-shell" aria-hidden="true" />
+      <div className="about-inner">
+        <section className="about-row about-row--wide">
+          <div className="about-label">
+            <h1 className="about-label-text" style={{ margin: 0, fontSize: 'inherit', fontWeight: 'inherit' }}>
+              Contacts
+            </h1>
+          </div>
+          <div className="about-body-en">
+            {contact
+              ? <ContactLine contact={contact} variant="list" />
+              : <p>Contacts — Coming soon</p>}
+          </div>
+        </section>
+      </div>
+    </div>
+  )
 }

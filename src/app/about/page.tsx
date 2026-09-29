@@ -1,23 +1,15 @@
 import { AboutNav } from '@/components/AboutNav'
-import { getAbout } from '@/lib/sanity/queries'
-import type { PortableTextBlock } from '@/types'
+import { ContactLine } from '@/components/ContactLine'
+import { getAbout, getContact } from '@/lib/sanity/queries'
+import { renderBlocks } from '@/lib/portableText'
 import { pageMetadata } from '@/lib/seo'
 
 export const revalidate = 60
 
 export const metadata = pageMetadata({ title: 'About', path: '/about' })
 
-function renderBlocks(blocks: PortableTextBlock[] | undefined) {
-  if (!blocks || blocks.length === 0) return null
-  return blocks.map((b, i) => (
-    <p key={b._key ?? i} style={{ whiteSpace: 'pre-line' }}>
-      {b.children?.map(c => c.text).join('') ?? ''}
-    </p>
-  ))
-}
-
 export default async function AboutPage() {
-  const about = await getAbout()
+  const [about, contact] = await Promise.all([getAbout(), getContact()])
   if (!about) {
     return (
       <div className="about-page">
@@ -26,7 +18,7 @@ export default async function AboutPage() {
     )
   }
 
-  const { position, preoccupations, education, employment, awards, exhibitions, contact } = about
+  const { position, preoccupations, education, employment, awards, exhibitions } = about
 
   return (
     <div className="about-page">
@@ -145,22 +137,8 @@ export default async function AboutPage() {
           </div>
         </section>
 
-        {/* ── CONTACT — 층이 아니다. 라벨 없음 ── */}
-        {contact && (
-          <div className="about-contact">
-            <div />
-            <div>
-              {contact.location}
-              {contact.email && (
-                <>
-                  {contact.location && ' · '}
-                  <a href={`mailto:${contact.email}`}>{contact.email}</a>
-                </>
-              )}
-              {contact.phone && <>{' · '}{contact.phone}</>}
-            </div>
-          </div>
-        )}
+        {/* ── CONTACT — 층이 아니다. 라벨 없음. 원천은 contact 싱글턴(/contact와 공용) ── */}
+        {contact && <ContactLine contact={contact} variant="inline" />}
 
       </div>
     </div>

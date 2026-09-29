@@ -1,5 +1,5 @@
 import { sanityClient } from './client'
-import type { About, Award, LocaleString, Project, ProjectSlide, ProjectStatus, ProjectType } from '@/types'
+import type { About, Award, Contact, Essay, EssaySummary, LocaleString, Project, ProjectSlide, ProjectStatus, ProjectType } from '@/types'
 
 const PROJECTS_QUERY = `*[_type == "project" && published != false] | order(careerNo desc) {
   "id": slug.current,
@@ -148,11 +148,65 @@ const ABOUT_QUERY = `*[_type == "about" && _id == "about"][0]{
     "projects": projects[]{ title, result, year }
   },
   "awards": awards[]{ title, result, year },
-  "exhibitions": exhibitions[]{ title, venue, year },
-  contact
+  "exhibitions": exhibitions[]{ title, venue, year }
 }`
 
 /** About 단일 문서. 문서가 없으면 null */
 export async function getAbout(): Promise<About | null> {
   return sanityClient.fetch<About | null>(ABOUT_QUERY)
+}
+
+const CONTACT_QUERY = `*[_type == "contact" && _id == "contact"][0]{ email, phone, location, instagram }`
+
+/** 연락처 싱글턴 — /contact 본문과 /about 하단이 함께 쓴다. 문서가 없으면 null */
+export async function getContact(): Promise<Contact | null> {
+  return sanityClient.fetch<Contact | null>(CONTACT_QUERY)
+}
+
+const ESSAYS_QUERY = `*[_type == "essay" && published != false && defined(slug.current)] | order(publishedAt desc) {
+  "slug": slug.current, title, publishedAt, excerpt
+}`
+
+const ESSAY_QUERY = `*[_type == "essay" && published != false && slug.current == $slug][0]{
+  "slug": slug.current, title, publishedAt, excerpt, body
+}`
+
+const ESSAY_SLUGS_QUERY = `*[_type == "essay" && published != false && defined(slug.current)].slug.current`
+
+// GROQ는 부재 필드를 null로 반환 — optional 계약(undefined)에 맞춰 정규화
+type RawEssay = Omit<Essay, 'excerpt' | 'body'> & {
+  excerpt: Essay['excerpt'] | null
+  body?: Essay['body'] | null
+}
+
+function normalizeEssay(r: RawEssay): Essay {
+  return {
+    slug: r.slug,
+    title: r.title,
+    publishedAt: r.publishedAt,
+    excerpt: r.excerpt ?? undefined,
+    body: r.body ?? undefined,
+  }
+}
+
+/** 게재 에세이 목록 — 최신순 */
+export async function getEssays(): Promise<EssaySummary[]> {
+  const raw = await sanityClient.fetch<RawEssay[]>(ESSAYS_QUERY)
+  return raw.map((r): EssaySummary => ({
+    slug: r.slug,
+    title: r.title,
+    publishedAt: r.publishedAt,
+    excerpt: r.excerpt ?? undefined,
+  }))
+}
+
+/** 에세이 단건. 없거나 비게재면 null */
+export async function getEssay(slug: string): Promise<Essay | null> {
+  const raw = await sanityClient.fetch<RawEssay | null>(ESSAY_QUERY, { slug })
+  return raw ? normalizeEssay(raw) : null
+}
+
+/** generateStaticParams용 경량 쿼리 */
+export async function getEssaySlugs(): Promise<string[]> {
+  return sanityClient.fetch<string[]>(ESSAY_SLUGS_QUERY)
 }

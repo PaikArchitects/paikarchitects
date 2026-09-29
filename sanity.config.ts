@@ -6,9 +6,12 @@ import { visionTool } from '@sanity/vision'
 import { projectId, dataset } from './sanity/env'
 import { schemaTypes } from './sanity/schemaTypes'
 
+// 싱글턴 — 고정 ID 문서 1개만 존재해야 한다. 신규 생성·복제·삭제 경로를 모두 막는다
+const SINGLETON_TYPES = new Set(['about', 'contact'])
+
 export default defineConfig({
   name: 'paikarchitects',
-  title: 'Paik Architecture',
+  title: 'Architect Chang-hyun Paik',
   projectId: projectId!,
   dataset,
   basePath: '/studio',
@@ -26,6 +29,24 @@ export default defineConfig({
                   .schemaType('about')
                   .documentId('about')
                   .title('ABOUT')
+              ),
+            S.listItem()
+              .title('CONTACT')
+              .id('contact')
+              .child(
+                S.document()
+                  .schemaType('contact')
+                  .documentId('contact')
+                  .title('CONTACT')
+              ),
+            S.divider(),
+            S.listItem()
+              .title('ESSAYS')
+              .id('essays')
+              .child(
+                S.documentTypeList('essay')
+                  .title('Essays')
+                  .defaultOrdering([{ field: 'publishedAt', direction: 'desc' }])
               ),
             S.divider(),
             S.listItem()
@@ -51,4 +72,13 @@ export default defineConfig({
     visionTool(),
   ],
   schema: { types: schemaTypes },
+  document: {
+    // 전역 "새 문서" 메뉴에서 싱글턴 템플릿 제외
+    newDocumentOptions: (prev) => prev.filter((item) => !SINGLETON_TYPES.has(item.templateId)),
+    // 싱글턴 문서에서 복제·삭제 액션 제거
+    actions: (prev, { schemaType }) =>
+      SINGLETON_TYPES.has(schemaType)
+        ? prev.filter(({ action }) => action !== 'duplicate' && action !== 'delete')
+        : prev,
+  },
 })

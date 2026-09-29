@@ -171,10 +171,12 @@ export interface Preoccupation {
   body: LocaleText
 }
 
-export interface AboutContact {
+/** 연락처 싱글턴(_id 'contact') — /contact와 /about 하단의 단일 원천 */
+export interface Contact {
   location?: string
   email?: string
   phone?: string
+  instagram?: string   // https://www.instagram.com/<handle>/
 }
 
 export interface About {
@@ -184,5 +186,17 @@ export interface About {
   employment?: CvEmployment[]
   awards?: CvRankedEntry[]
   exhibitions?: CvVenueEntry[]
-  contact?: AboutContact
+}
+
+/** 에세이 목록 항목 */
+export interface EssaySummary {
+  slug: string
+  title: LocaleString
+  publishedAt: string   // YYYY-MM-DD
+  excerpt?: LocaleText
+}
+
+/** 에세이 단건 — 본문 포함 */
+export interface Essay extends EssaySummary {
+  body?: LocalePortableText
 }

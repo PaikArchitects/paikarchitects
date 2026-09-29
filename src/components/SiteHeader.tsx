@@ -22,6 +22,7 @@ function isStaticLight(pathname: string): boolean {
   return STATIC_LIGHT_PATHS.has(pathname)
     || pathname.startsWith('/work/')
     || pathname.startsWith('/work-grid/')
+    || pathname.startsWith('/essays/')   // 260929 P2 승인 — 에세이 상세 흰 배경
 }
 
 export function SiteHeader() {
