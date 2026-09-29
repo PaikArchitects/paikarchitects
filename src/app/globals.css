@@ -526,8 +526,31 @@ body {
 }
 
 /* ── CURRICULUM VITAE ── */
-.about-cv-section + .about-cv-section {
+/* 좌우 병기 (260929 v2) — .about-row의 EN·KO 두 열을 subgrid로 물려받는다(열 폭·column-gap 동일).
+   항목 한 쌍(.about-cv-pair)은 display:contents → EN 칸은 1열, KO 칸은 2열의 같은 행에 놓여
+   한쪽이 줄바꿈되어도 다음 항목은 두 열에서 같은 높이로 시작한다 */
+.about-cv-body {
+  grid-column: 2 / -1;
+  display: grid;
+  grid-template-columns: subgrid;
+  align-items: start;
+}
+
+.about-cv-pair,
+.about-cv-group {
+  display: contents;
+}
+
+.about-cv-cell--en { grid-column: 1; }
+.about-cv-cell--ko { grid-column: 2; }
+
+/* 섹션 간 여백(두 번째 섹션부터)·프로젝트 목록 앞 여백 — 두 칸에 똑같이 */
+.about-cv-cell--section {
   margin-top: 32px;
+}
+
+.about-cv-cell--projects {
+  margin-top: 10px;
 }
 
 .about-cv-heading {
@@ -569,19 +592,6 @@ body {
 .about-cv-year {
   margin-left: 16px;
   color: rgba(8, 7, 6, 0.45);
-}
-
-.about-cv-projects {
-  margin-top: 10px;
-}
-
-/* CV 병기 행 — 명칭 칸(en 위 / ko 아래)과 기간·결과·장소·연도를 영문 줄 기준선에 맞춘다.
-   명칭 칸(flex column)의 첫 기준선 = 영문 줄 → 국문 줄이 있어도 우측 요소가 내려가지 않는다.
-   wrap: 좁은 폭에서 기존 인라인 흐름처럼 다음 줄로 넘어간다 (260929) */
-.about-cv-name-row {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
 }
 
 /* Contact — CV 층 아래, 라벨 열을 비우고 본문 열에서 시작 */
@@ -689,6 +699,23 @@ body {
   .about-cv-ranked,
   .about-cv-venue {
     font-size: 12px;
+  }
+
+  /* CV도 Position·Preoccupations와 같이 EN 전체 → KO 전체로 세로로 쌓는다.
+     KO 칸을 order로 뒤로 보내고, 그 사이 ::before가 .about-body-ko의 margin-top 32px 몫을 한다 */
+  .about-cv-body {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .about-cv-body::before {
+    content: '';
+    order: 1;
+    height: 32px;
+  }
+
+  .about-cv-cell--ko {
+    order: 2;
   }
 
   .about-contact {

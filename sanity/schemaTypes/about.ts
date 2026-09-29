@@ -68,9 +68,9 @@ export const cvSimpleEntry = defineType({
   fields: [
     defineField({ name: 'title', title: 'TITLE', type: 'localeString' }),
     defineField({ name: 'detail', title: 'DETAIL', type: 'localeString', description: '학위·전공 등 부제' }),
-    defineField({ name: 'period', title: 'PERIOD', type: 'string', description: '예: 2005–2014' }),
+    defineField({ name: 'period', title: 'PERIOD', type: 'localeString', description: '예: 2005–2014' }),
   ],
-  preview: { select: { title: 'title.en',subtitle: 'period' } },
+  preview: { select: { title: 'title.en', subtitle: 'period.en' } },
 })
 
 export const cvProjectEntry = defineType({
@@ -79,10 +79,10 @@ export const cvProjectEntry = defineType({
   type: 'object',
   fields: [
     defineField({ name: 'title', title: 'TITLE', type: 'localeString' }),
-    defineField({ name: 'result', title: 'RESULT', type: 'string', description: '예: Winner, 2nd Prize' }),
+    defineField({ name: 'result', title: 'RESULT', type: 'localeString', description: '예: Winner, 2nd Prize' }),
     defineField({ name: 'year', title: 'YEAR', type: 'string' }),
   ],
-  preview: { select: { title: 'title.en',subtitle: 'year' } },
+  preview: { select: { title: 'title.en', subtitle: 'year' } },
 })
 
 export const cvEmployment = defineType({
@@ -92,7 +92,7 @@ export const cvEmployment = defineType({
   fields: [
     defineField({ name: 'title', title: 'TITLE', type: 'localeString' }),
     defineField({ name: 'detail', title: 'DETAIL', type: 'localeString', description: '직위 범위 등' }),
-    defineField({ name: 'period', title: 'PERIOD', type: 'string' }),
+    defineField({ name: 'period', title: 'PERIOD', type: 'localeString' }),
     defineField({
       name: 'projects',
       title: 'PROJECTS',
@@ -100,7 +100,7 @@ export const cvEmployment = defineType({
       of: [{ type: 'cvProjectEntry' }],
     }),
   ],
-  preview: { select: { title: 'title.en',subtitle: 'period' } },
+  preview: { select: { title: 'title.en', subtitle: 'period.en' } },
 })
 
 export const cvRankedEntry = defineType({
@@ -109,10 +109,10 @@ export const cvRankedEntry = defineType({
   type: 'object',
   fields: [
     defineField({ name: 'title', title: 'TITLE', type: 'localeString' }),
-    defineField({ name: 'result', title: 'RESULT', type: 'string' }),
+    defineField({ name: 'result', title: 'RESULT', type: 'localeString' }),
     defineField({ name: 'year', title: 'YEAR', type: 'string' }),
   ],
-  preview: { select: { title: 'title.en',subtitle: 'year' } },
+  preview: { select: { title: 'title.en', subtitle: 'year' } },
 })
 
 export const cvVenueEntry = defineType({
@@ -121,8 +121,8 @@ export const cvVenueEntry = defineType({
   type: 'object',
   fields: [
     defineField({ name: 'title', title: 'TITLE', type: 'localeString' }),
-    defineField({ name: 'venue', title: 'VENUE', type: 'string', description: '장소 또는 Published' }),
+    defineField({ name: 'venue', title: 'VENUE', type: 'localeString', description: '장소 또는 Published' }),
     defineField({ name: 'year', title: 'YEAR', type: 'string' }),
   ],
-  preview: { select: { title: 'title.en',subtitle: 'venue' } },
+  preview: { select: { title: 'title.en', subtitle: 'venue.en' } },
 })

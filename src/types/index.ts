@@ -139,26 +139,26 @@ export type ProjectSlide = ImageSlide | DiagramSetSlide | CreditsSlide | TextSli
 
 // ── ABOUT 페이지 ──
 
-// CV 병기 대상은 이름 필드(title·detail)만. result·year·period·venue는 영문 문자열 그대로 (260929)
+// CV 병기 — 이름(title·detail)·결과(result)·장소(venue)·기간(period)은 LocaleString. year만 문자열 (260929 v2)
 
 /** CV 공통 — 명칭 + 부제 + 기간. Education·Employment 헤더 행 */
 export interface CvSimpleEntry {
   title: LocaleString
   detail?: LocaleString
-  period?: string
+  period?: LocaleString
 }
 
 /** CV — 명칭 + 결과 + 연도. Employment 하위 프로젝트, Awards */
 export interface CvRankedEntry {
   title: LocaleString
-  result?: string
+  result?: LocaleString
   year?: string
 }
 
 /** CV — 명칭 + 장소 + 연도. Exhibitions and Publications */
 export interface CvVenueEntry {
   title: LocaleString
-  venue?: string
+  venue?: LocaleString
   year?: string
 }
 

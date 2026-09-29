@@ -3,17 +3,44 @@ import { ContactLine } from '@/components/ContactLine'
 import { getAbout, getContact } from '@/lib/sanity/queries'
 import { renderBlocks } from '@/lib/portableText'
 import { pageMetadata } from '@/lib/seo'
-import { BilingualText } from '@/lib/bilingual'
-import type { CSSProperties } from 'react'
+import type { ReactNode } from 'react'
+import type { LocaleString } from '@/types'
 
 export const revalidate = 60
 
-// CV 병기 — 영문은 행 스타일을 그대로 상속, 국문 줄은 한 단계 아래 위계.
-// 0.82 = GridExperience KO_SCALE(카드 한글 타이틀)과 같은 비. 색 = 기존 CV 부제(.about-cv-detail) 색 (260929)
-const CV_EN: CSSProperties = {}
-const CV_KO: CSSProperties = { fontSize: '0.82em', color: 'rgba(8, 7, 6, 0.45)' }
-
 export const metadata = pageMetadata({ title: 'About', path: '/about' })
+
+// ── CV 좌우 병기 (260929 v2) ──
+// 항목 하나 = EN 칸 + KO 칸 한 쌍. 데스크톱은 subgrid로 두 칸을 같은 행에 놓아 시작 높이를 맞추고,
+// 모바일은 order로 EN 전체 → KO 전체 순으로 쌓는다 (Position·Preoccupations와 같은 규칙)
+
+type Lang = 'en' | 'ko'
+
+/** ko가 비어 있으면 en으로 대체 — KO 열에 빈칸을 만들지 않는다 */
+const pick = (v: LocaleString | undefined, lang: Lang) =>
+  v ? (lang === 'ko' ? v.ko || v.en : v.en) : undefined
+
+const CV_HEADINGS = {
+  education: { en: 'Education', ko: '학력' },
+  employment: { en: 'Professional Experience', ko: '경력' },
+  awards: { en: 'Awards', ko: '수상' },
+  exhibitions: { en: 'Exhibitions and Publications', ko: '전시 및 출판' },
+} satisfies Record<string, LocaleString>
+
+/** start: 섹션 첫 줄(소제목) 또는 프로젝트 목록 첫 줄 — 위 여백을 두 칸에 똑같이 준다 */
+function CvPair({ className, start, render }: {
+  className: string
+  start?: 'section' | 'projects'
+  render: (lang: Lang) => ReactNode
+}) {
+  const mod = start ? ` about-cv-cell--${start}` : ''
+  return (
+    <div className="about-cv-pair">
+      <div className={`${className} about-cv-cell about-cv-cell--en${mod}`}>{render('en')}</div>
+      <div className={`${className} about-cv-cell about-cv-cell--ko${mod}`} lang="ko">{render('ko')}</div>
+    </div>
+  )
+}
 
 export default async function AboutPage() {
   const [about, contact] = await Promise.all([getAbout(), getContact()])
@@ -26,6 +53,36 @@ export default async function AboutPage() {
   }
 
   const { position, preoccupations, education, employment, awards, exhibitions } = about
+
+  /** 명칭 + 기간 행, 그 아래 부제. Education·Employment 헤더 */
+  const simpleLine = (e: { title: LocaleString; period?: LocaleString; detail?: LocaleString }) =>
+    (lang: Lang) => (
+      <>
+        <div>
+          {pick(e.title, lang)}
+          {e.period && <span className="about-cv-period">{pick(e.period, lang)}</span>}
+        </div>
+        {e.detail && <div className="about-cv-detail">{pick(e.detail, lang)}</div>}
+      </>
+    )
+
+  /** 명칭 + 결과·장소 + 연도 — 좌측 흐름. year는 양 열 동일 */
+  const flowLine = (title: LocaleString, mid: LocaleString | undefined, year: string | undefined) =>
+    (lang: Lang) => (
+      <>
+        <span>{pick(title, lang)}</span>
+        <span className="about-cv-mid">{pick(mid, lang)}</span>
+        <span className="about-cv-year">{year}</span>
+      </>
+    )
+
+  const heading = (h: LocaleString, first: boolean) => (
+    <CvPair className="about-cv-heading" start={first ? undefined : 'section'} render={lang => h[lang]} />
+  )
+
+  // 첫 섹션만 위 여백 없음
+  let sectionIndex = 0
+  const nextIsFirst = () => sectionIndex++ === 0
 
   return (
     <div className="about-page">
@@ -67,86 +124,55 @@ export default async function AboutPage() {
           </div>
         </section>
 
-        {/* ── 층 3: CURRICULUM VITAE — 전폭 단일 열. 이름 필드만 행 내 상하 병기(en 위 / ko 아래) ── */}
-        <section className="about-row about-row--wide" id="cv">
+        {/* ── 층 3: CURRICULUM VITAE — [라벨 | EN | KO] 3열. 항목 단위로 EN·KO 칸이 같은 행에서 시작 ── */}
+        <section className="about-row" id="cv">
           <div className="about-label"><span className="about-label-text">Curriculum Vitae</span></div>
-          <div>
+          <div className="about-cv-body">
 
             {education && education.length > 0 && (
-              <div className="about-cv-section">
-                <div className="about-cv-heading">Education</div>
+              <>
+                {heading(CV_HEADINGS.education, nextIsFirst())}
                 {education.map((e, i) => (
-                  <div key={i} className="about-cv-line">
-                    <div className="about-cv-name-row">
-                      <BilingualText value={e.title} order="en-first" primaryStyle={CV_EN} secondaryStyle={CV_KO} gap={0} />
-                      {e.period && <span className="about-cv-period">{e.period}</span>}
-                    </div>
-                    {e.detail && (
-                      <div className="about-cv-detail">
-                        <BilingualText value={e.detail} order="en-first" primaryStyle={CV_EN} secondaryStyle={CV_KO} gap={0} />
-                      </div>
-                    )}
-                  </div>
+                  <CvPair key={i} className="about-cv-line" render={simpleLine(e)} />
                 ))}
-              </div>
+              </>
             )}
 
             {employment && employment.length > 0 && (
-              <div className="about-cv-section">
-                <div className="about-cv-heading">Professional Experience</div>
+              <>
+                {heading(CV_HEADINGS.employment, nextIsFirst())}
                 {employment.map((emp, i) => (
-                  <div key={i}>
-                    <div className="about-cv-line">
-                      <div className="about-cv-name-row">
-                        <BilingualText value={emp.title} order="en-first" primaryStyle={CV_EN} secondaryStyle={CV_KO} gap={0} />
-                        {emp.period && <span className="about-cv-period">{emp.period}</span>}
-                      </div>
-                      {emp.detail && (
-                        <div className="about-cv-detail">
-                          <BilingualText value={emp.detail} order="en-first" primaryStyle={CV_EN} secondaryStyle={CV_KO} gap={0} />
-                        </div>
-                      )}
-                    </div>
-                    {emp.projects && emp.projects.length > 0 && (
-                      <div className="about-cv-projects">
-                        {emp.projects.map((p, j) => (
-                          <div key={j} className="about-cv-ranked about-cv-name-row">
-                            <BilingualText value={p.title} order="en-first" primaryStyle={CV_EN} secondaryStyle={CV_KO} gap={0} />
-                            <span className="about-cv-mid">{p.result}</span>
-                            <span className="about-cv-year">{p.year}</span>
-                          </div>
-                        ))}
-                      </div>
-                    )}
+                  <div key={i} className="about-cv-group">
+                    <CvPair className="about-cv-line" render={simpleLine(emp)} />
+                    {emp.projects?.map((p, j) => (
+                      <CvPair
+                        key={j}
+                        className="about-cv-ranked"
+                        start={j === 0 ? 'projects' : undefined}
+                        render={flowLine(p.title, p.result, p.year)}
+                      />
+                    ))}
                   </div>
                 ))}
-              </div>
+              </>
             )}
 
             {awards && awards.length > 0 && (
-              <div className="about-cv-section">
-                <div className="about-cv-heading">Awards</div>
+              <>
+                {heading(CV_HEADINGS.awards, nextIsFirst())}
                 {awards.map((a, i) => (
-                  <div key={i} className="about-cv-ranked about-cv-name-row">
-                    <BilingualText value={a.title} order="en-first" primaryStyle={CV_EN} secondaryStyle={CV_KO} gap={0} />
-                    <span className="about-cv-mid">{a.result}</span>
-                    <span className="about-cv-year">{a.year}</span>
-                  </div>
+                  <CvPair key={i} className="about-cv-ranked" render={flowLine(a.title, a.result, a.year)} />
                 ))}
-              </div>
+              </>
             )}
 
             {exhibitions && exhibitions.length > 0 && (
-              <div className="about-cv-section">
-                <div className="about-cv-heading">Exhibitions and Publications</div>
+              <>
+                {heading(CV_HEADINGS.exhibitions, nextIsFirst())}
                 {exhibitions.map((x, i) => (
-                  <div key={i} className="about-cv-venue about-cv-name-row">
-                    <BilingualText value={x.title} order="en-first" primaryStyle={CV_EN} secondaryStyle={CV_KO} gap={0} />
-                    <span className="about-cv-mid">{x.venue}</span>
-                    <span className="about-cv-year">{x.year}</span>
-                  </div>
+                  <CvPair key={i} className="about-cv-venue" render={flowLine(x.title, x.venue, x.year)} />
                 ))}
-              </div>
+              </>
             )}
 
           </div>
