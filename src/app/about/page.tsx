@@ -1,10 +1,11 @@
 import { AboutNav } from '@/components/AboutNav'
 import { getAbout } from '@/lib/sanity/queries'
 import type { PortableTextBlock } from '@/types'
+import { pageMetadata } from '@/lib/seo'
 
 export const revalidate = 60
 
-export const metadata = { title: 'About' }
+export const metadata = pageMetadata({ title: 'About', path: '/about' })
 
 function renderBlocks(blocks: PortableTextBlock[] | undefined) {
   if (!blocks || blocks.length === 0) return null

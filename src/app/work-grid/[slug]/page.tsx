@@ -13,6 +13,7 @@ import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import { getProjects, getProjectSlugs } from '@/lib/sanity/queries'
 import { GridExperience } from '@/components/GridExperience'
+import { projectMetadata } from '@/lib/seo'
 
 export const dynamic = 'force-static'
 
@@ -27,7 +28,10 @@ export async function generateStaticParams() {
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params
-  return { alternates: { canonical: `/work/${slug}` } }
+  const projects = await getProjects()
+  const p = projects.find((p) => p.id === slug)
+  if (!p) return { alternates: { canonical: `/work/${slug}` } }
+  return projectMetadata(p, { path: `/work-grid/${slug}`, canonical: `/work/${slug}` })
 }
 
 export default async function WorkGridSlugPage({ params }: Props) {

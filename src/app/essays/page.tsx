@@ -1,4 +1,6 @@
-export const metadata = { title: 'Essays' }
+import { pageMetadata } from '@/lib/seo'
+
+export const metadata = pageMetadata({ title: 'Essays', path: '/essays', noindex: true })
 
 export default function EssaysPage() {
   return (

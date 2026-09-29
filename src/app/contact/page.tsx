@@ -1,4 +1,6 @@
-export const metadata = { title: 'Contacts' }
+import { pageMetadata } from '@/lib/seo'
+
+export const metadata = pageMetadata({ title: 'Contacts', path: '/contact', noindex: true })
 
 export default function ContactPage() {
   return (

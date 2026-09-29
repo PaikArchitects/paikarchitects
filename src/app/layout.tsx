@@ -2,21 +2,16 @@ import type { Metadata } from 'next'
 import './globals.css'
 import { SiteChromeProvider } from '@/components/SiteChromeContext'
 import { SiteHeader } from '@/components/SiteHeader'
+import { SITE_URL, SITE_NAME, SITE_DESCRIPTION, DEFAULT_OG_IMAGE } from '@/lib/seo'
 
 export const metadata: Metadata = {
-  title: {
-    default: 'Paik Architects',
-    template: '%s — Paik Architects',
-  },
-  description:
-    'Paik Architects is the architecture practice of Chang Hyun Paik, based in Seoul, South Korea. A decade of professional practice spanning culture, infrastructure, and civic work.',
-  openGraph: {
-    title: 'Paik Architects',
-    description:
-      'The architecture practice of Chang Hyun Paik. A decade of professional work spanning culture, infrastructure, and civic projects.',
-    type: 'website',
-    url: 'https://paikarchitects.com',
-  },
+  metadataBase: new URL(SITE_URL),
+  title: { default: SITE_NAME, template: `%s — ${SITE_NAME}` },
+  description: SITE_DESCRIPTION,
+  applicationName: SITE_NAME,
+  authors: [{ name: 'Chang-hyun Paik' }],
+  openGraph: { type: 'website', siteName: SITE_NAME, locale: 'en_US', title: SITE_NAME, description: SITE_DESCRIPTION, url: '/', images: [DEFAULT_OG_IMAGE] },
+  twitter: { card: 'summary_large_image', title: SITE_NAME, description: SITE_DESCRIPTION, images: [DEFAULT_OG_IMAGE.url] },
 }
 
 export default function RootLayout({
@@ -26,18 +21,6 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <head>
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link
-          rel="preconnect"
-          href="https://fonts.gstatic.com"
-          crossOrigin=""
-        />
-        <link
-          href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;1,300;1,400&family=DM+Sans:opsz,wght@9..40,300;9..40,400&display=swap"
-          rel="stylesheet"
-        />
-      </head>
       <body>
         <SiteChromeProvider>
           <SiteHeader />
