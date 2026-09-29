@@ -3,8 +3,15 @@ import { ContactLine } from '@/components/ContactLine'
 import { getAbout, getContact } from '@/lib/sanity/queries'
 import { renderBlocks } from '@/lib/portableText'
 import { pageMetadata } from '@/lib/seo'
+import { BilingualText } from '@/lib/bilingual'
+import type { CSSProperties } from 'react'
 
 export const revalidate = 60
+
+// CV 병기 — 영문은 행 스타일을 그대로 상속, 국문 줄은 한 단계 아래 위계.
+// 0.82 = GridExperience KO_SCALE(카드 한글 타이틀)과 같은 비. 색 = 기존 CV 부제(.about-cv-detail) 색 (260929)
+const CV_EN: CSSProperties = {}
+const CV_KO: CSSProperties = { fontSize: '0.82em', color: 'rgba(8, 7, 6, 0.45)' }
 
 export const metadata = pageMetadata({ title: 'About', path: '/about' })
 
@@ -60,7 +67,7 @@ export default async function AboutPage() {
           </div>
         </section>
 
-        {/* ── 층 3: CURRICULUM VITAE — 병기 없음, 전폭 단일 열 ── */}
+        {/* ── 층 3: CURRICULUM VITAE — 전폭 단일 열. 이름 필드만 행 내 상하 병기(en 위 / ko 아래) ── */}
         <section className="about-row about-row--wide" id="cv">
           <div className="about-label"><span className="about-label-text">Curriculum Vitae</span></div>
           <div>
@@ -70,11 +77,15 @@ export default async function AboutPage() {
                 <div className="about-cv-heading">Education</div>
                 {education.map((e, i) => (
                   <div key={i} className="about-cv-line">
-                    <div>
-                      {e.title}
+                    <div className="about-cv-name-row">
+                      <BilingualText value={e.title} order="en-first" primaryStyle={CV_EN} secondaryStyle={CV_KO} gap={0} />
                       {e.period && <span className="about-cv-period">{e.period}</span>}
                     </div>
-                    {e.detail && <div className="about-cv-detail">{e.detail}</div>}
+                    {e.detail && (
+                      <div className="about-cv-detail">
+                        <BilingualText value={e.detail} order="en-first" primaryStyle={CV_EN} secondaryStyle={CV_KO} gap={0} />
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
@@ -86,17 +97,21 @@ export default async function AboutPage() {
                 {employment.map((emp, i) => (
                   <div key={i}>
                     <div className="about-cv-line">
-                      <div>
-                        {emp.title}
+                      <div className="about-cv-name-row">
+                        <BilingualText value={emp.title} order="en-first" primaryStyle={CV_EN} secondaryStyle={CV_KO} gap={0} />
                         {emp.period && <span className="about-cv-period">{emp.period}</span>}
                       </div>
-                      {emp.detail && <div className="about-cv-detail">{emp.detail}</div>}
+                      {emp.detail && (
+                        <div className="about-cv-detail">
+                          <BilingualText value={emp.detail} order="en-first" primaryStyle={CV_EN} secondaryStyle={CV_KO} gap={0} />
+                        </div>
+                      )}
                     </div>
                     {emp.projects && emp.projects.length > 0 && (
                       <div className="about-cv-projects">
                         {emp.projects.map((p, j) => (
-                          <div key={j} className="about-cv-ranked">
-                            <span>{p.title}</span>
+                          <div key={j} className="about-cv-ranked about-cv-name-row">
+                            <BilingualText value={p.title} order="en-first" primaryStyle={CV_EN} secondaryStyle={CV_KO} gap={0} />
                             <span className="about-cv-mid">{p.result}</span>
                             <span className="about-cv-year">{p.year}</span>
                           </div>
@@ -112,8 +127,8 @@ export default async function AboutPage() {
               <div className="about-cv-section">
                 <div className="about-cv-heading">Awards</div>
                 {awards.map((a, i) => (
-                  <div key={i} className="about-cv-ranked">
-                    <span>{a.title}</span>
+                  <div key={i} className="about-cv-ranked about-cv-name-row">
+                    <BilingualText value={a.title} order="en-first" primaryStyle={CV_EN} secondaryStyle={CV_KO} gap={0} />
                     <span className="about-cv-mid">{a.result}</span>
                     <span className="about-cv-year">{a.year}</span>
                   </div>
@@ -125,8 +140,8 @@ export default async function AboutPage() {
               <div className="about-cv-section">
                 <div className="about-cv-heading">Exhibitions and Publications</div>
                 {exhibitions.map((x, i) => (
-                  <div key={i} className="about-cv-venue">
-                    <span>{x.title}</span>
+                  <div key={i} className="about-cv-venue about-cv-name-row">
+                    <BilingualText value={x.title} order="en-first" primaryStyle={CV_EN} secondaryStyle={CV_KO} gap={0} />
                     <span className="about-cv-mid">{x.venue}</span>
                     <span className="about-cv-year">{x.year}</span>
                   </div>

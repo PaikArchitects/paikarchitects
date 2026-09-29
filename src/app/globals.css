@@ -575,6 +575,15 @@ body {
   margin-top: 10px;
 }
 
+/* CV 병기 행 — 명칭 칸(en 위 / ko 아래)과 기간·결과·장소·연도를 영문 줄 기준선에 맞춘다.
+   명칭 칸(flex column)의 첫 기준선 = 영문 줄 → 국문 줄이 있어도 우측 요소가 내려가지 않는다.
+   wrap: 좁은 폭에서 기존 인라인 흐름처럼 다음 줄로 넘어간다 (260929) */
+.about-cv-name-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+}
+
 /* Contact — CV 층 아래, 라벨 열을 비우고 본문 열에서 시작 */
 .about-contact {
   display: grid;
