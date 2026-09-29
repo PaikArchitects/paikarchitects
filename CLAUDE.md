@@ -63,13 +63,16 @@ src/
 
 | 항목 | 값 |
 |---|---|
-| 텍스트 | "Architect Changhyun Paik" |
-| 웨이트 | Architect=900 / Changhyun=400 / Paik=300 |
-| 크기 | 56px (데스크톱), 28px (모바일, CSS) |
-| 위치 | 비확장: position absolute, top 33%, left 20px |
-| 위치 | 확장(collapsed): position fixed, top 16px, left 20px |
-| collapse 방향 | 우→좌 (rest + word-space max-width 0) |
-| 모노그램 | "ACP" (collapse 완료 후 상태) |
+| 브랜드 표기 원칙 | 사이트 아이덴티티는 Architect Chang-hyun Paik. 'Paik Architects'는 도메인명으로만 사용. |
+| 텍스트 | "Architect Chang-hyun Paik" (SiteHeader.tsx 단일 요소) |
+| 웨이트 | Architect=900 / Chang-hyun=500 / Paik=100 (2026-09-29 C안) |
+| 크기 | 인트로 `min(32px, 7vw)` / 헤더 종착 데스크톱 32px · 모바일 22px |
+| 위치 | 인트로: position fixed, 화면 중앙 (모바일 수평 중앙은 auto margin — Safari 제약) |
+| 위치 | 헤더 종착(.moved): 데스크톱 top 20px, left 24px / 모바일 top 16px, 수평 중앙 |
+| 축약 방식 | `.collapsed` 클래스 토글 — `.rest`·`.spacer`의 `max-width`+`opacity` → 0, 1600ms cubic-bezier(0.7, 0, 0.3, 1). 이동과 동시 진행. JS 측정 없음 |
+| 모노그램 | "ACP" (축약 완료 후 상태) |
+| 재생 | 세션 최초 1회 (`/` 진입 시, sessionStorage `acp-intro-played`). 재진입·새로고침·다른 페이지 직접 진입은 ACP 즉시(`.instant`) |
+| reduced-motion | `prefers-reduced-motion: reduce` 시 이동·축약 트랜지션 없이 즉시 전환 (0.3s 페이드인만 유지) |
 
 ### 랜딩 캐러셀
 
