@@ -1,0 +1,7 @@
+/* 260930 STUDIO_REFINE v2 — Studio 문서 편집 폼 최대 폭 확대 (기본 640px)
+ * 근거: AUDIT_REPORT_STUDIO_v2_260930 §A. FormContainer에 고정 속성이 없어
+ * 해시 아닌 부모 data-testid 기준 첫 자식으로 지정한다.
+ * Sanity 업그레이드 시 DOM이 바뀌면 효과가 사라질 수 있음(사이트 영향 없음). */
+[data-testid="document-panel-scroller"] > div:first-child {
+  max-width: 1200px !important;
+}

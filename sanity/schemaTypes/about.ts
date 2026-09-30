@@ -1,5 +1,6 @@
 import { defineType, defineField, defineArrayMember } from 'sanity'
 import { UserIcon } from '@sanity/icons/User'
+import { InlineObjectItem } from '../components/InlineObjectItem'
 
 export default defineType({
   name: 'about',
@@ -22,6 +23,7 @@ export default defineType({
         defineArrayMember({
           type: 'object',
           name: 'preoccupation',
+          components: { item: InlineObjectItem },
           fields: [
             defineField({ name: 'heading', title: 'HEADING', type: 'localeString' }),
             defineField({ name: 'body', title: 'BODY', type: 'localeText' }),
@@ -36,7 +38,7 @@ export default defineType({
       name: 'education',
       title: 'EDUCATION',
       type: 'array',
-      of: [{ type: 'cvSimpleEntry' }],
+      of: [{ type: 'cvSimpleEntry', components: { item: InlineObjectItem } }],
     }),
     defineField({
       name: 'employment',
@@ -49,13 +51,13 @@ export default defineType({
       name: 'awards',
       title: 'AWARDS',
       type: 'array',
-      of: [{ type: 'cvRankedEntry' }],
+      of: [{ type: 'cvRankedEntry', components: { item: InlineObjectItem } }],
     }),
     defineField({
       name: 'exhibitions',
       title: 'EXHIBITIONS AND PUBLICATIONS',
       type: 'array',
-      of: [{ type: 'cvVenueEntry' }],
+      of: [{ type: 'cvVenueEntry', components: { item: InlineObjectItem } }],
     }),
   ],
   preview: {

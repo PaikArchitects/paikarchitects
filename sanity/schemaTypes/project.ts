@@ -212,6 +212,7 @@ export default defineType({
       title: 'SLIDES',
       type: 'array',
       group: 'slides',
+      options: { layout: 'grid' },
       of: [
         defineArrayMember({ type: 'imageSlide' }),
         defineArrayMember({ type: 'diagramSetSlide' }),
