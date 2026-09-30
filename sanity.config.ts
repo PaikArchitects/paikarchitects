@@ -6,6 +6,12 @@ import { visionTool } from '@sanity/vision'
 import { projectId, dataset } from './sanity/env'
 import { schemaTypes } from './sanity/schemaTypes'
 import { BarChartIcon } from '@sanity/icons/BarChart'
+import { CogIcon } from '@sanity/icons/Cog'
+import { UserIcon } from '@sanity/icons/User'
+import { EnvelopeIcon } from '@sanity/icons/Envelope'
+import { DocumentTextIcon } from '@sanity/icons/DocumentText'
+import { ImagesIcon } from '@sanity/icons/Images'
+import { EyeClosedIcon } from '@sanity/icons/EyeClosed'
 import AnalyticsTool from './sanity/AnalyticsTool'
 
 // 싱글턴 — 고정 ID 문서 1개만 존재해야 한다. 신규 생성·복제·삭제 경로를 모두 막는다
@@ -26,6 +32,7 @@ export default defineConfig({
             S.listItem()
               .title('SITE SETTINGS')
               .id('siteSettings')
+              .icon(CogIcon)
               .child(
                 S.document()
                   .schemaType('siteSettings')
@@ -36,6 +43,7 @@ export default defineConfig({
             S.listItem()
               .title('ABOUT')
               .id('about')
+              .icon(UserIcon)
               .child(
                 S.document()
                   .schemaType('about')
@@ -45,6 +53,7 @@ export default defineConfig({
             S.listItem()
               .title('CONTACT')
               .id('contact')
+              .icon(EnvelopeIcon)
               .child(
                 S.document()
                   .schemaType('contact')
@@ -55,6 +64,7 @@ export default defineConfig({
             S.listItem()
               .title('ESSAYS')
               .id('essays')
+              .icon(DocumentTextIcon)
               .child(
                 S.documentTypeList('essay')
                   .title('Essays')
@@ -62,20 +72,22 @@ export default defineConfig({
               ),
             S.divider(),
             S.listItem()
-              .title('PROJECTS — PUBLISHED')
+              .title('WORKS — PUBLISHED')
               .id('projectsPublished')
+              .icon(ImagesIcon)
               .child(
                 S.documentList()
-                  .title('Published Projects')
+                  .title('Published Works')
                   .filter('_type == "project" && published != false')
                   .defaultOrdering([{ field: 'careerNo', direction: 'desc' }])
               ),
             S.listItem()
-              .title('PROJECTS — HIDDEN')
+              .title('WORKS — HIDDEN')
               .id('projectsHidden')
+              .icon(EyeClosedIcon)
               .child(
                 S.documentList()
-                  .title('Hidden Projects')
+                  .title('Hidden Works')
                   .filter('_type == "project" && published == false')
                   .defaultOrdering([{ field: 'careerNo', direction: 'desc' }])
               ),

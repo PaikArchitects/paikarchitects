@@ -1,4 +1,5 @@
 import { defineArrayMember, defineField, defineType } from 'sanity'
+import { ImagesIcon } from '@sanity/icons/Images'
 import { TYPOLOGY_ORDER } from '../../src/types'
 
 const TYPE_OPTIONS = TYPOLOGY_ORDER.map((t) => ({ title: t, value: t }))
@@ -13,13 +14,21 @@ const STATUS_OPTIONS = [
 
 export default defineType({
   name: 'project',
-  title: '프로젝트',
+  title: 'WORKS',
+  icon: ImagesIcon,
   type: 'document',
+  groups: [
+    { name: 'basic', title: 'BASIC', default: true },
+    { name: 'info', title: 'INFO' },
+    { name: 'cover', title: 'COVER' },
+    { name: 'slides', title: 'SLIDES' },
+  ],
   fields: [
     defineField({
       name: 'published',
       title: 'PUBLISHED',
       type: 'boolean',
+      group: 'basic',
       description: '체크 해제 시 사이트에 표시되지 않는다 (Studio에는 남는다)',
       initialValue: true,
     }),
@@ -27,6 +36,7 @@ export default defineType({
       name: 'careerNo',
       title: 'CAREER NO.',
       type: 'number',
+      group: 'basic',
       description: "Career 엑셀 '프로젝트 연번' 기준 — 사이트 정렬 기준(내림차순) 및 표시 코드",
       validation: (Rule) => Rule.required().integer().positive(),
     }),
@@ -34,18 +44,21 @@ export default defineType({
       name: 'title',
       title: 'TITLE',
       type: 'localeString',
+      group: 'basic',
       validation: (Rule) => Rule.required(),
     }),
     defineField({
       name: 'subtitle',
       title: 'SUBTITLE',
       type: 'localeString',
-      description: '프로젝트의 목적을 요약하는 한 줄. 타이틀 아래 표시된다',
+      group: 'basic',
+      description: '작품의 목적을 요약하는 한 줄. 타이틀 아래 표시된다',
     }),
     defineField({
       name: 'awards',
       title: 'AWARDS',
       type: 'array',
+      group: 'info',
       description: '수상 내역. 개수 제한 없음. 체크 해제 시 사이트에 노출되지 않는다',
       of: [
         defineArrayMember({
@@ -55,14 +68,14 @@ export default defineType({
           fields: [
             defineField({
               name: 'title',
-              title: '수상명',
+              title: 'TITLE',
               type: 'string',
               description: '최종 표기 그대로 입력 (렌더러는 가공하지 않는다). 예: Competition Winner / 2nd Prize / Grand Prize, 2020 Korea Remodeling Architecture Competition',
               validation: (Rule) => Rule.required(),
             }),
             defineField({
               name: 'visible',
-              title: '노출',
+              title: 'VISIBLE',
               type: 'boolean',
               description: '체크 시 사이트에 표시',
               initialValue: true,
@@ -71,7 +84,7 @@ export default defineType({
           preview: {
             select: { title: 'title', visible: 'visible' },
             prepare({ title, visible }) {
-              return { title, subtitle: visible === false ? '숨김' : '노출' }
+              return { title, subtitle: visible === false ? 'HIDDEN' : 'VISIBLE' }
             },
           },
         }),
@@ -81,17 +94,20 @@ export default defineType({
       name: 'client',
       title: 'CLIENT',
       type: 'string',
+      group: 'info',
     }),
     defineField({
       name: 'location',
       title: 'LOCATION',
       type: 'string',
+      group: 'info',
       description: '예: Seoul, KR',
     }),
     defineField({
       name: 'mainType',
       title: 'TYPOLOGY',
       type: 'string',
+      group: 'info',
       description: '카드·메타에 노출되는 유일한 라벨',
       options: { list: TYPE_OPTIONS, layout: 'dropdown' },
       validation: (Rule) => Rule.required(),
@@ -100,6 +116,7 @@ export default defineType({
       name: 'subTypes',
       title: 'TYPOLOGY (SUB)',
       type: 'array',
+      group: 'info',
       description: '필터 매칭 전용 — 화면에 표기되지 않음. 최대 2개',
       of: [defineArrayMember({ type: 'string' })],
       options: { list: TYPE_OPTIONS },
@@ -118,12 +135,14 @@ export default defineType({
       name: 'size',
       title: 'SIZE',
       type: 'string',
+      group: 'info',
       description: '숫자만 입력하면 ㎡가 자동으로 붙는다 (예: "14,296.89"). 면적이 아닌 경우 단위를 포함해 입력한다 — 영상: "5 min." / 판형: "A2". 라벨(AREA·LENGTH·SIZE)은 값에서 자동 파생된다.',
     }),
     defineField({
       name: 'status',
       title: 'STATUS',
       type: 'string',
+      group: 'basic',
       options: { list: STATUS_OPTIONS },
       validation: (Rule) => Rule.required(),
     }),
@@ -131,6 +150,7 @@ export default defineType({
       name: 'year',
       title: 'YEAR',
       type: 'number',
+      group: 'basic',
       description: '설계 시작 연도',
       validation: (Rule) => Rule.required().integer().min(2000).max(2100),
     }),
@@ -138,24 +158,28 @@ export default defineType({
       name: 'role',
       title: 'ROLE',
       type: 'string',
+      group: 'info',
       description: 'Career 엑셀 Role 열 원문. 형식: 직위 (담당업무1, 담당업무2, ...) — 예: Senior Architect (Concept design, 3d modeling, Visual documentation)',
     }),
     defineField({
       name: 'coverImage',
       title: 'COVER IMAGE',
       type: 'image',
+      group: 'cover',
       options: { hotspot: true },
     }),
     defineField({
       name: 'coverCaption',
       title: 'COVER CAPTION',
       type: 'localeString',
+      group: 'cover',
       description: '커버 이미지 하단 캡션. 형식: LABEL — description. 미입력 시 캡션 없이 이미지만 표시된다',
     }),
     defineField({
       name: 'coverColor',
       title: 'COVER COLOR',
       type: 'string',
+      group: 'cover',
       initialValue: '#1E1C18',
       validation: (Rule) =>
         Rule.custom((value) => {
@@ -168,13 +192,15 @@ export default defineType({
       name: 'featured',
       title: 'FEATURED',
       type: 'boolean',
+      group: 'basic',
       initialValue: false,
     }),
     defineField({
       name: 'slug',
       title: 'SLUG',
       type: 'slug',
-      description: '기존 게재 프로젝트의 슬러그는 SEO상 변경 금지',
+      group: 'basic',
+      description: '기존 게재 작품의 슬러그는 SEO상 변경 금지',
       options: {
         source: (doc) => (doc as { title?: { en?: string } }).title?.en ?? '',
         maxLength: 96,
@@ -185,6 +211,7 @@ export default defineType({
       name: 'slides',
       title: 'SLIDES',
       type: 'array',
+      group: 'slides',
       of: [
         defineArrayMember({ type: 'imageSlide' }),
         defineArrayMember({ type: 'diagramSetSlide' }),
@@ -196,7 +223,18 @@ export default defineType({
     }),
   ],
   preview: {
-    select: { title: 'title.en', subtitle: 'title.ko', media: 'coverImage' },
+    select: {
+      titleEn: 'title.en',
+      titleKo: 'title.ko',
+      careerNo: 'careerNo',
+      year: 'year',
+      status: 'status',
+      media: 'coverImage',
+    },
+    prepare({ titleEn, titleKo, careerNo, year, status, media }) {
+      const meta = [careerNo, year, status, titleKo].filter(Boolean).join(' · ')
+      return { title: titleEn, subtitle: meta, media }
+    },
   },
   orderings: [
     {

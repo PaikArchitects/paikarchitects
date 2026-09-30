@@ -1,9 +1,11 @@
 import { defineType, defineField } from 'sanity'
+import { CogIcon } from '@sanity/icons/Cog'
 
 /** 사이트 설정 싱글턴 — 고정 ID 'siteSettings' */
 export default defineType({
   name: 'siteSettings',
   title: 'SITE SETTINGS',
+  icon: CogIcon,
   type: 'document',
   fields: [
     defineField({

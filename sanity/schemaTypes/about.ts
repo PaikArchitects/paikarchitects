@@ -1,8 +1,10 @@
 import { defineType, defineField, defineArrayMember } from 'sanity'
+import { UserIcon } from '@sanity/icons/User'
 
 export default defineType({
   name: 'about',
   title: 'ABOUT',
+  icon: UserIcon,
   type: 'document',
   fields: [
     defineField({

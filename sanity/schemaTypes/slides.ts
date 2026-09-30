@@ -3,25 +3,25 @@ import { defineArrayMember, defineField, defineType } from 'sanity'
 /** 이미지 슬라이드 — 현행 ImageSlide 1:1 승계 */
 export const imageSlide = defineType({
   name: 'imageSlide',
-  title: '이미지 슬라이드',
+  title: 'IMAGE',
   type: 'object',
   fields: [
     defineField({
       name: 'image',
-      title: '이미지',
+      title: 'IMAGE',
       type: 'image',
       options: { hotspot: true },
       validation: (Rule) => Rule.required(),
     }),
     defineField({
       name: 'caption',
-      title: '캡션',
+      title: 'CAPTION',
       type: 'localeString',
       description: '형식: LABEL — description (예: SECTION — Public spine through the building)',
     }),
     defineField({
       name: 'diagram',
-      title: '다이어그램 취급',
+      title: 'DIAGRAM',
       type: 'boolean',
       description: '체크 시 트랙에서 48% 높이로 표시',
       initialValue: false,
@@ -38,35 +38,35 @@ export const imageSlide = defineType({
 /** 다이어그램 묶음 — 현행 DiagramSetSlide 1:1 승계 */
 export const diagramSetSlide = defineType({
   name: 'diagramSetSlide',
-  title: '다이어그램 묶음 (자동 넘김)',
+  title: 'DIAGRAM SET (AUTO)',
   type: 'object',
   fields: [
     defineField({
       name: 'items',
-      title: '다이어그램 항목',
+      title: 'ITEMS',
       type: 'array',
       of: [
         defineArrayMember({
           type: 'object',
           name: 'diagramItem',
-          title: '다이어그램 항목',
+          title: 'DIAGRAM ITEM',
           fields: [
             defineField({
               name: 'image',
-              title: '이미지',
+              title: 'IMAGE',
               type: 'image',
               validation: (Rule) => Rule.required(),
             }),
             defineField({
               name: 'label',
-              title: '라벨',
+              title: 'LABEL',
               type: 'localeString',
               description: '예: Site Conditions',
               validation: (Rule) => Rule.required(),
             }),
             defineField({
               name: 'description',
-              title: '설명',
+              title: 'DESCRIPTION',
               type: 'localeText',
               validation: (Rule) => Rule.required(),
             }),
@@ -80,7 +80,7 @@ export const diagramSetSlide = defineType({
     }),
     defineField({
       name: 'autoAdvanceMs',
-      title: '자동 넘김 간격 (ms)',
+      title: 'AUTO-ADVANCE (MS)',
       type: 'number',
       initialValue: 3000,
     }),
@@ -88,7 +88,7 @@ export const diagramSetSlide = defineType({
   preview: {
     select: { firstLabel: 'items.0.label.en' },
     prepare({ firstLabel }) {
-      return { title: '다이어그램 묶음', subtitle: firstLabel }
+      return { title: 'DIAGRAM SET', subtitle: firstLabel }
     },
   },
 })
@@ -96,28 +96,28 @@ export const diagramSetSlide = defineType({
 /** 크레딧 — 현행 CreditsSlide 1:1 승계 */
 export const creditsSlide = defineType({
   name: 'creditsSlide',
-  title: '크레딧',
+  title: 'CREDITS',
   type: 'object',
   fields: [
     defineField({
       name: 'rows',
-      title: '크레딧 행',
+      title: 'ROWS',
       type: 'array',
       of: [
         defineArrayMember({
           type: 'object',
           name: 'creditRow',
-          title: '크레딧 행',
+          title: 'CREDIT ROW',
           fields: [
             defineField({
               name: 'label',
-              title: '라벨',
+              title: 'LABEL',
               type: 'string',
               validation: (Rule) => Rule.required(),
             }),
             defineField({
               name: 'value',
-              title: '내용',
+              title: 'VALUE',
               type: 'string',
               validation: (Rule) => Rule.required(),
             }),
@@ -132,7 +132,7 @@ export const creditsSlide = defineType({
   ],
   preview: {
     prepare() {
-      return { title: '크레딧' }
+      return { title: 'CREDITS' }
     },
   },
 })
@@ -140,12 +140,12 @@ export const creditsSlide = defineType({
 /** 서술문 — 좌정렬 본문. 프로젝트 설명 텍스트 */
 export const textSlide = defineType({
   name: 'textSlide',
-  title: '본문 텍스트',
+  title: 'TEXT',
   type: 'object',
   fields: [
     defineField({
       name: 'body',
-      title: '본문',
+      title: 'BODY',
       type: 'localePortableText',
       description: '문단 단위로 입력. 줄바꿈이 아니라 문단(Enter)으로 나눈다',
       validation: (Rule) => Rule.required(),
@@ -158,7 +158,7 @@ export const textSlide = defineType({
       const text = first?.children?.map((c: { text?: string }) => c.text ?? '').join('') ?? ''
       return {
         title: text ? text.slice(0, 50) : '(본문 없음)',
-        subtitle: '본문 텍스트',
+        subtitle: 'TEXT',
       }
     },
   },
@@ -167,18 +167,18 @@ export const textSlide = defineType({
 /** 인용구 — 중앙정렬, 따옴표, 출처 병기 */
 export const quoteSlide = defineType({
   name: 'quoteSlide',
-  title: '인용구',
+  title: 'QUOTE',
   type: 'object',
   fields: [
     defineField({
       name: 'text',
-      title: '인용문',
+      title: 'TEXT',
       type: 'localeString',
       validation: (Rule) => Rule.required(),
     }),
     defineField({
       name: 'attribution',
-      title: '출처',
+      title: 'ATTRIBUTION',
       type: 'string',
       description: '예: 심사평, 매체명, 발화자',
     }),
@@ -198,19 +198,19 @@ export const quoteSlide = defineType({
 /** 영상 슬라이드 — YouTube 임베드. 자체 호스팅 없음 */
 export const videoSlide = defineType({
   name: 'videoSlide',
-  title: '영상 (YouTube)',
+  title: 'VIDEO (YOUTUBE)',
   type: 'object',
   fields: [
     defineField({
       name: 'youtubeId',
-      title: 'YouTube 영상 ID',
+      title: 'YOUTUBE ID',
       type: 'string',
       description: 'URL이 아니라 ID만 입력. youtube.com/watch?v=XXXX 의 XXXX 부분, 또는 youtu.be/XXXX 의 XXXX. 예: dQw4w9WgXcQ',
       validation: (Rule) => Rule.required(),
     }),
     defineField({
       name: 'caption',
-      title: '캡션',
+      title: 'CAPTION',
       type: 'localeString',
       description: '형식: LABEL — description (이미지 슬라이드와 동일)',
     }),
@@ -219,7 +219,7 @@ export const videoSlide = defineType({
     select: { youtubeId: 'youtubeId', caption: 'caption' },
     prepare({ youtubeId, caption }) {
       const cap = (caption as { en?: string } | undefined)?.en
-      return { title: cap ?? '영상', subtitle: `YouTube: ${youtubeId ?? '(ID 없음)'}` }
+      return { title: cap ?? 'VIDEO', subtitle: `YouTube: ${youtubeId ?? '(ID 없음)'}` }
     },
   },
 })

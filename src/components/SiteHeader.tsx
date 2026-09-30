@@ -47,6 +47,9 @@ export function SiteHeader() {
     setMenuOpen(false)
   }, [pathname])
 
+  // 260930 STUDIO_REFINE v1 — Studio(/studio)에서는 사이트 헤더를 그리지 않는다
+  if (pathname?.startsWith('/studio')) return null
+
   return (
     <>
       {/* ── 모바일 전용 불투명 헤더 바(56px) — 콘텐츠의 헤더 존 침범을 구조적으로 차단.
