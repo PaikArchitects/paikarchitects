@@ -5,9 +5,10 @@ export const localeString = defineType({
   name: 'localeString',
   title: '다국어 문자열',
   type: 'object',
+  options: { columns: 2 },
   fields: [
-    defineField({ name: 'en', title: 'English', type: 'string', validation: (R) => R.required() }),
-    defineField({ name: 'ko', title: '한국어', type: 'string' }),
+    defineField({ name: 'en', title: 'EN', type: 'string', validation: (R) => R.required() }),
+    defineField({ name: 'ko', title: 'KO', type: 'string' }),
   ],
 })
 
@@ -16,9 +17,10 @@ export const localeText = defineType({
   name: 'localeText',
   title: '다국어 텍스트',
   type: 'object',
+  options: { columns: 2 },
   fields: [
-    defineField({ name: 'en', title: 'English', type: 'text', rows: 3, validation: (R) => R.required() }),
-    defineField({ name: 'ko', title: '한국어', type: 'text', rows: 3 }),
+    defineField({ name: 'en', title: 'EN', type: 'text', rows: 3, validation: (R) => R.required() }),
+    defineField({ name: 'ko', title: 'KO', type: 'text', rows: 3 }),
   ],
 })
 
@@ -27,10 +29,11 @@ export const localePortableText = defineType({
   name: 'localePortableText',
   title: '다국어 서식 텍스트',
   type: 'object',
+  options: { columns: 2 },
   fields: [
     defineField({
       name: 'en',
-      title: 'English',
+      title: 'EN',
       type: 'array',
       of: [{
         type: 'block',
@@ -45,7 +48,7 @@ export const localePortableText = defineType({
     }),
     defineField({
       name: 'ko',
-      title: '한국어',
+      title: 'KO',
       type: 'array',
       of: [{
         type: 'block',
