@@ -974,7 +974,7 @@ export function ContentArea({ project, mode, isBlacking, visible, onBack }: Cont
                     display: 'flex',
                     flexDirection: 'column',
                     justifyContent: 'flex-start',
-                    gap: 24,
+                    gap: 18, // 260930 동결 예외 승인 — GridContentArea 인포 간격과 동기화
                     fontFamily: FONT,
                     color: '#080706',
                     opacity: infoIn ? 1 : 0,
@@ -983,7 +983,7 @@ export function ContentArea({ project, mode, isBlacking, visible, onBack }: Cont
                     overflowY: 'auto',
                   }}>
                     {/* 타이틀 세트 — 고정 높이 슬롯. AWARDS 시작 y를 전 프로젝트 동일화 */}
-                    <div style={{ minHeight: TITLE_SET_MIN_H, marginBottom: 20 }}>
+                    <div style={{ minHeight: TITLE_SET_MIN_H, marginBottom: 14 }}>{/* 260930 동결 예외 승인 — GridContentArea 인포 간격과 동기화 */}
                       {/* 프로젝트 코드 — ProjectCard와 동일한 3자리 zero-pad 규약 */}
                       <div style={{
                         fontSize: 9,
@@ -1038,13 +1038,13 @@ export function ContentArea({ project, mode, isBlacking, visible, onBack }: Cont
                     })()}
 
                     {/* CLIENT + LOCATION — 하나의 논리 블록 (2블록과 동일 내부 간격) */}
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>{/* 260930 동결 예외 승인 — GridContentArea 인포 간격과 동기화 */}
                       <MetaField label="CLIENT" value={project.client} />
                       <MetaField label="LOCATION" value={project.location} />
                     </div>
 
                     {/* 2블록 — TYPOLOGY / SIZE / STATUS / YEAR 세로 스택 */}
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>{/* 260930 동결 예외 승인 — GridContentArea 인포 간격과 동기화 */}
                       <MetaField label="TYPOLOGY" value={project.type} />
                       <MetaField
                         label={project.size ? sizeLabel(project.size) : 'SIZE'}
