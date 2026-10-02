@@ -19,8 +19,9 @@
 //      시 윗줄 맨 우측. 어디서 봐도 같은 규칙이므로 학습 가능.
 //   3) 전환 중(분수 열): **폭 보간은 연속(c), 격자 열 수는 정수(nr = round(c))**. c가 3.0→3.5
 //      →4.0으로 흐르면 nr은 3→4로 스냅한다. 폭은 부드럽게, 재배치는 스냅 시점에 트윈 이동.
-//   4) 트윈은 CSS가 담당한다 — .gm-card에 transform·width·height·opacity transition을 상시
-//      걸어두고 paint는 목표값만 쓴다(§1 하단 주석).
+//   4) 트윈은 JS가 담당한다 — 카드 기하(x·y·폭·높이)의 보간 소스는 paint 하나다. 불연속
+//      변화(nr·순서·뷰포트)는 카드별 비행 오프셋으로 감쇠시키고, CSS transition은 opacity만
+//      남긴다(GRID_JITTER_FIX_v1 §1).
 //   5) 렌더는 CSS Grid가 아니라 절대좌표(position:absolute + transform translate, px 정수 전용).
 //      좌우 오버플로는 overflow-x: clip으로 잘라 가로 스크롤을 만들지 않는다.
 //
@@ -78,6 +79,12 @@ const META_MIN_W = 80           // 정수 열 기준 카드 폭이 이 미만이
 
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v))
 
+// ── 카드 기하 보간·스냅 (GRID_JITTER_FIX_v1 §3-1) ──
+type Rect = { x: number; y: number; w: number; h: number }
+const easeOutCubic = (p: number) => 1 - Math.pow(1 - p, 3)
+/** 디바이스 픽셀 스냅 — 각 변을 한 번씩만 스냅하고 폭·높이는 변의 차로 구한다 */
+const snapDev = (v: number, dpr: number) => Math.round(v * dpr) / dpr
+
 // 썸네일 4:3 크롭(gridThumb43)은 imageUrl.ts로 이동했다 — GridContentArea의 morph 하위
 // 레이어가 같은 함수·같은 인자를 써야 캐시가 맞기 때문이다 (GRID_MORPH_fix 작업 ①).
 // 콘텐츠 morph의 **도착** 이미지는 여전히 원본 URL이다 — 원본 비율 morph의 소스 (§4-3).
@@ -85,7 +92,7 @@ const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v
 const titlePx = (w: number) => clamp(w * 0.030, 10, 13)
 const sumPx = (w: number) => clamp(w * 0.024, 8.5, 11)
 /** 타이틀 블록 예약 높이 — 영문 TITLE_LINES줄 + 한글 1줄. .gm-title의 CSS height와 동일 식이어야
- *  격자 배치(paint의 hPx)와 실제 DOM 높이가 어긋나지 않는다. 한글 유무와 무관하게 항상 예약한다 */
+ *  격자 배치(paint의 카드 높이)와 실제 DOM 높이가 어긋나지 않는다. 한글 유무와 무관하게 항상 예약한다 */
 const titleBlockH = (w: number) =>
   titlePx(w) * TITLE_LH * TITLE_LINES + titlePx(w) * KO_SCALE * TITLE_LH
 /** 카드 하단 텍스트 블록 높이 — 폭의 연속 함수 */
@@ -190,14 +197,18 @@ export function GridExperience({ projects, initialSlug }: GridExperienceProps) {
   // paint는 매 렌더 새로 만들어지므로 rAF·타이머·포인터 핸들러는 ref를 경유해 최신 것을 부른다.
   const paintRef = useRef<(cols: number) => void>(() => {})
 
-  // 필터 재정렬 구간에는 좌표 트랜지션을 더 긴 곡선으로 덮어쓴다. 기본 트랜지션은 상시
-  // 켜져 있다 — 밀도 스냅(nr 변경) 시 재배치를 CSS가 트윈해야 하기 때문이다 (§1).
+  // 필터 재정렬 구간에는 비행 시간을 더 길게(FLOW_MS - 40) 잡는다. 밀도 스냅(nr 변경) 비행은
+  // 기본 TWEEN_MS다 — 둘 다 paint의 JS 비행이 담당한다 (GRID_JITTER_FIX_v1 §3-3).
   const [flow, setFlow] = useState(false)
+  // paint가 비행 시간 판정에 쓰는 flow 현재값 — paintRef 경유 호출은 직전 렌더의 클로저라
+  // state가 한 박자 늦는다(onTrackDown의 setFlow(false) 직후 paint 등). setFlow 지점마다 동기화
+  const flowRef = useRef(false)
   const flowTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const startFlow = useCallback(() => {
+    flowRef.current = true
     setFlow(true)
     if (flowTimer.current) clearTimeout(flowTimer.current)
-    flowTimer.current = setTimeout(() => setFlow(false), FLOW_MS)
+    flowTimer.current = setTimeout(() => { flowRef.current = false; setFlow(false) }, FLOW_MS)
   }, [])
   useEffect(() => () => { if (flowTimer.current) clearTimeout(flowTimer.current) }, [])
 
@@ -212,6 +223,12 @@ export function GridExperience({ projects, initialSlug }: GridExperienceProps) {
   const fillRef = useRef<HTMLDivElement>(null)
   const knobRef = useRef<HTMLDivElement>(null)
   const trackRef = useRef<HTMLDivElement>(null)
+
+  // ── 비행 상태 (GRID_JITTER_FIX_v1 §3-2) ──
+  const dispRef = useRef(new Map<string, Rect>())   // 카드별 마지막 표시 rect (스냅 전 실수값)
+  const flightRef = useRef(new Map<string, { off: Rect; start: number; dur: number }>())
+  const layoutKeyRef = useRef<string | null>(null)
+  const loopRef = useRef<number | null>(null)
 
   const span = Math.max(1, maxCols - minCols)
   // knob·fill·스냅 아이콘이 공유하는 유일한 좌표 함수. 기준은 트랙의 레일 폭이다 (§6)
@@ -250,8 +267,14 @@ export function GridExperience({ projects, initialSlug }: GridExperienceProps) {
     // 목표 정수열 nr 기준 중앙정렬 — 폭은 c(연속), 열 수는 nr(정수) (§1)
     const rowW = nr * cardW + (nr - 1) * GAP
     const originX = UI_PAD + (full - rowW) / 2
-    const wPx = Math.round(cardW)                 // 정수화 → 전 카드 clientWidth 완전 동일
-    const hPx = Math.round(cardH + mH)            // 프레임 + 메타 = 카드 실제 높이
+
+    // 불연속 변화 감지 — 정수 열(film)·순서(필터)·뷰포트 중 하나라도 바뀌면 비행 시작 (§3-3 (2))
+    const layoutKey = `${nr}|${vp.w}x${vp.h}|${order.map(i => projects[i]?.id ?? '').join(',')}`
+    const keyChanged = layoutKeyRef.current !== null && layoutKeyRef.current !== layoutKey
+    layoutKeyRef.current = layoutKey
+    const dur = flowRef.current ? FLOW_MS - 40 : TWEEN_MS   // 기존 CSS transition 시간과 동일
+    const now = performance.now()
+    const dpr = window.devicePixelRatio || 1
 
     let maxRow = 0
     for (let k = 0; k < total; k++) {
@@ -266,9 +289,37 @@ export function GridExperience({ projects, initialSlug }: GridExperienceProps) {
       const y = row * pitch
       if (row > maxRow) maxRow = row
       const dim = dimSet.has(order[k])
-      el.style.transform = `translate(${Math.round(x)}px, ${Math.round(y)}px)`
-      el.style.width = `${wPx}px`
-      el.style.height = `${hPx}px`
+
+      // ── 목표 → 표시: 직전 표시 rect에서 목표로 비행 오프셋을 감쇠 (§3-3 (3)) ──
+      const target: Rect = { x, y, w: cardW, h: cardH + mH }
+      const prev = dispRef.current.get(project.id)
+      if (keyChanged && prev) {
+        flightRef.current.set(project.id, {
+          off: { x: prev.x - target.x, y: prev.y - target.y, w: prev.w - target.w, h: prev.h - target.h },
+          start: now, dur,
+        })
+      }
+      let disp = target
+      const f = flightRef.current.get(project.id)
+      if (f) {
+        const p = Math.min(1, (now - f.start) / f.dur)
+        const rem = 1 - easeOutCubic(p)
+        disp = {
+          x: target.x + f.off.x * rem, y: target.y + f.off.y * rem,
+          w: target.w + f.off.w * rem, h: target.h + f.off.h * rem,
+        }
+        if (p >= 1) flightRef.current.delete(project.id)
+      }
+      dispRef.current.set(project.id, disp)
+
+      // ── 쓰기: 각 변을 디바이스 픽셀에 한 번씩만 스냅, 폭·높이는 변의 차 (§3-3 (4)) ──
+      const L = snapDev(disp.x, dpr)
+      const R = snapDev(disp.x + disp.w, dpr)
+      const T = snapDev(disp.y, dpr)
+      const B = snapDev(disp.y + disp.h, dpr)
+      el.style.transform = `translate(${L}px, ${T}px)`
+      el.style.width = `${R - L}px`
+      el.style.height = `${B - T}px`
       el.style.opacity = `${dim ? DIM_OPACITY : 1}`
       el.style.setProperty('--ts', `${titlePx(cardW)}px`)
       el.style.setProperty('--ss', `${sumPx(cardW)}px`)
@@ -278,6 +329,14 @@ export function GridExperience({ projects, initialSlug }: GridExperienceProps) {
     if (gridRef.current) {
       // 말미 GAP은 pitch에 포함돼 있어 한 번 뺀다
       gridRef.current.style.height = `${Math.max(0, Math.round((maxRow + 1) * pitch - GAP))}px`
+    }
+
+    // 비행 진행 루프 — pointermove가 없는 프레임·트윈 종료 후에도 비행을 끝까지 진행 (§3-3 (5))
+    if (flightRef.current.size > 0 && loopRef.current === null) {
+      loopRef.current = requestAnimationFrame(() => {
+        loopRef.current = null
+        paintRef.current(colsRef.current)
+      })
     }
   }, [colsToPos, dimSet, maxCols, minCols, order, projects, ready, total, vp.w, vp.h])
 
@@ -300,7 +359,7 @@ export function GridExperience({ projects, initialSlug }: GridExperienceProps) {
     const start = performance.now()
     const step = (now: number) => {
       const p = Math.min(1, (now - start) / TWEEN_MS)
-      const e = 1 - Math.pow(1 - p, 3)          // easeOutCubic
+      const e = easeOutCubic(p)
       const v = from + (target - from) * e
       colsRef.current = v
       paintRef.current(v)
@@ -312,7 +371,10 @@ export function GridExperience({ projects, initialSlug }: GridExperienceProps) {
     }
     rafRef.current = requestAnimationFrame(step)
   }, [])
-  useEffect(() => () => cancelAnimationFrame(rafRef.current), [])
+  useEffect(() => () => {
+    cancelAnimationFrame(rafRef.current)
+    if (loopRef.current !== null) cancelAnimationFrame(loopRef.current)
+  }, [])
 
   // ── 카드 클릭 → 콘텐츠 오버레이 (딥링크 대신 SPA morph) (§3-1 (c)) ──
   const openProject = useCallback((project: Project, el: HTMLElement) => {
@@ -383,6 +445,7 @@ export function GridExperience({ projects, initialSlug }: GridExperienceProps) {
   const onTrackDown = (e: React.PointerEvent<HTMLDivElement>) => {
     cancelAnimationFrame(rafRef.current)
     if (flowTimer.current) { clearTimeout(flowTimer.current); flowTimer.current = null }
+    flowRef.current = false
     setFlow(false)
     draggingRef.current = true
     e.currentTarget.setPointerCapture(e.pointerId)
@@ -438,20 +501,10 @@ export function GridExperience({ projects, initialSlug }: GridExperienceProps) {
           color: inherit;
           text-decoration: none;
           cursor: pointer;
-          will-change: transform, width, height, opacity;
-          /* film movement의 "부드러운 재배치"가 사는 곳 — paint는 목표값만 쓰고 CSS가 트윈한다.
-             정수 열 스냅(nr 변경) 순간 전 카드가 새 (row,col)로 이 곡선을 타고 이동한다 (§1) */
-          transition: transform ${TWEEN_MS}ms cubic-bezier(0.22, 0.61, 0.36, 1),
-                      width ${TWEEN_MS}ms cubic-bezier(0.22, 0.61, 0.36, 1),
-                      height ${TWEEN_MS}ms cubic-bezier(0.22, 0.61, 0.36, 1),
-                      opacity ${FADE_MS}ms ease;
-        }
-        /* 필터 재정렬 구간만 더 긴 곡선으로 덮는다 — 이동 거리가 밀도 전환보다 크다 (§4) */
-        .gm-flow .gm-card {
-          transition: transform ${FLOW_MS - 40}ms cubic-bezier(0.22, 0.61, 0.36, 1),
-                      width ${FLOW_MS - 40}ms cubic-bezier(0.22, 0.61, 0.36, 1),
-                      height ${FLOW_MS - 40}ms cubic-bezier(0.22, 0.61, 0.36, 1),
-                      opacity ${FADE_MS}ms ease;
+          will-change: transform, opacity;
+          /* 기하(transform·width·height)는 paint가 매 프레임 직접 쓴다 — CSS 보간과 겹치면
+             좌·우변이 따로 스냅돼 1px 왕복이 생긴다. CSS는 opacity만 (GRID_JITTER_FIX_v1 §3-4) */
+          transition: opacity ${FADE_MS}ms ease;
         }
         .gm-frame {
           width: 100%;
